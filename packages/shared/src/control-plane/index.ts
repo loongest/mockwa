@@ -1,8 +1,10 @@
 export {
 	contactCreateRequestSchema,
+	contactDisplayNumberSchema,
 	contactListResponseSchema,
 	contactNumberChangeRequestSchema,
 	contactResponseSchema,
+	contactRoleSchema,
 	contactSchema,
 	contactUpdateRequestSchema,
 	type Contact,
@@ -288,3 +290,13 @@ export {
 	type WebhookDeliveryAttemptsResponse,
 	type WebhookDeliveryListResponse,
 } from "./webhooks.ts";
+export {
+	phoneChatListResponseSchema,
+	phoneChatSchema,
+	phoneIdentityListResponseSchema,
+	phoneReadResponseSchema,
+	type PhoneChat,
+	type PhoneChatListResponse,
+	type PhoneIdentityListResponse,
+	type PhoneReadResponse,
+} from "./phone.ts";

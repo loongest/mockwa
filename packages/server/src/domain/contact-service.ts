@@ -117,6 +117,8 @@ export class ContactService {
 			waId: request.waId,
 			profileName: request.profileName,
 			...(request.userId !== undefined && { userId: request.userId }),
+			...(request.role !== undefined && { role: request.role }),
+			...(request.displayNumber !== undefined && { displayNumber: request.displayNumber }),
 		});
 
 		this.#announce(contact);

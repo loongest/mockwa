@@ -1,4 +1,4 @@
-import { userIdSchema } from "@mockwa/shared";
+import { contactDisplayNumberSchema, contactRoleSchema, userIdSchema } from "@mockwa/shared";
 import { z } from "zod";
 
 /** Meta ids are numeric strings; ids omitted from the seed are generated deterministically. */
@@ -45,6 +45,10 @@ export const seedContactSchema = z.object({
 	name: z.string().min(1),
 	/** Business-scoped user id (SPEC §1.15); a contact carrying one puts the identity fields on its webhooks. */
 	userId: userIdSchema.optional(),
+	/** mockwa: the label the virtual phone shows (`CUSTOMER`, `TECHNICIAN`, …). */
+	role: contactRoleSchema.optional(),
+	/** mockwa: the friendly number the virtual phone shows; defaults to `+<waId>`. */
+	displayNumber: contactDisplayNumberSchema.optional(),
 });
 
 export const seedPhoneNumberSchema = z.object({

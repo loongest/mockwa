@@ -33,6 +33,8 @@ export function toContactDto(record: ContactRecord): Contact {
 		waId: record.waId,
 		profileName: record.profileName,
 		userId: record.userId,
+		role: record.role,
+		displayNumber: record.displayNumber,
 		createdAt: record.createdAt,
 		updatedAt: record.updatedAt,
 	};

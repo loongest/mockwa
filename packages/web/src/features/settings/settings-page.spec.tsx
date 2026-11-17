@@ -449,6 +449,33 @@ describe("SettingsPage", () => {
 			expect(requestBodyOf(fetchMock, 2)).toEqual({ userId: null });
 		});
 
+		// The label the virtual phone shows (SPEC §5): free text, blank clears it.
+		it("sets a contact's role, and clears it with a blank field", async () => {
+			fetchMock = stubFetch((_path, init) =>
+				Promise.resolve(jsonResponse(init?.method === undefined ? { data: [makeContact()] } : { data: makeContact() })),
+			);
+			renderSettings({ contacts: [makeContact({ role: "CUSTOMER" })] });
+
+			expect(screen.getByLabelText(`Role of ${CONTACT_WA_ID}`)).toHaveProperty("value", "CUSTOMER");
+
+			fireEvent.blur(screen.getByLabelText(`Role of ${CONTACT_WA_ID}`), { target: { value: " TECHNICIAN " } });
+
+			await waitFor(() => {
+				expect(fetchMock).toHaveBeenCalled();
+			});
+
+			expect(fetchMock.mock.calls[0]?.[0]).toBe(`/api/contacts/${CONTACT_WA_ID}`);
+			expect(requestBodyOf(fetchMock)).toEqual({ role: "TECHNICIAN" });
+
+			fireEvent.blur(screen.getByLabelText(`Role of ${CONTACT_WA_ID}`), { target: { value: "" } });
+
+			await waitFor(() => {
+				expect(fetchMock.mock.calls.length).toBeGreaterThan(2);
+			});
+
+			expect(requestBodyOf(fetchMock, 2)).toEqual({ role: null });
+		});
+
 		it("changes a contact's number through the dialog", async () => {
 			const moved = makeContact({ waId: "5511900000000" });
 

@@ -7,6 +7,10 @@ export interface ContactRecord {
 	profileName: string;
 	/** The contact's business-scoped user id (SPEC §1.15), `null` when it has none. */
 	userId: string | null;
+	/** mockwa: free-form label the virtual phone shows, `null` when unset. */
+	role: string | null;
+	/** mockwa: friendly number the virtual phone shows, `null` = `+<wa_id>`. */
+	displayNumber: string | null;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -15,6 +19,8 @@ export interface InsertContactInput {
 	waId: string;
 	profileName: string;
 	userId?: string | null;
+	role?: string | null;
+	displayNumber?: string | null;
 	createdAt?: string;
 }
 
@@ -23,6 +29,10 @@ export interface UpdateContactInput {
 	profileName?: string;
 	/** `null` clears the BSUID; `undefined` leaves it alone. */
 	userId?: string | null;
+	/** `null` clears it; `undefined` leaves it alone. */
+	role?: string | null;
+	/** `null` clears it; `undefined` leaves it alone. */
+	displayNumber?: string | null;
 	updatedAt?: string;
 }
 
@@ -31,6 +41,8 @@ function toRecord(row: ContactTable): ContactRecord {
 		waId: row.wa_id,
 		profileName: row.profile_name,
 		userId: row.user_id,
+		role: row.role,
+		displayNumber: row.display_number,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -58,6 +70,8 @@ export class ContactRepository {
 				wa_id: input.waId,
 				profile_name: input.profileName,
 				user_id: input.userId ?? null,
+				role: input.role ?? null,
+				display_number: input.displayNumber ?? null,
 				created_at: timestamp,
 				updated_at: timestamp,
 			})
@@ -87,7 +101,12 @@ export class ContactRepository {
 	}
 
 	async update(waId: string, input: UpdateContactInput): Promise<ContactRecord | null> {
-		if (input.profileName === undefined && input.userId === undefined) {
+		if (
+			input.profileName === undefined &&
+			input.userId === undefined &&
+			input.role === undefined &&
+			input.displayNumber === undefined
+		) {
 			return this.findByWaId(waId);
 		}
 
@@ -96,6 +115,8 @@ export class ContactRepository {
 			.set({
 				...(input.profileName !== undefined && { profile_name: input.profileName }),
 				...(input.userId !== undefined && { user_id: input.userId }),
+				...(input.role !== undefined && { role: input.role }),
+				...(input.displayNumber !== undefined && { display_number: input.displayNumber }),
 				updated_at: input.updatedAt ?? nowIso(),
 			})
 			.where("wa_id", "=", waId)

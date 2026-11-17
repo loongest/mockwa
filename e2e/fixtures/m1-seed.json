@@ -1,0 +1,40 @@
+[
+	{
+		"name": "Acme Home Services",
+		"phoneNumbers": [
+			{
+				"displayPhoneNumber": "+60 3-2788 0000",
+				"verifiedName": "Acme Home Services",
+				"qualityRating": "GREEN",
+				"throughputLevel": "STANDARD"
+			}
+		],
+		"contacts": [
+			{ "waId": "60123450001", "name": "Customer A", "role": "CUSTOMER", "displayNumber": "+60 12-345 0001" },
+			{ "waId": "60123450002", "name": "Customer B", "role": "CUSTOMER", "displayNumber": "+60 12-345 0002" },
+			{ "waId": "60123450003", "name": "Ah Mad", "role": "TECHNICIAN", "displayNumber": "+60 12-345 0003" }
+		],
+		"templates": [
+			{
+				"name": "appointment_confirmation",
+				"language": "en",
+				"category": "UTILITY",
+				"parameterFormat": "POSITIONAL",
+				"components": [
+					{
+						"type": "BODY",
+						"text": "Hi {{1}}, your technician visit is booked for tomorrow at 10:00. Please confirm.",
+						"example": { "body_text": [["Customer A"]] }
+					},
+					{
+						"type": "BUTTONS",
+						"buttons": [
+							{ "type": "QUICK_REPLY", "text": "Confirm" },
+							{ "type": "QUICK_REPLY", "text": "Reschedule" }
+						]
+					}
+				]
+			}
+		]
+	}
+]

@@ -177,6 +177,26 @@ export class MessageRepository {
 	}
 
 	/**
+	 * The business messages in one conversation that reached the contact's phone and wait to be
+	 * read (status `delivered`), oldest first: what the virtual phone counts as unread and marks
+	 * read when the chat is open (SPEC §5).
+	 */
+	async listDeliveredOutbound(phoneNumberId: string, contactWaId: string): Promise<MessageRecord[]> {
+		const rows = await this.#db
+			.selectFrom("messages")
+			.selectAll()
+			.where("phone_number_id", "=", phoneNumberId)
+			.where("contact_wa_id", "=", contactWaId)
+			.where("direction", "=", "outbound")
+			.where("status", "=", "delivered")
+			.orderBy("timestamp", "asc")
+			.orderBy(sql`rowid`, "asc")
+			.execute();
+
+		return rows.map(row => toRecord(row));
+	}
+
+	/**
 	 * The conversation list the UI opens on (SPEC §5): one row per (phone number, contact)
 	 * pair that has ever exchanged a message, newest activity first. whaloc stores no
 	 * conversation entity — this grouping *is* the conversation.

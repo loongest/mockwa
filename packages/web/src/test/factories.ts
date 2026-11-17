@@ -51,6 +51,8 @@ export function makeContact(overrides: Partial<Contact> = {}): Contact {
 		waId: CONTACT_WA_ID,
 		profileName: "Ana Souza",
 		userId: null,
+		role: null,
+		displayNumber: null,
 		createdAt: "2026-08-31T12:00:00.000Z",
 		updatedAt: "2026-08-31T12:00:00.000Z",
 		...overrides,

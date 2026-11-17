@@ -131,6 +131,10 @@ export interface ContactTable {
 	 * when set: it is what a send addressed by `recipient` resolves a contact through.
 	 */
 	user_id: string | null;
+	/** mockwa: a free-form label for the virtual phone (`CUSTOMER`, `TECHNICIAN`, …), `null` when unset. */
+	role: string | null;
+	/** mockwa: how the virtual phone shows the number (`+60 12-345 6789`), `null` = `+<wa_id>`. */
+	display_number: string | null;
 	created_at: string;
 	updated_at: string;
 }

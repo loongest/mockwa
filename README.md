@@ -6,8 +6,10 @@
 
 > **mockwa is a fork of [whaloc](https://github.com/dgadelha/whaloc)** (MIT, © Douglas Gadêlha — see
 > [LICENSE](LICENSE)). It keeps whaloc's engine and adds what a WhatsApp Cloud API _simulator_
-> needs. So far (milestone M0): two ports — **8888** for the Graph API, **8025** for the console —
-> and `MOCKWA_*` configuration, with every `MOCKWA_*` variable still accepted as an alias. The
+> needs. So far: two ports — **8888** for the Graph API, **8025** for the console — and
+> `MOCKWA_*` configuration, with every `WHALOC_*` variable still accepted as an alias (M0); and a
+> **virtual phone** at `http://localhost:8025/phone` to chat with your app as named users (M1,
+> see [Virtual phone](#virtual-phone)). The
 > rest of this README describes whaloc's behavior, which mockwa keeps; "whaloc" below means the
 > engine mockwa inherited.
 
@@ -53,6 +55,7 @@ Three surfaces on **two ports** — one engine, one process:
 | `8888` | Graph API mock                | `/v25.0/…` (any `/v<major>.<minor>`) | The endpoints the app under test calls                                  |
 | `8025` | Control-plane API + WebSocket | `/api/…`, `/api/ws`                  | Inspect state and simulate the user side, from the UI or tests          |
 | `8025` | Web UI                        | `/` (static React bundle)            | Chat-style UI: be the WhatsApp user, moderate templates, watch webhooks |
+| `8025` | Virtual phone                 | `/phone`                             | One WhatsApp user per browser tab, chatting with your app               |
 
 Each port answers `404` for the other's routes, so the app under test only ever sees a
 Meta-shaped surface. Both answer `/health`.
@@ -639,8 +642,39 @@ deletion arriving over the WebSocket moves the URL the same way.
   behavior the environment configured, **error injection** (arm a rule, watch its countdown, delete
   it), the **access tokens** section when `MOCKWA_TOKENS` is set, and a danger zone holding the
   **state snapshot** controls (export the whole world to a file, import one back) next to the
-  reset. Contacts are edited in place — profile name and business-scoped user ID — and each one
+  reset. Contacts are edited in place — profile name, role and business-scoped user ID — and each one
   can change number.
+
+### Virtual phone
+
+`http://localhost:8025/phone` is a second page on the console port: WhatsApp from the **user's**
+side, one contact per browser tab. The developer console is unchanged next to it.
+
+1. Pick who you are. Every contact is an identity, shown with its name, its **role** (for example
+   `CUSTOMER` or `TECHNICIAN`) and its number. There is no login in developer mode.
+2. Open a business chat. Every business phone number is listed, so a new identity can start a
+   conversation.
+3. Type and send. Your message goes to your app as a normal signed inbound webhook. Your app's
+   replies through the Graph API (8888) appear live, with timestamps; your own messages show
+   their ticks.
+4. Tap a template's quick reply or an interactive reply button to answer it: the reply webhook
+   quotes the message, exactly like a real tap.
+
+Every reply comes from **your app**, never from mockwa: a phone's message is a signed webhook to
+`MOCKWA_WEBHOOK_URL`, and what comes back is whatever your app sends through the Graph API. With
+no receiver configured, messages are stored and shown, nothing answers them, and the delivery log
+says the payload was not sent. The console's top bar always names the receiver (or says
+"webhooks: not sent"). The `echo: …` replies in the examples come from
+[`examples/echo-app`](examples/echo-app/server.mjs), a separate process the end-to-end tests start.
+
+While a chat is open in a visible tab, business messages are marked **read** as soon as they are
+delivered, and your app receives each `read` status webhook. Open more tabs (or browser
+profiles) to run several phones at once: each tab keeps its own identity in its URL
+(`/phone?as=<wa_id>&chat=<phone-number-id>`) and only hears its own conversations.
+
+Roles and friendly numbers come from the seed (`"role"` and `"displayNumber"` on a contact, see
+[`e2e/fixtures/m1-seed.json`](e2e/fixtures/m1-seed.json)) or from **Settings → Contacts**. They are
+display-only: no webhook or Graph response carries them.
 
 While any injection rule can still fire, the top bar carries a pulsing "N rules injecting errors"
 badge that links straight to the rule doing it — a forgotten rule should cost seconds, not an
@@ -706,6 +740,23 @@ still flagged in Node 24.
 ```sh
 docker build -t whaloc:local .          # non-root, HEALTHCHECK on /health
 docker compose up                       # the demo above, against the published image
+```
+
+The end-to-end checks drive a **built image** from the outside, with
+[`examples/echo-app`](examples/echo-app/server.mjs) as the app under test (it verifies every
+signature and replies through 8888). CI (`.github/workflows/docker.yml`) runs two instances; to
+run the virtual-phone suite locally against one seeded from `e2e/fixtures/m1-seed.json`:
+
+```sh
+docker build -t mockwa:local .
+PORT=3002 APP_SECRET=m1-app-secret VERIFY_TOKEN=m1-verify-token \
+  GRAPH_API_BASE_URL=http://127.0.0.1:18888/v25.0 node examples/echo-app/server.mjs &
+docker run -d --name mockwa-m1 --add-host=host.docker.internal:host-gateway \
+  -p 127.0.0.1:18888:8888 -p 127.0.0.1:18025:8025 \
+  -v "$PWD/e2e/fixtures/m1-seed.json:/seed/m1-seed.json:ro" -e MOCKWA_SEED_FILE=/seed/m1-seed.json \
+  -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3002/webhook -e MOCKWA_APP_SECRET=m1-app-secret \
+  -e MOCKWA_WEBHOOK_VERIFY_TOKEN=m1-verify-token mockwa:local
+npx playwright test -c e2e/playwright.config.mjs --project m1-phone   # PLAYWRIGHT_CHANNEL=chrome for local Chrome
 ```
 
 The S3 client is the one heavy dependency in the image (about 26 MB of the total): it ships

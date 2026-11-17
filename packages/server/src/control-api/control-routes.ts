@@ -10,6 +10,7 @@ import { createInjectionRoutes } from "./injection-routes.ts";
 import { createMediaRoutes } from "./media-routes.ts";
 import { createMessageRoutes } from "./message-routes.ts";
 import { createPhoneNumberRoutes } from "./phone-number-routes.ts";
+import { createPhoneRoutes } from "./phone-routes.ts";
 import { createSnapshotRoutes } from "./snapshot-routes.ts";
 import { createStateRoutes } from "./state-routes.ts";
 import { createTemplateRoutes } from "./template-routes.ts";
@@ -60,6 +61,15 @@ export function createControlRoutes(options: ControlRoutesOptions): Hono<Control
 		createPhoneNumberRoutes({ phoneNumbers: services.phoneNumbers, businessProfiles: services.businessProfiles }),
 	);
 	routes.route("/", createWabaRoutes({ wabas: services.wabas }));
+	routes.route(
+		"/",
+		createPhoneRoutes({
+			phone: services.phone,
+			inbound: services.inbound,
+			events: services.events,
+			logger: options.logger,
+		}),
+	);
 	routes.route("/", createWsRoutes({ events: services.events, logger: options.logger }));
 
 	routes.onError(createControlErrorHandler());

@@ -15,6 +15,7 @@ import {
 	combineOutboundMessageEvents,
 	ContactService,
 	ConversationService,
+	PhoneService,
 	createBackgroundTasks,
 	createEventBus,
 	InboundService,
@@ -78,6 +79,8 @@ export interface DomainServices {
 	/** Control plane (SPEC §5). */
 	contacts: ContactService;
 	conversations: ConversationService;
+	/** The virtual phone's view of the conversations (SPEC §5). */
+	phone: PhoneService;
 	inbound: InboundService;
 	phoneNumbers: PhoneNumberService;
 	wabas: WabaService;
@@ -236,6 +239,7 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 			...(scheduler !== undefined && { scheduler }),
 		}),
 		conversations: new ConversationService({ repositories }),
+		phone: new PhoneService({ repositories, statusLadder }),
 		inbound: new InboundService({
 			repositories,
 			webhooks,
