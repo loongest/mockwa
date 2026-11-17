@@ -18,9 +18,20 @@ export const webhookDeliverySchema = z.object({
 	error: z.string().nullable(),
 	attempt: z.number().int().positive(),
 	durationMs: z.number().int().nullable(),
-	/** `true` when `MOCKWA_WEBHOOK_URL` is unset: nothing was sent, the payload is logged anyway. */
+	/** `true` when the app has no URL to send to: nothing was sent, the payload is logged anyway. */
 	skipped: z.boolean(),
 	createdAt: z.iso.datetime(),
+	/** The app the attempt was for: `default` or a registered app's id (SPEC §3). */
+	appKey: z.string(),
+	/** The first attempt's id; every retry of it shares this. */
+	chainId: z.string(),
+	/** When the next retry is due; `null` when none is pending. */
+	nextAttemptAt: z.iso.datetime().nullable(),
+	/**
+	 * This attempt's outcome. Only an HTTP 200 is `delivered` (Meta's rule); `retrying` means
+	 * it failed and another attempt is scheduled, `failed` that none is.
+	 */
+	outcome: z.enum(["delivered", "retrying", "failed", "skipped"]),
 });
 
 export type WebhookDelivery = z.infer<typeof webhookDeliverySchema>;

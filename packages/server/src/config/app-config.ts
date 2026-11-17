@@ -1,6 +1,7 @@
 import path from "node:path";
 import { z } from "zod";
 import { DEFAULT_SEED, seedSchema } from "./seed.ts";
+import { appsEnvSchema, retryMaxAgeSchema, retryScheduleSchema } from "./webhook-config.ts";
 
 export const LOG_LEVELS = ["fatal", "error", "warn", "info", "debug", "trace", "silent"] as const;
 /** Where media bytes live (SPEC §6): a directory, or an S3-compatible bucket. */
@@ -228,6 +229,9 @@ export const appConfigSchema = z
 			.regex(/^\d{1,32}$/, "must be a string of 1-32 digits")
 			.optional(),
 		MOCKWA_SEED: seedEnvSchema,
+		MOCKWA_APPS: appsEnvSchema,
+		MOCKWA_WEBHOOK_RETRY_SCHEDULE: retryScheduleSchema,
+		MOCKWA_WEBHOOK_RETRY_MAX_AGE: retryMaxAgeSchema,
 		MOCKWA_STATUS_DELAYS: statusDelaysSchema,
 		MOCKWA_TEMPLATE_AUTO_APPROVE: templateAutoApproveSchema,
 		MOCKWA_TOKENS: tokensSchema,
@@ -267,6 +271,12 @@ export const appConfigSchema = z
 		/** `undefined` = derive it; {@link SubscribedAppService} owns that fallback. */
 		appId: env.MOCKWA_APP_ID,
 		seed: env.MOCKWA_SEED,
+		/** Apps registered at boot and after every reset, next to the default app (SPEC §3). */
+		apps: env.MOCKWA_APPS,
+		/** Delay before each retry; the last repeats. `[]` = no retries (SPEC §3). */
+		webhookRetryScheduleMs: env.MOCKWA_WEBHOOK_RETRY_SCHEDULE,
+		/** A chain stops retrying once its first attempt is this old. */
+		webhookRetryMaxAgeMs: env.MOCKWA_WEBHOOK_RETRY_MAX_AGE,
 		statusDelays: env.MOCKWA_STATUS_DELAYS,
 		/** `null` = templates stay `PENDING` until approved through the control plane. */
 		templateAutoApproveMs: env.MOCKWA_TEMPLATE_AUTO_APPROVE,

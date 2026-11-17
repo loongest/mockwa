@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import type { PhoneNumberRecord, TemplateRecord, WabaRecord } from "../db/index.ts";
-import type { MediaDescriptor, MediaService, ObjectService } from "../domain/index.ts";
+import type { MediaDescriptor, MediaService, ObjectService, SubscribedAppService } from "../domain/index.ts";
 import { parseFields, projectFields } from "./fields.ts";
 import type { GraphEnv } from "./graph-env.ts";
 
 export interface ObjectRoutesOptions {
 	objects: ObjectService;
 	media: MediaService;
+	subscribedApps: SubscribedAppService;
 }
 
 /**
@@ -77,7 +78,18 @@ export function createObjectRoutes(options: ObjectRoutesOptions): Hono<GraphEnv>
 
 		switch (object.kind) {
 			case "phoneNumber": {
-				return c.json(projectFields(phoneNumberNode(object.phoneNumber), fields));
+				// Only on request, like Meta: it is per app, so it depends on the caller's token.
+				const webhookConfiguration = fields?.includes("webhook_configuration")
+					? {
+							webhook_configuration: await options.subscribedApps.webhookConfiguration(
+								object.phoneNumber.id,
+								object.phoneNumber.wabaId,
+								c.get("accessToken"),
+							),
+						}
+					: {};
+
+				return c.json(projectFields({ ...phoneNumberNode(object.phoneNumber), ...webhookConfiguration }, fields));
 			}
 
 			case "waba": {

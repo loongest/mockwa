@@ -200,6 +200,80 @@ describe("parseConfig", () => {
 		});
 	});
 
+	describe("webhook retries (SPEC §3)", () => {
+		it("retries for up to 7 days on a schedule that slows down, by default", () => {
+			const config = parseOrThrow({});
+
+			expect(config.webhookRetryMaxAgeMs).toBe(7 * 86_400_000);
+			expect(config.webhookRetryScheduleMs[0]).toBe(10_000);
+			expect(config.webhookRetryScheduleMs.at(-1)).toBe(86_400_000);
+			expect(config.webhookRetryScheduleMs.toSorted((a, b) => a - b)).toEqual(config.webhookRetryScheduleMs);
+		});
+
+		it("reads a schedule of durations, and off", () => {
+			expect(parseOrThrow({ MOCKWA_WEBHOOK_RETRY_SCHEDULE: "500ms,10s,2m,1h,1d" }).webhookRetryScheduleMs).toEqual([
+				500, 10_000, 120_000, 3_600_000, 86_400_000,
+			]);
+			expect(parseOrThrow({ MOCKWA_WEBHOOK_RETRY_SCHEDULE: "off" }).webhookRetryScheduleMs).toEqual([]);
+			expect(parseOrThrow({ MOCKWA_WEBHOOK_RETRY_MAX_AGE: "90s" }).webhookRetryMaxAgeMs).toBe(90_000);
+		});
+
+		it.each(["10", "10s,", "fast", "0s"])("rejects MOCKWA_WEBHOOK_RETRY_SCHEDULE=%s", raw => {
+			expect(errorsOf({ MOCKWA_WEBHOOK_RETRY_SCHEDULE: raw })).toHaveLength(1);
+		});
+
+		it("rejects a maximum age that is not a duration", () => {
+			expect(errorsOf({ MOCKWA_WEBHOOK_RETRY_MAX_AGE: "a week" })).toHaveLength(1);
+		});
+	});
+
+	describe("apps (MOCKWA_APPS, SPEC §3)", () => {
+		it("registers none by default", () => {
+			expect(parseOrThrow({}).apps).toEqual([]);
+		});
+
+		it("reads each app with its credentials and the WABAs it subscribes to", () => {
+			const config = parseOrThrow({
+				MOCKWA_APPS: JSON.stringify([
+					{
+						id: "200000000000002",
+						name: "Billing",
+						appSecret: "s",
+						verifyToken: "v",
+						callbackUrl: "http://billing:3001/hook",
+						accessToken: "t",
+						wabas: ["102290129340398"],
+					},
+					{ name: "Support" },
+				]),
+			});
+
+			expect(config.apps).toEqual([
+				{
+					id: "200000000000002",
+					name: "Billing",
+					appSecret: "s",
+					verifyToken: "v",
+					callbackUrl: "http://billing:3001/hook",
+					accessToken: "t",
+					wabas: ["102290129340398"],
+				},
+				{ name: "Support", wabas: [] },
+			]);
+		});
+
+		it.each([
+			["not JSON", "[{"],
+			["not a list", "{}"],
+			["a nameless app", '[{"appSecret":"s"}]'],
+			["a non-http callback", '[{"name":"a","callbackUrl":"ftp://x"}]'],
+			["a repeated name", '[{"name":"a"},{"name":"a"}]'],
+			["a repeated access token", '[{"name":"a","accessToken":"t"},{"name":"b","accessToken":"t"}]'],
+		])("rejects %s", (_label, raw) => {
+			expect(errorsOf({ MOCKWA_APPS: raw }).length).toBeGreaterThan(0);
+		});
+	});
+
 	describe("status delays", () => {
 		it("parses the ladder and leaves read receipts manual", () => {
 			const config = parseOrThrow({ MOCKWA_STATUS_DELAYS: "sent:10,delivered:1500" });

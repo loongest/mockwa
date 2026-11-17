@@ -6,7 +6,9 @@ import type {
 	StateResponse,
 	Template,
 	TokenState,
+	WebhookApp,
 	WebhookDelivery,
+	WebhookRouting,
 } from "@mockwa/shared";
 import { vi, type Mock } from "vitest";
 import { initialState } from "../store/reducer.ts";
@@ -72,6 +74,10 @@ export function makeDelivery(overrides: Partial<WebhookDelivery> = {}): WebhookD
 		attempt: 1,
 		durationMs: 12,
 		skipped: false,
+		appKey: "default",
+		chainId: "delivery-1",
+		nextAttemptAt: null,
+		outcome: "delivered",
 		createdAt: "2026-08-31T12:00:00.000Z",
 		...overrides,
 	};
@@ -202,6 +208,24 @@ export function makeTwoWabaState(options: { firstHasNumbers?: boolean } = {}): S
 	});
 }
 
+export function makeWebhookApp(overrides: Partial<WebhookApp> = {}): WebhookApp {
+	return {
+		key: "default",
+		id: "100000000000001",
+		name: "whaloc",
+		isDefault: true,
+		callbackUrl: "https://receiver.test/meta-webhooks",
+		hasAppSecret: true,
+		hasVerifyToken: true,
+		hasAccessToken: false,
+		...overrides,
+	};
+}
+
+export function makeWebhookRouting(overrides: Partial<WebhookRouting> = {}): WebhookRouting {
+	return { apps: [makeWebhookApp()], subscriptions: [], phoneOverrides: [], ...overrides };
+}
+
 export function makeAppState(overrides: Partial<AppState> = {}): AppState {
 	return {
 		...initialState,
@@ -212,6 +236,8 @@ export function makeAppState(overrides: Partial<AppState> = {}): AppState {
 		contacts: [],
 		// Loaded at bootstrap in the real store, so an empty list — not `null` — is the default.
 		injectionRules: [],
+		// Loaded, so a view that shows it does not start with a request a spec has to answer.
+		webhookRouting: makeWebhookRouting(),
 		errorPresets: [
 			{ code: 131_049, title: "Healthy ecosystem engagement", message: "…", details: "…" },
 			{ code: 131_026, title: "Message undeliverable", message: "…", details: "…" },

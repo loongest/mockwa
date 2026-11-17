@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { api } from "../../api/endpoints.ts";
 import { useAction, useAppState, useDispatch, useToasts } from "../../store/store.tsx";
+import { useWebhookRouting } from "../../store/use-webhook-routing.ts";
 import { DeliveryRow } from "./delivery-row.tsx";
 import { RawWebhookDialog } from "./raw-webhook-dialog.tsx";
 
@@ -117,6 +118,9 @@ export function WebhooksPage() {
 		};
 	}, [dispatch, toasts]);
 
+	// Only for the app names in the log; the routing itself is edited in Settings.
+	useWebhookRouting();
+
 	const loadMore = (): void => {
 		if (deliveriesBefore === null) {
 			return;
@@ -172,6 +176,7 @@ export function WebhooksPage() {
 								<th>Time</th>
 								<th>Event</th>
 								<th>Status</th>
+								<th>App</th>
 								<th>Attempt</th>
 								<th>Duration</th>
 								<th>URL</th>

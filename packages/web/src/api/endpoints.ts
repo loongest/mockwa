@@ -22,9 +22,17 @@ import {
 	tokenResponseSchema,
 	uploadResponseSchema,
 	wabaResponseSchema,
+	webhookAppResponseSchema,
 	webhookDeliveryAttemptsResponseSchema,
 	webhookDeliveryListResponseSchema,
+	webhookRoutingResponseSchema,
 	type AccountUpdateRequest,
+	type WebhookAppCreateRequest,
+	type PutPhoneNumberWebhookOverrideRequest,
+	type PutWebhookSubscriptionRequest,
+	type WebhookAppUpdateRequest,
+	type WebhookApp,
+	type WebhookRouting,
 	type BusinessCapabilityUpdateRequest,
 	type BusinessProfileUpdateRequest,
 	type Contact,
@@ -268,6 +276,93 @@ export const api = {
 		const { data } = await request(`/api/webhook-deliveries/${encodeURIComponent(id)}/redeliver`, {
 			method: "POST",
 			schema: webhookDeliveryAttemptsResponseSchema,
+		});
+
+		return data;
+	},
+
+	async cancelWebhookRetry(id: string): Promise<WebhookDelivery> {
+		const { data } = await request(`/api/webhook-deliveries/${encodeURIComponent(id)}/cancel-retry`, {
+			method: "POST",
+			schema: webhookDeliveryAttemptsResponseSchema,
+		});
+
+		return data[0]!;
+	},
+
+	/** Apps and where their webhooks go (SPEC §3, "Apps and routing"). */
+	async getWebhookRouting(options: Signal = {}): Promise<WebhookRouting> {
+		const { data } = await request("/api/apps", { schema: webhookRoutingResponseSchema, ...options });
+
+		return data;
+	},
+
+	async createApp(body: WebhookAppCreateRequest): Promise<WebhookApp> {
+		const { data } = await request("/api/apps", { method: "POST", body, schema: webhookAppResponseSchema });
+
+		return data;
+	},
+
+	async updateApp(key: string, body: WebhookAppUpdateRequest): Promise<WebhookApp> {
+		const { data } = await request(`/api/apps/${encodeURIComponent(key)}`, {
+			method: "PATCH",
+			body,
+			schema: webhookAppResponseSchema,
+		});
+
+		return data;
+	},
+
+	async deleteApp(key: string): Promise<void> {
+		// `204 No Content`: the empty body parses as `null`.
+		await request(`/api/apps/${encodeURIComponent(key)}`, { method: "DELETE", schema: z.null() });
+	},
+
+	async subscribeApp(key: string, wabaId: string, body: PutWebhookSubscriptionRequest = {}): Promise<WebhookRouting> {
+		const { data } = await request(`/api/apps/${encodeURIComponent(key)}/subscriptions/${encodeURIComponent(wabaId)}`, {
+			method: "PUT",
+			body,
+			schema: webhookRoutingResponseSchema,
+		});
+
+		return data;
+	},
+
+	async unsubscribeApp(key: string, wabaId: string): Promise<WebhookRouting> {
+		const { data } = await request(`/api/apps/${encodeURIComponent(key)}/subscriptions/${encodeURIComponent(wabaId)}`, {
+			method: "DELETE",
+			schema: webhookRoutingResponseSchema,
+		});
+
+		return data;
+	},
+
+	async setPhoneOverride(
+		key: string,
+		phoneNumberId: string,
+		body: PutPhoneNumberWebhookOverrideRequest,
+	): Promise<WebhookRouting> {
+		const { data } = await request(
+			`/api/apps/${encodeURIComponent(key)}/phone-overrides/${encodeURIComponent(phoneNumberId)}`,
+			{ method: "PUT", body, schema: webhookRoutingResponseSchema },
+		);
+
+		return data;
+	},
+
+	async removePhoneOverride(key: string, phoneNumberId: string): Promise<WebhookRouting> {
+		const { data } = await request(
+			`/api/apps/${encodeURIComponent(key)}/phone-overrides/${encodeURIComponent(phoneNumberId)}`,
+			{ method: "DELETE", schema: webhookRoutingResponseSchema },
+		);
+
+		return data;
+	},
+
+	async runAppHandshake(key: string): Promise<HandshakeResult> {
+		const { data } = await request(`/api/apps/${encodeURIComponent(key)}/handshake`, {
+			method: "POST",
+			schema: handshakeResponseSchema,
 		});
 
 		return data;

@@ -3,6 +3,7 @@ import type { AppConfig } from "../config/index.ts";
 import { deleteAllRows, type Repositories } from "../db/index.ts";
 import type { Logger } from "../logging/index.ts";
 import type { MediaStorage } from "../storage/index.ts";
+import type { AppService } from "./app-service.ts";
 import { applySeed, type SeedResult } from "./apply-seed.ts";
 import { noopEventPublisher, type EventPublisher } from "./event-bus.ts";
 import { deleteStoredMedia } from "./media-cleanup.ts";
@@ -10,6 +11,7 @@ import type { StateService } from "./state-service.ts";
 import type { StatusLadder } from "./status-ladder.ts";
 import type { TemplateLifecycle } from "./template-lifecycle.ts";
 import type { TypingService } from "./typing-service.ts";
+import type { WebhookEmitter } from "./webhook-emitter.ts";
 
 /**
  * `POST /api/reset` — back to a freshly booted whaloc (SPEC §5).
@@ -36,6 +38,10 @@ export interface ResetServiceOptions {
 	statusLadder: StatusLadder;
 	templateLifecycle: TemplateLifecycle;
 	typing: TypingService;
+	/** Re-registers `MOCKWA_APPS`; optional so the narrower specs need not build one. */
+	apps?: AppService;
+	/** Re-armed after the wipe so a cancelled retry queue does not keep a timer. */
+	webhooks?: WebhookEmitter;
 	events?: EventPublisher;
 }
 
@@ -53,6 +59,8 @@ export class ResetService {
 	readonly #statusLadder: StatusLadder;
 	readonly #templateLifecycle: TemplateLifecycle;
 	readonly #typing: TypingService;
+	readonly #apps: AppService | undefined;
+	readonly #webhooks: WebhookEmitter | undefined;
 	readonly #events: EventPublisher;
 
 	constructor(options: ResetServiceOptions) {
@@ -64,6 +72,8 @@ export class ResetService {
 		this.#statusLadder = options.statusLadder;
 		this.#templateLifecycle = options.templateLifecycle;
 		this.#typing = options.typing;
+		this.#apps = options.apps;
+		this.#webhooks = options.webhooks;
 		this.#events = options.events ?? noopEventPublisher;
 	}
 
@@ -98,6 +108,10 @@ export class ResetService {
 		await deleteAllRows(this.#repositories);
 
 		const seed = await applySeed({ repositories: this.#repositories, seed: this.#config.seed });
+
+		// `MOCKWA_APPS` is part of the seed's world; the retry queue went with the delivery log.
+		await this.#apps?.applySeed(this.#config.apps);
+		await this.#webhooks?.resumeRetries();
 		const state = await this.#state.snapshot();
 
 		this.#logger.info({ wabas: seed.wabas }, "state reset");

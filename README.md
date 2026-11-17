@@ -250,34 +250,37 @@ alias (`MOCKWA_PORT` means `MOCKWA_GRAPH_PORT`). If both are set, `MOCKWA_*` win
 warns when the two values differ. Blank values count as unset (an empty `MOCKWA_WEBHOOK_URL=` in a compose file disables
 webhooks rather than failing), and values are trimmed.
 
-| Var                            | Default                                              | Purpose                                                                                             |
-| ------------------------------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `MOCKWA_GRAPH_PORT`            | `8888`                                               | Graph API port (legacy alias: `MOCKWA_PORT`); the `HEALTHCHECK` follows it                          |
-| `MOCKWA_CONSOLE_PORT`          | `8025`                                               | Console port: UI, `/api`, `/api/ws`; must differ from the Graph port                                |
-| `MOCKWA_HOST`                  | `0.0.0.0`                                            | Bind address                                                                                        |
-| `MOCKWA_PUBLIC_URL`            | `http://localhost:8888`                              | Base for generated media URLs and `paging.next` — must be reachable **by whoever downloads media**  |
-| `MOCKWA_WEBHOOK_URL`           | _unset → webhooks disabled (warns)_                  | Target for webhook POSTs, e.g. `http://meta-webhook-receiver:3001/meta-webhooks`                    |
-| `MOCKWA_APP_SECRET`            | _unset → deliveries unsigned (warns)_                | HMAC key for `X-Hub-Signature-256`                                                                  |
-| `MOCKWA_WEBHOOK_VERIFY_TOKEN`  | _unset_                                              | Token echoed in the `hub.challenge` handshake                                                       |
-| `MOCKWA_VERIFY_ON_START`       | `false`                                              | Run that handshake at boot                                                                          |
-| `MOCKWA_APP_ID`                | _derived from the name, stable across restarts_      | The app ID `subscribed_apps` reports — set it to the app's `META_APP_ID` when that matters          |
-| `MOCKWA_SEED`                  | 1 WABA + 1 phone number + 2 contacts + 1 template    | JSON array of WABAs (see [SPEC §7](docs/SPEC.md)); omitted IDs are derived deterministically        |
-| `MOCKWA_SEED_FILE`             | _unset_                                              | Path to a file with the `MOCKWA_SEED` JSON, for long seeds; setting both is refused                 |
-| `MOCKWA_STATUS_DELAYS`         | `sent:0,delivered:800`                               | Status ladder timing in ms; add `read:<ms>` to automate read receipts                               |
-| `MOCKWA_TEMPLATE_AUTO_APPROVE` | `2000`                                               | ms until a new template is approved; `off` leaves it `PENDING` for the UI                           |
-| `MOCKWA_TOKENS`                | _unset → any non-empty bearer token is accepted_     | Comma-separated bearer-token registry; set it and only these tokens pass (see **Error simulation**) |
-| `MOCKWA_MEDIA_TTL_SECONDS`     | _unset → media never expires_                        | Seconds after which an uploaded media object is gone from the Graph surface                         |
-| `MOCKWA_DB_PATH`               | `:memory:`                                           | SQLite file for persistence, e.g. `/data/whaloc.db`                                                 |
-| `MOCKWA_MEDIA_BACKEND`         | `local`                                              | `local` (a directory) or `s3` (an S3-compatible bucket, see **Media storage**)                      |
-| `MOCKWA_MEDIA_DIR`             | `/data/media` in the image, `./data/media` otherwise | Media storage root, for the `local` backend                                                         |
-| `MOCKWA_S3_BUCKET`             | _required when the backend is `s3`_                  | Bucket the media objects live in — whaloc never creates it                                          |
-| `MOCKWA_S3_REGION`             | _required when the backend is `s3`_                  | Region; anything satisfies RustFS, but the SDK insists on having one                                |
-| `MOCKWA_S3_ENDPOINT`           | _unset → AWS S3_                                     | Endpoint of an S3-compatible server (RustFS, R2, Ceph…)                                             |
-| `MOCKWA_S3_ACCESS_KEY_ID`      | _unset → the SDK's default credential chain_         | Access key; all-or-nothing with the secret below                                                    |
-| `MOCKWA_S3_SECRET_ACCESS_KEY`  | _unset → the SDK's default credential chain_         | Secret key                                                                                          |
-| `MOCKWA_S3_FORCE_PATH_STYLE`   | `true` whenever an endpoint is set                   | Path-style addressing (`<endpoint>/<bucket>/<key>`), which is what RustFS serves                    |
-| `MOCKWA_WEB_DIR`               | `packages/web/dist`, beside the server               | Built UI served at `/`; an absent directory just leaves `/` unrouted                                |
-| `MOCKWA_LOG_LEVEL`             | `info`                                               | pino level (`fatal`…`trace`, `silent`)                                                              |
+| Var                             | Default                                              | Purpose                                                                                             |
+| ------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `MOCKWA_GRAPH_PORT`             | `8888`                                               | Graph API port (legacy alias: `MOCKWA_PORT`); the `HEALTHCHECK` follows it                          |
+| `MOCKWA_CONSOLE_PORT`           | `8025`                                               | Console port: UI, `/api`, `/api/ws`; must differ from the Graph port                                |
+| `MOCKWA_HOST`                   | `0.0.0.0`                                            | Bind address                                                                                        |
+| `MOCKWA_PUBLIC_URL`             | `http://localhost:8888`                              | Base for generated media URLs and `paging.next` — must be reachable **by whoever downloads media**  |
+| `MOCKWA_WEBHOOK_URL`            | _unset → webhooks disabled (warns)_                  | Target for webhook POSTs, e.g. `http://meta-webhook-receiver:3001/meta-webhooks`                    |
+| `MOCKWA_APP_SECRET`             | _unset → deliveries unsigned (warns)_                | HMAC key for `X-Hub-Signature-256`                                                                  |
+| `MOCKWA_WEBHOOK_VERIFY_TOKEN`   | _unset_                                              | Token echoed in the `hub.challenge` handshake                                                       |
+| `MOCKWA_VERIFY_ON_START`        | `false`                                              | Run that handshake at boot                                                                          |
+| `MOCKWA_APP_ID`                 | _derived from the name, stable across restarts_      | The app ID `subscribed_apps` reports — set it to the app's `META_APP_ID` when that matters          |
+| `MOCKWA_APPS`                   | _unset → only the default app_                       | JSON list of extra apps with their own URL, secret, verify token and WABAs (see **Webhooks**)       |
+| `MOCKWA_WEBHOOK_RETRY_SCHEDULE` | `10s,30s,1m,5m,15m,1h,3h,6h,12h,24h`                 | Delay before each retry of a non-`200` delivery, the last repeating; `off` disables retries         |
+| `MOCKWA_WEBHOOK_RETRY_MAX_AGE`  | `7d`                                                 | How long a delivery keeps being retried, as on Meta                                                 |
+| `MOCKWA_SEED`                   | 1 WABA + 1 phone number + 2 contacts + 1 template    | JSON array of WABAs (see [SPEC §7](docs/SPEC.md)); omitted IDs are derived deterministically        |
+| `MOCKWA_SEED_FILE`              | _unset_                                              | Path to a file with the `MOCKWA_SEED` JSON, for long seeds; setting both is refused                 |
+| `MOCKWA_STATUS_DELAYS`          | `sent:0,delivered:800`                               | Status ladder timing in ms; add `read:<ms>` to automate read receipts                               |
+| `MOCKWA_TEMPLATE_AUTO_APPROVE`  | `2000`                                               | ms until a new template is approved; `off` leaves it `PENDING` for the UI                           |
+| `MOCKWA_TOKENS`                 | _unset → any non-empty bearer token is accepted_     | Comma-separated bearer-token registry; set it and only these tokens pass (see **Error simulation**) |
+| `MOCKWA_MEDIA_TTL_SECONDS`      | _unset → media never expires_                        | Seconds after which an uploaded media object is gone from the Graph surface                         |
+| `MOCKWA_DB_PATH`                | `:memory:`                                           | SQLite file for persistence, e.g. `/data/whaloc.db`                                                 |
+| `MOCKWA_MEDIA_BACKEND`          | `local`                                              | `local` (a directory) or `s3` (an S3-compatible bucket, see **Media storage**)                      |
+| `MOCKWA_MEDIA_DIR`              | `/data/media` in the image, `./data/media` otherwise | Media storage root, for the `local` backend                                                         |
+| `MOCKWA_S3_BUCKET`              | _required when the backend is `s3`_                  | Bucket the media objects live in — whaloc never creates it                                          |
+| `MOCKWA_S3_REGION`              | _required when the backend is `s3`_                  | Region; anything satisfies RustFS, but the SDK insists on having one                                |
+| `MOCKWA_S3_ENDPOINT`            | _unset → AWS S3_                                     | Endpoint of an S3-compatible server (RustFS, R2, Ceph…)                                             |
+| `MOCKWA_S3_ACCESS_KEY_ID`       | _unset → the SDK's default credential chain_         | Access key; all-or-nothing with the secret below                                                    |
+| `MOCKWA_S3_SECRET_ACCESS_KEY`   | _unset → the SDK's default credential chain_         | Secret key                                                                                          |
+| `MOCKWA_S3_FORCE_PATH_STYLE`    | `true` whenever an endpoint is set                   | Path-style addressing (`<endpoint>/<bucket>/<key>`), which is what RustFS serves                    |
+| `MOCKWA_WEB_DIR`                | `packages/web/dist`, beside the server               | Built UI served at `/`; an absent directory just leaves `/` unrouted                                |
+| `MOCKWA_LOG_LEVEL`              | `info`                                               | pino level (`fatal`…`trace`, `silent`)                                                              |
 
 ## Graph API coverage
 
@@ -512,38 +515,43 @@ that route carries no Meta envelope. The row and the bytes are still there: whal
 port to a network you do not trust. Request and response schemas live in
 `packages/shared/src/control-plane/`, imported by both the server and the UI.
 
-| Endpoint                                                               | What it does                                                                                                                                                                                                                                       |
-| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /health`, `GET /api/health`                                       | Liveness (the root alias is what the Docker `HEALTHCHECK` hits)                                                                                                                                                                                    |
-| `GET /api/state`                                                       | WABAs, phone numbers (with their lifecycle and any pending verification code), configured behavior, webhook target status                                                                                                                          |
-| `POST /api/reset`                                                      | Wipe every table **and** the stored media, then re-apply the seed                                                                                                                                                                                  |
-| `GET /api/export?include=deliveries`                                   | The whole state as one downloadable JSON file, media bytes included (see **State snapshots**)                                                                                                                                                      |
-| `POST /api/import`                                                     | Replace all state with such a file — JSON body or a `multipart/form-data` upload                                                                                                                                                                   |
-| `GET/POST /api/contacts`, `PATCH /api/contacts/{waId}`                 | The WhatsApp users on the other side, with their optional business-scoped user ID                                                                                                                                                                  |
-| `POST /api/contacts/{waId}/change-number`                              | The person moved: the contact and its history follow, and `user_changed_number` goes out                                                                                                                                                           |
-| `GET /api/conversations?phoneNumberId=`                                | One row per contact, with the last message                                                                                                                                                                                                         |
-| `GET /api/conversations/{id}/messages`                                 | Paginated history, newest last                                                                                                                                                                                                                     |
-| `POST /api/inbound`                                                    | Simulate a user message: text, media, `interactive` replies, `button`, location, contacts, reaction, `unsupported`; plus the context riders (`referral`, `forwarded`, `frequentlyForwarded`, `referredProduct`)                                    |
-| `POST /api/inbound-media`                                              | Multipart upload used by an inbound media message                                                                                                                                                                                                  |
-| `GET /api/media/{id}`                                                  | The descriptor behind a media ID, so the UI can preview it                                                                                                                                                                                         |
-| `GET /api/uploads?handle=`                                             | The same for a resumable-upload handle, which is what a template's `example.header_handle` carries                                                                                                                                                 |
-| `POST /api/messages/{id}/status`                                       | Manual `delivered` / `read` / `failed` (with an error preset)                                                                                                                                                                                      |
-| `GET /api/message-error-presets`                                       | The failure codes that action accepts, with Meta's wording                                                                                                                                                                                         |
-| `GET /api/typing?phoneNumberId=`                                       | The typing indicators the app under test currently has up (read-only — only it can raise one)                                                                                                                                                      |
-| `GET /api/templates?status=&category=&language=&name=&search=`         | Templates with their status and quality score, narrowed by the same filters the Graph listing takes                                                                                                                                                |
-| `POST /api/templates/{id}/approve\|reject\|pause\|disable\|quality`    | The moderation whaloc performs on Meta's behalf; each transition emits its webhook                                                                                                                                                                 |
-| `POST /api/phone-numbers/{id}/quality`                                 | Set quality/throughput, optionally emitting `phone_number_quality_update`                                                                                                                                                                          |
-| `POST /api/phone-numbers/{id}/business-profile`                        | The business profile, as Settings edits it (camelCase; a blank field clears it)                                                                                                                                                                    |
-| `GET/POST /api/injection-rules`, `DELETE /api/injection-rules/{id}`    | Deterministic error injection: target, trigger, preset (see **Error simulation**)                                                                                                                                                                  |
-| `GET /api/tokens`, `POST /api/tokens/{id}/expire\|restore`             | The `MOCKWA_TOKENS` registry, masked; expire one to get `401` / `190` / subcode `463`                                                                                                                                                              |
-| `GET/POST /api/wabas`, `PATCH\|DELETE /api/wabas/{id}`                 | WABAs at runtime; `POST` takes an optional `id` so the account can match a production one; a delete cascades to phone numbers, messages, media and templates                                                                                       |
-| `GET/POST /api/phone-numbers`, `PATCH\|DELETE /api/phone-numbers/{id}` | Numbers under a WABA — created here they are `CONNECTED` and can send immediately; `POST` takes an optional `id` too                                                                                                                               |
-| `GET /api/webhook-deliveries?limit=&before=`                           | The delivery log, newest first                                                                                                                                                                                                                     |
-| `POST /api/webhook-deliveries/{id}/redeliver`                          | Replay a stored body, re-signed now                                                                                                                                                                                                                |
-| `POST /api/webhook/handshake`, `POST /api/webhook/raw`                 | Run the `hub.challenge` handshake; send arbitrary (still signed) JSON                                                                                                                                                                              |
-| `POST /api/webhook/account-update`                                     | Emit `account_update` for a WABA: `VERIFIED_ACCOUNT`, `DISABLED_UPDATE`, `ACCOUNT_RESTRICTION` (with `restriction_info`), `ACCOUNT_DELETED`, `ACCOUNT_VIOLATION` — an event only, no state change                                                  |
-| `POST /api/webhook/business-capability-update`                         | Emit `business_capability_update` with `max_daily_conversation_per_phone` and `max_phone_numbers_per_business` — likewise an event only                                                                                                            |
-| `GET /api/ws`                                                          | WebSocket: `message.created`, `message.status_changed`, `typing.changed`, `template.changed`, `webhook.delivery`, `contact.changed`, `waba.changed`, `phone_number.changed`, `injection.changed`, `token.changed`, `state.reset`, `state.imported` |
+| Endpoint                                                               | What it does                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`, `GET /api/health`                                       | Liveness (the root alias is what the Docker `HEALTHCHECK` hits)                                                                                                                                                                                                               |
+| `GET /api/state`                                                       | WABAs, phone numbers (with their lifecycle and any pending verification code), configured behavior, webhook target status                                                                                                                                                     |
+| `POST /api/reset`                                                      | Wipe every table **and** the stored media, then re-apply the seed                                                                                                                                                                                                             |
+| `GET /api/export?include=deliveries`                                   | The whole state as one downloadable JSON file, media bytes included (see **State snapshots**)                                                                                                                                                                                 |
+| `POST /api/import`                                                     | Replace all state with such a file — JSON body or a `multipart/form-data` upload                                                                                                                                                                                              |
+| `GET/POST /api/contacts`, `PATCH /api/contacts/{waId}`                 | The WhatsApp users on the other side, with their optional business-scoped user ID                                                                                                                                                                                             |
+| `POST /api/contacts/{waId}/change-number`                              | The person moved: the contact and its history follow, and `user_changed_number` goes out                                                                                                                                                                                      |
+| `GET /api/conversations?phoneNumberId=`                                | One row per contact, with the last message                                                                                                                                                                                                                                    |
+| `GET /api/conversations/{id}/messages`                                 | Paginated history, newest last                                                                                                                                                                                                                                                |
+| `POST /api/inbound`                                                    | Simulate a user message: text, media, `interactive` replies, `button`, location, contacts, reaction, `unsupported`; plus the context riders (`referral`, `forwarded`, `frequentlyForwarded`, `referredProduct`)                                                               |
+| `POST /api/inbound-media`                                              | Multipart upload used by an inbound media message                                                                                                                                                                                                                             |
+| `GET /api/media/{id}`                                                  | The descriptor behind a media ID, so the UI can preview it                                                                                                                                                                                                                    |
+| `GET /api/uploads?handle=`                                             | The same for a resumable-upload handle, which is what a template's `example.header_handle` carries                                                                                                                                                                            |
+| `POST /api/messages/{id}/status`                                       | Manual `delivered` / `read` / `failed` (with an error preset)                                                                                                                                                                                                                 |
+| `GET /api/message-error-presets`                                       | The failure codes that action accepts, with Meta's wording                                                                                                                                                                                                                    |
+| `GET /api/typing?phoneNumberId=`                                       | The typing indicators the app under test currently has up (read-only — only it can raise one)                                                                                                                                                                                 |
+| `GET /api/templates?status=&category=&language=&name=&search=`         | Templates with their status and quality score, narrowed by the same filters the Graph listing takes                                                                                                                                                                           |
+| `POST /api/templates/{id}/approve\|reject\|pause\|disable\|quality`    | The moderation whaloc performs on Meta's behalf; each transition emits its webhook                                                                                                                                                                                            |
+| `POST /api/phone-numbers/{id}/quality`                                 | Set quality/throughput, optionally emitting `phone_number_quality_update`                                                                                                                                                                                                     |
+| `POST /api/phone-numbers/{id}/business-profile`                        | The business profile, as Settings edits it (camelCase; a blank field clears it)                                                                                                                                                                                               |
+| `GET/POST /api/injection-rules`, `DELETE /api/injection-rules/{id}`    | Deterministic error injection: target, trigger, preset (see **Error simulation**)                                                                                                                                                                                             |
+| `GET /api/tokens`, `POST /api/tokens/{id}/expire\|restore`             | The `MOCKWA_TOKENS` registry, masked; expire one to get `401` / `190` / subcode `463`                                                                                                                                                                                         |
+| `GET/POST /api/wabas`, `PATCH\|DELETE /api/wabas/{id}`                 | WABAs at runtime; `POST` takes an optional `id` so the account can match a production one; a delete cascades to phone numbers, messages, media and templates                                                                                                                  |
+| `GET/POST /api/phone-numbers`, `PATCH\|DELETE /api/phone-numbers/{id}` | Numbers under a WABA — created here they are `CONNECTED` and can send immediately; `POST` takes an optional `id` too                                                                                                                                                          |
+| `GET /api/webhook-deliveries?limit=&before=`                           | The delivery log, newest first                                                                                                                                                                                                                                                |
+| `POST /api/webhook-deliveries/{id}/redeliver`                          | Send a stored body again, to the app's current URL, re-signed now                                                                                                                                                                                                             |
+| `POST /api/webhook-deliveries/{id}/cancel-retry`                       | Stop retrying that delivery's chain                                                                                                                                                                                                                                           |
+| `GET/POST /api/apps`, `PATCH\|DELETE /api/apps/{key}`                  | Apps and their routing; secrets are write-only (`hasAppSecret`, never the value); the default app is read-only                                                                                                                                                                |
+| `PUT\|DELETE /api/apps/{key}/subscriptions/{wabaId}`                   | Subscribe an app to a WABA, with an optional WABA override (`overrideCallbackUri`, `verifyToken`)                                                                                                                                                                             |
+| `PUT\|DELETE /api/apps/{key}/phone-overrides/{phoneNumberId}`          | An app's override for one number                                                                                                                                                                                                                                              |
+| `POST /api/apps/{key}/handshake`, `GET /api/webhook-routes`            | Check an app's URL with `hub.challenge`; ask where an event would go and why                                                                                                                                                                                                  |
+| `POST /api/webhook/handshake`, `POST /api/webhook/raw`                 | Run the `hub.challenge` handshake; send arbitrary (still signed) JSON                                                                                                                                                                                                         |
+| `POST /api/webhook/account-update`                                     | Emit `account_update` for a WABA: `VERIFIED_ACCOUNT`, `DISABLED_UPDATE`, `ACCOUNT_RESTRICTION` (with `restriction_info`), `ACCOUNT_DELETED`, `ACCOUNT_VIOLATION` — an event only, no state change                                                                             |
+| `POST /api/webhook/business-capability-update`                         | Emit `business_capability_update` with `max_daily_conversation_per_phone` and `max_phone_numbers_per_business` — likewise an event only                                                                                                                                       |
+| `GET /api/ws`                                                          | WebSocket: `message.created`, `message.status_changed`, `typing.changed`, `template.changed`, `webhook.delivery`, `contact.changed`, `waba.changed`, `phone_number.changed`, `injection.changed`, `token.changed`, `webhook_routing.changed`, `state.reset`, `state.imported` |
 
 ## Webhooks
 
@@ -566,16 +574,60 @@ your webhook handler — inventing state Meta would then contradict (a whaloc th
 "because it is restricted") would cost more than it buys. Trigger them per WABA in **Settings →
 Accounts**, or from the control plane.
 
-Four behaviors are worth knowing about:
+### Several apps, overrides and routing
+
+One WABA can feed several Meta apps, and mockwa plays them all (SPEC §3, "Apps and routing"):
+
+- The **default app** is the one the environment describes (`MOCKWA_WEBHOOK_URL`,
+  `MOCKWA_APP_SECRET`, `MOCKWA_WEBHOOK_VERIFY_TOKEN`). A single-URL setup works as before.
+- **More apps** come from `MOCKWA_APPS` or from **Settings → Apps & webhooks**. Each has its own
+  callback URL, App Secret and Verify Token, and gets its own copy of every webhook of the WABAs it
+  is subscribed to, **signed with its own secret**:
+
+  ```yaml
+  MOCKWA_APPS: >-
+    [{"name":"Billing","appSecret":"billing-secret","verifyToken":"billing-verify",
+      "callbackUrl":"http://billing:3001/webhook","accessToken":"billing-token",
+      "wabas":["102290129340398"]}]
+  ```
+
+- **Overrides** work as on Meta: `POST /{waba}/subscribed_apps` with `override_callback_uri` and
+  `verify_token`, or `POST /{phone-number}` with `webhook_configuration`. A number's override wins
+  over its WABA's, which wins over the app's URL. Overrides move `messages` (and the other
+  overridable fields); **template and account webhooks always go to the app's own URL**. The
+  Graph call acts on the app whose `accessToken` it sends, otherwise on the default app.
+- `GET /api/webhook-routes?wabaId=&phoneNumberId=&field=messages` tells you where an event would go
+  right now, and why.
+
+### Retries
+
+As on Meta, **only an HTTP `200` counts as delivered**. A `500`, a `404`, even a `204`, a refused
+connection or a timeout is retried, slower each time, for up to 7 days: 10 s, 30 s, 1 m, 5 m,
+15 m, 1 h, 3 h, 6 h, 12 h, then every 24 h (`MOCKWA_WEBHOOK_RETRY_SCHEDULE`,
+`MOCKWA_WEBHOOK_RETRY_MAX_AGE`; `MOCKWA_WEBHOOK_RETRY_SCHEDULE=off` turns retries off). A retry
+sends the same bytes with the same signature, so your handler can deduplicate.
+
+The retry queue lives in SQLite. **With a file database a pending retry survives a restart** and
+goes out when it is due. The Webhooks view shows each attempt's app, its status, and when the next
+retry is due, with a **Cancel retry** button.
+
+To watch it happen, make the example echo app fail on purpose:
+
+```sh
+curl -X PUT localhost:3001/fail -d '{"status":500,"count":2}'   # the next 2 deliveries get a 500
+curl -X DELETE localhost:3001/fail                              # back to normal
+```
+
+### Other behaviors
 
 - **Every attempt is logged**, browsable through `GET /api/webhook-deliveries`. Retries are
-  separate rows: 3 attempts at 0 s / 2 s / 10 s, on a 5xx or a network error only.
-- **With `MOCKWA_WEBHOOK_URL` unset, deliveries are skipped but still logged** — the row carries
-  the payload and headers that would have gone out (`skipped: true`, empty `url`), so the UI is
-  useful before an integration exists. `POST /api/webhook-deliveries/:id/redeliver` replays a
-  stored body, re-signed with the secret configured at that moment.
-- **Timers live in memory.** A pending status ladder or template approval is dropped on restart
-  (SPEC §4); nothing is replayed at boot.
+  separate rows of one chain (`chainId`), with `attempt` counting up.
+- **An app without a URL gets skipped deliveries that are still logged** — the row carries the
+  payload and headers that would have gone out (`skipped: true`, empty `url`), so the UI is useful
+  before an integration exists. `POST /api/webhook-deliveries/:id/redeliver` sends a stored body
+  to the app's current URL, re-signed with its current secret.
+- **Status and template timers live in memory.** A pending status ladder or template approval is
+  dropped on restart (SPEC §4). Webhook retries are the exception: they are stored.
 - **`POST /api/reset` is a full wipe**: every table is emptied _and the stored media files are
   deleted_, then `MOCKWA_SEED` is applied again. Seeded IDs are derived deterministically, so
   they survive the reset and a configured `GRAPH_API_BASE_URL` keeps working. `POST /api/import`
@@ -630,8 +682,11 @@ deletion arriving over the WebSocket moves the URL the same way.
   rendered preview that marks every `{{placeholder}}` and renders a media header from the
   `example.header_handle` it was created with. The filter bar (search, status, category)
   narrows the list **server-side**, through the same filters the Graph listing takes.
-- **Webhooks** — the delivery log, expandable into the exact signed bytes, with redeliver, the
-  `hub.challenge` handshake, and a raw payload sender.
+- **Webhooks** — the delivery log, expandable into the exact signed bytes, with the app each copy
+  went to, when the next retry is due (with **Cancel retry**), redeliver, the `hub.challenge`
+  handshake, and a raw payload sender.
+- **Settings → Apps & webhooks** — the apps, which WABAs each is subscribed to, which credentials
+  are set (never their values), a handshake per app, and the WABA and phone-number overrides.
 - **Settings** — the WABA and phone-number IDs (with copy buttons, since a `GRAPH_API_BASE_URL`
   call needs them), grouped by account: add, rename and delete WABAs, add, edit and delete phone
   numbers (destructive actions are confirmed and say what goes with them), status and

@@ -34,7 +34,7 @@ export class ApiError extends Error {
 }
 
 export interface RequestOptions<TSchema extends ZodType> {
-	method?: "GET" | "POST" | "PATCH" | "DELETE";
+	method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 	/** JSON body; mutually exclusive with `form`. */
 	body?: unknown;
 	form?: FormData;

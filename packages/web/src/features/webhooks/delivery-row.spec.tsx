@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { StoreProvider } from "../../store/store.tsx";
 import { jsonResponse, makeAppState, makeDelivery, stubFetch, type FetchMock } from "../../test/factories.ts";
-import { DeliveryRow, describeOutcome } from "./delivery-row.tsx";
+import { DeliveryRow, describeOutcome, describeRetry } from "./delivery-row.tsx";
 
 function renderRow(delivery = makeDelivery()): void {
 	const wrapper = ({ children }: { children: ReactNode }) => (
@@ -35,6 +35,18 @@ describe("describeOutcome", () => {
 		expect(describeOutcome(makeDelivery({ responseStatus: 200 })).tone).toBe("badge--ok");
 		expect(describeOutcome(makeDelivery({ responseStatus: 404 })).tone).toBe("badge--warn");
 		expect(describeOutcome(makeDelivery({ responseStatus: 500 })).tone).toBe("badge--danger");
+	});
+});
+
+describe("describeRetry", () => {
+	it("says when the next attempt is due, that the chain gave up, or nothing once delivered", () => {
+		expect(
+			describeRetry(
+				makeDelivery({ responseStatus: 500, outcome: "retrying", nextAttemptAt: "2026-08-31T12:00:10.000Z" }),
+			),
+		).toMatch(/^retry at /);
+		expect(describeRetry(makeDelivery({ responseStatus: 500, outcome: "failed" }))).toBe("gave up");
+		expect(describeRetry(makeDelivery())).toBeNull();
 	});
 });
 
@@ -101,5 +113,33 @@ describe("DeliveryRow", () => {
 
 		expect(screen.getByText("connect ECONNREFUSED")).toBeTruthy();
 		expect(screen.queryByText("Response body")).toBeNull();
+	});
+
+	it("names the app the copy went to", () => {
+		renderRow();
+
+		expect(screen.getByText("whaloc")).toBeTruthy();
+	});
+
+	it("cancels a pending retry", async () => {
+		fetchMock.mockImplementation(() =>
+			Promise.resolve(jsonResponse({ data: [makeDelivery({ responseStatus: 500, outcome: "failed" })] })),
+		);
+		renderRow(makeDelivery({ responseStatus: 500, outcome: "retrying", nextAttemptAt: "2026-08-31T12:00:10.000Z" }));
+
+		fireEvent.click(screen.getByRole("button", { name: /Toggle delivery/ }));
+		fireEvent.click(screen.getByRole("button", { name: "Cancel retry" }));
+
+		await waitFor(() => {
+			expect(fetchMock).toHaveBeenCalledWith("/api/webhook-deliveries/delivery-1/cancel-retry", expect.anything());
+		});
+	});
+
+	it("offers no cancel without a pending retry", () => {
+		renderRow();
+
+		fireEvent.click(screen.getByRole("button", { name: /Toggle delivery/ }));
+
+		expect(screen.queryByRole("button", { name: "Cancel retry" })).toBeNull();
 	});
 });

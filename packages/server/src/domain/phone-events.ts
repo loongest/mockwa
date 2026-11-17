@@ -4,7 +4,8 @@ import type { WsEvent } from "@mockwa/shared";
  * Whether a control-plane event belongs on the socket of the phone signed in as `waId`
  * (SPEC §5). A phone sees its own conversations, its own contact row, and the world-wide
  * changes it needs to stay correct (a reset, a business renamed); it never sees another
- * contact's messages, nor the developer-only streams (webhook log, injection rules, tokens).
+ * contact's messages, nor the developer-only streams (webhook log and routing, injection rules,
+ * tokens).
  */
 export function isPhoneEvent(event: WsEvent, waId: string): boolean {
 	switch (event.type) {
@@ -30,6 +31,7 @@ export function isPhoneEvent(event: WsEvent, waId: string): boolean {
 		}
 
 		case "webhook.delivery":
+		case "webhook_routing.changed":
 		case "injection.changed":
 		case "token.changed": {
 			return false;

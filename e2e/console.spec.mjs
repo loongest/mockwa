@@ -25,7 +25,8 @@ test("the console on 8025 shows a conversation the Graph API on 8888 carried", a
 	await expect(page.locator(".connection")).toHaveText("live");
 
 	await page.getByText(CONTACT.name).first().click();
-	await expect(page.getByText(text)).toBeVisible();
+	// The conversation list previews the same text, so look inside the open thread only.
+	await expect(page.locator(".messages").getByText(text)).toBeVisible();
 });
 
 test("the console does not hand Graph routes to the UI", async ({ request }) => {

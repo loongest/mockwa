@@ -22,6 +22,9 @@ export interface Database {
 	injection_rules: InjectionRuleTable;
 	expired_tokens: ExpiredTokenTable;
 	upload_sessions: UploadSessionTable;
+	apps: AppTable;
+	webhook_subscriptions: WebhookSubscriptionTable;
+	phone_number_webhook_overrides: PhoneNumberWebhookOverrideTable;
 }
 
 export const MESSAGE_DIRECTIONS = ["inbound", "outbound"] as const;
@@ -216,6 +219,49 @@ export interface WebhookDeliveryTable {
 	attempt: number;
 	duration_ms: number | null;
 	created_at: string;
+	/** The app the attempt was for: a registered app's id, `default`, or `NULL` on rows older than M2. */
+	app_key: string | null;
+	/** The first attempt's id, shared by every retry of it; `NULL` on rows older than M2. */
+	chain_id: string | null;
+	/** When the next retry of this attempt is due; `NULL` once it is not pending (SPEC §3). */
+	next_attempt_at: string | null;
+}
+
+/** An app registered with mockwa (SPEC §3, "Apps and routing"); the default app is not a row. */
+export interface AppTable {
+	/** Digit-only, like a Meta app id. */
+	id: string;
+	name: string;
+	app_secret: string | null;
+	verify_token: string | null;
+	/** The app's own callback URL; `NULL` means its deliveries are logged as skipped. */
+	callback_url: string | null;
+	/** A Graph call bearing this token acts as this app (subscriptions, overrides). */
+	access_token: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+/**
+ * A registered app's subscription to a WABA, or any app's WABA-level override. The default
+ * app's row (`app_key = 'default'`) only ever carries an override: whether it is subscribed is
+ * `wabas.subscribed_at`.
+ */
+export interface WebhookSubscriptionTable {
+	waba_id: string;
+	app_key: string;
+	override_callback_uri: string | null;
+	override_verify_token: string | null;
+	subscribed_at: string;
+}
+
+/** Meta's phone-number `webhook_configuration`, per app. */
+export interface PhoneNumberWebhookOverrideTable {
+	phone_number_id: string;
+	app_key: string;
+	callback_uri: string;
+	verify_token: string | null;
+	updated_at: string;
 }
 
 /**

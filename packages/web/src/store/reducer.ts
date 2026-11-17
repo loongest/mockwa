@@ -44,6 +44,7 @@ export const initialState: AppState = {
 	templates: null,
 	injectionRules: null,
 	tokens: null,
+	webhookRouting: null,
 	deliveries: null,
 	deliveriesBefore: null,
 	errorPresets: [],
@@ -390,9 +391,34 @@ function applyWsEvent(state: AppState, event: WsEvent): AppState {
 		}
 
 		case "webhook.delivery": {
-			return state.deliveries === null
-				? state
-				: { ...state, deliveries: [event.payload.delivery, ...state.deliveries] };
+			const { delivery } = event.payload;
+
+			if (state.deliveries === null) {
+				return state;
+			}
+
+			// A row the log already holds is an update (a cancelled retry), not a new attempt.
+			if (state.deliveries.some(candidate => candidate.id === delivery.id)) {
+				return {
+					...state,
+					deliveries: state.deliveries.map(candidate => (candidate.id === delivery.id ? delivery : candidate)),
+				};
+			}
+
+			// A chain has at most one pending retry, its newest attempt: the server claimed the
+			// earlier one before sending this, so the log stops promising it.
+			const earlier = state.deliveries.map(candidate => {
+				const isSuperseded = candidate.chainId === delivery.chainId && candidate.nextAttemptAt !== null;
+
+				return isSuperseded ? { ...candidate, nextAttemptAt: null } : candidate;
+			});
+
+			return { ...state, deliveries: [delivery, ...earlier] };
+		}
+
+		case "webhook_routing.changed": {
+			// The frame carries the whole resource, so it is safe to adopt even before a view asked.
+			return { ...state, webhookRouting: event.payload.routing };
 		}
 
 		case "contact.changed": {
@@ -470,6 +496,9 @@ function applyWsEvent(state: AppState, event: WsEvent): AppState {
 					// the store re-reads them.
 					injectionRules: isReset ? [] : null,
 					tokens: isReset ? withValidTokens(state.tokens) : null,
+					// Apps come from the environment again on a reset, and from the snapshot on an
+					// import; the server announces the result, so there is nothing to guess here.
+					webhookRouting: null,
 					connection: state.connection,
 					toasts: state.toasts,
 				},
@@ -578,6 +607,19 @@ export function reducer(state: AppState, action: Action): AppState {
 
 		case "tokens/loaded": {
 			return { ...state, tokens: action.tokens };
+		}
+
+		case "webhook-routing/loaded": {
+			return { ...state, webhookRouting: action.routing };
+		}
+
+		case "delivery/updated": {
+			const { delivery } = action;
+
+			return {
+				...state,
+				deliveries: state.deliveries?.map(candidate => (candidate.id === delivery.id ? delivery : candidate)) ?? null,
+			};
 		}
 
 		case "deliveries/loaded": {

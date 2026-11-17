@@ -1,32 +1,35 @@
 import type { HandshakeResult } from "@mockwa/shared";
+import { DEFAULT_RETRY_MAX_AGE_MS, DEFAULT_RETRY_SCHEDULE_MS } from "../config/index.ts";
 import type { JsonObject, Repositories, WebhookDeliveryHeaders, WebhookDeliveryRecord } from "../db/index.ts";
 import type { Logger } from "../logging/index.ts";
+import { AppService, DEFAULT_APP_KEY, type WebhookApp, type WebhookRoute } from "./app-service.ts";
 import { toWebhookDeliveryDto } from "./control-dto.ts";
 import { noopEventPublisher, type EventPublisher } from "./event-bus.ts";
 import { createWebhookChallenge, createWebhookDeliveryId, defaultRandomBytes, type RandomBytes } from "./ids.ts";
 import { metaSignatureHeader, serializeMetaJson, SIGNATURE_HEADER } from "./meta-json.ts";
-import { createSystemScheduler, type Scheduler } from "./scheduler.ts";
+import { createSystemScheduler, type ScheduledTask, type Scheduler } from "./scheduler.ts";
 
 /**
- * The one service that talks to the app under test (SPEC §3).
- *
- * Three things make it worth its own class:
+ * The one service that talks to the apps under test (SPEC §3).
  *
  * - **The body is produced once.** `serializeMetaJson` runs, and that exact string is what is
- *   signed and what is sent (SPEC §1.12). Re-encoding anywhere in between would break every
- *   receiver that verifies the signature.
- * - **Every attempt is logged**, including retries and including the attempts that never
- *   happened because no webhook URL is configured. The delivery log is a first-class feature:
- *   pointing whaloc at nothing and still seeing what it would have sent is how the UI is
- *   useful before an integration exists.
- * - **Retries are deterministic**: 3 attempts at 0 s / 2 s / 10 s, only on a 5xx or a network
- *   error. A 2xx is a success and a 4xx is the receiver's answer, not a hiccup — Meta itself
- *   retries far longer, but a dev tool that hammers a broken endpoint for hours is noise.
+ *   signed and what is sent to every app (SPEC §1.12). Re-encoding anywhere in between would
+ *   break every receiver that verifies the signature.
+ * - **Each app gets its own copy**, routed by Meta's rules ({@link AppService.route}) and
+ *   signed with that app's secret.
+ * - **Every attempt is logged**, including the ones that never happened because an app has no
+ *   URL. The delivery log is a first-class feature: pointing mockwa at nothing and still seeing
+ *   what it would have sent is how the console is useful before an integration exists.
+ * - **Retries are Meta's and they are persisted.** Only an HTTP 200 is a success; anything else
+ *   — a 4xx, a 204, a timeout — is retried on a fixed schedule until the chain is 7 days old.
+ *   The next due time is stored on the attempt row, so a restart with a file database resumes
+ *   the queue instead of losing it. The schedule is the injected clock's, so specs drive it
+ *   without waiting.
  */
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
-/** The webhook half of `AppConfig` (SPEC §7), narrowed to what the emitter reads. */
+/** The webhook half of `AppConfig` (SPEC §7): the default app. */
 export interface WebhookTarget {
 	url?: string | undefined;
 	appSecret?: string | undefined;
@@ -36,19 +39,21 @@ export interface WebhookTarget {
 export interface WebhookEmitterOptions {
 	repositories: Repositories;
 	logger: Logger;
-	target: WebhookTarget;
+	/** Routes and apps. Built from `target` when omitted, which is what most specs do. */
+	apps?: AppService;
+	/** The default app, when `apps` is not given. */
+	target?: WebhookTarget;
 	events?: EventPublisher;
 	scheduler?: Scheduler;
 	/** Injected in tests; defaults to the global `fetch`. */
 	fetch?: FetchLike;
 	random?: RandomBytes;
-	/** One entry per attempt, the delay *before* it. Defaults to 0 s / 2 s / 10 s. */
-	retryDelaysMs?: readonly number[];
+	/** Delay before each retry; the last repeats. `[]` disables retries. */
+	retryScheduleMs?: readonly number[];
+	/** A chain stops retrying once its first attempt is this old. */
+	retryMaxAgeMs?: number;
 	requestTimeoutMs?: number;
 }
-
-/** SPEC §3: three attempts, spaced 0 s / 2 s / 10 s. */
-export const DEFAULT_RETRY_DELAYS_MS = [0, 2000, 10_000] as const;
 
 /** Response bodies are logged for debugging, not archived — 64 KiB is plenty. */
 export const MAX_RESPONSE_BODY_BYTES = 64 * 1024;
@@ -58,6 +63,12 @@ const MAX_ECHO_LENGTH = 1024;
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 
+/** `setTimeout` overflows past 2^31 - 1 ms; a longer wait is re-armed when it fires. */
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
+
+/** A timer that fired with nothing due is re-armed once; then the next emit re-arms it. */
+const MAX_IDLE_FIRES = 1;
+
 /** The `url` a skipped delivery is stored with; `toWebhookDeliveryDto` reads it as `skipped`. */
 export const SKIPPED_DELIVERY_URL = "";
 
@@ -65,6 +76,9 @@ export const SKIPPED_DELIVERY_ERROR = "MOCKWA_WEBHOOK_URL is not set: nothing wa
 
 /** Event type of a `POST /api/webhook/raw` escape-hatch delivery (SPEC §5). */
 export const RAW_EVENT_TYPE = "raw";
+
+/** Meta's success is exactly this status; a 2xx that is not it is retried (SPEC §3). */
+export const SUCCESS_STATUS = 200;
 
 const USER_AGENT = "facebookexternalua";
 
@@ -95,38 +109,93 @@ function describeError(error: unknown): string {
 	return String(error);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Reads where an envelope belongs off the envelope itself: `entry[0].id` is the WABA, the
+ * change's `field` names the event, and `value["metadata"].phone_number_id` the number a
+ * `messages` change is about. A raw payload shaped like something else routes to the default
+ * app, the only address it can have.
+ */
+export function routeOf(
+	eventType: string,
+	envelope: JsonObject,
+): { field: string; wabaId?: string; phoneNumberId?: string } {
+	const entry = Array.isArray(envelope["entry"]) ? (envelope["entry"][0] as unknown) : undefined;
+
+	if (!isRecord(entry)) {
+		return { field: eventType };
+	}
+
+	const change = Array.isArray(entry["changes"]) ? (entry["changes"][0] as unknown) : undefined;
+	const field = isRecord(change) && typeof change["field"] === "string" ? change["field"] : eventType;
+	const value = isRecord(change) ? change["value"] : undefined;
+	const metadata = isRecord(value) ? value["metadata"] : undefined;
+	const phoneNumberId = isRecord(metadata) ? metadata["phone_number_id"] : undefined;
+
+	return {
+		field,
+		...(typeof entry["id"] === "string" && { wabaId: entry["id"] }),
+		...(typeof phoneNumberId === "string" && { phoneNumberId }),
+	};
+}
+
+interface AttemptOutcome {
+	status: number | null;
+	responseBody: string | null;
+	error: string | null;
+	durationMs: number;
+}
+
 export class WebhookEmitter {
 	readonly #repositories: Repositories;
 	readonly #logger: Logger;
-	readonly #target: WebhookTarget;
+	readonly #apps: AppService;
 	readonly #events: EventPublisher;
 	readonly #scheduler: Scheduler;
 	readonly #fetch: FetchLike;
 	readonly #random: RandomBytes;
-	readonly #retryDelaysMs: readonly number[];
+	readonly #retryScheduleMs: readonly number[];
+	readonly #retryMaxAgeMs: number;
 	readonly #requestTimeoutMs: number;
 	#lastHandshake: HandshakeResult | null = null;
+	#timer: ScheduledTask | null = null;
+	#timerDueAt: number | null = null;
+	#idleFires = 0;
+	#draining: Promise<void> | null = null;
+	#isStopped = false;
 
 	constructor(options: WebhookEmitterOptions) {
 		this.#repositories = options.repositories;
 		this.#logger = options.logger;
-		this.#target = options.target;
 		this.#events = options.events ?? noopEventPublisher;
 		this.#scheduler = options.scheduler ?? createSystemScheduler();
+		this.#apps =
+			options.apps ??
+			new AppService({
+				repositories: options.repositories,
+				defaultApp: {
+					callbackUrl: options.target?.url,
+					appSecret: options.target?.appSecret,
+					verifyToken: options.target?.verifyToken,
+				},
+				scheduler: this.#scheduler,
+			});
 		this.#fetch = options.fetch ?? ((input, init) => fetch(input, init));
 		this.#random = options.random ?? defaultRandomBytes;
-		this.#retryDelaysMs = options.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
+		this.#retryScheduleMs = options.retryScheduleMs ?? DEFAULT_RETRY_SCHEDULE_MS;
+		this.#retryMaxAgeMs = options.retryMaxAgeMs ?? DEFAULT_RETRY_MAX_AGE_MS;
 		this.#requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
 	}
 
-	#headers(body: string): WebhookDeliveryHeaders {
+	#headers(app: WebhookApp, body: string): WebhookDeliveryHeaders {
 		return {
 			"content-type": "application/json",
 			// Meta's own user agent; receivers log it and some check it.
 			"user-agent": USER_AGENT,
-			...(this.#target.appSecret !== undefined && {
-				[SIGNATURE_HEADER]: metaSignatureHeader(this.#target.appSecret, body),
-			}),
+			...(app.appSecret !== null && { [SIGNATURE_HEADER]: metaSignatureHeader(app.appSecret, body) }),
 		};
 	}
 
@@ -136,6 +205,9 @@ export class WebhookEmitter {
 		body: string;
 		headers: WebhookDeliveryHeaders;
 		attempt: number;
+		appKey: string;
+		chainId?: string;
+		nextAttemptAt?: string | null;
 		responseStatus?: number | null;
 		responseBody?: string | null;
 		error?: string | null;
@@ -153,22 +225,25 @@ export class WebhookEmitter {
 			attempt: input.attempt,
 			durationMs: input.durationMs ?? null,
 			createdAt: this.#scheduler.now().toISOString(),
+			appKey: input.appKey,
+			...(input.chainId !== undefined && { chainId: input.chainId }),
+			nextAttemptAt: input.nextAttemptAt ?? null,
 		});
 
-		this.#events.publish({ type: "webhook.delivery", payload: { delivery: toWebhookDeliveryDto(record) } });
+		this.#announce(record);
 
 		return record;
 	}
 
+	#announce(record: WebhookDeliveryRecord): void {
+		this.#events.publish({ type: "webhook.delivery", payload: { delivery: toWebhookDeliveryDto(record) } });
+	}
+
 	/**
-	 * One POST. Never throws: a network failure is an outcome, and the caller decides whether
-	 * it is worth another attempt.
+	 * One POST. Never throws: a network failure is an outcome, and the retry queue decides
+	 * whether it is worth another attempt.
 	 */
-	async #attempt(
-		url: string,
-		body: string,
-		headers: WebhookDeliveryHeaders,
-	): Promise<{ status: number | null; responseBody: string | null; error: string | null; durationMs: number }> {
+	async #attempt(url: string, body: string, headers: WebhookDeliveryHeaders): Promise<AttemptOutcome> {
 		const startedAt = Date.now();
 
 		try {
@@ -190,73 +265,221 @@ export class WebhookEmitter {
 	}
 
 	/**
-	 * Sends an already-serialized body, retrying while the failure looks transient. Returns
-	 * one record per attempt, oldest first.
+	 * When the attempt after `attempt` is due, or `null` when the chain is done: retries are
+	 * off, or the next one would land past the chain's maximum age (Meta's 7 days).
 	 */
-	async #deliver(eventType: string, body: string): Promise<WebhookDeliveryRecord[]> {
-		const url = this.#target.url;
-		const headers = this.#headers(body);
-
-		if (url === undefined) {
-			// Deliveries are still logged so the UI shows what the app under test would have
-			// received (SPEC §3) — the payload is exactly the one that would have gone out.
-			this.#logger.debug({ eventType }, "webhook delivery skipped, no MOCKWA_WEBHOOK_URL configured");
-
-			return [
-				await this.#record({
-					eventType,
-					url: SKIPPED_DELIVERY_URL,
-					body,
-					headers,
-					attempt: 1,
-					error: SKIPPED_DELIVERY_ERROR,
-				}),
-			];
+	#nextAttemptAt(chainStartedAt: string, attempt: number): string | null {
+		if (this.#retryScheduleMs.length === 0) {
+			return null;
 		}
 
-		const records: WebhookDeliveryRecord[] = [];
+		const delay = this.#retryScheduleMs[Math.min(attempt, this.#retryScheduleMs.length) - 1]!;
+		const due = this.#scheduler.now().getTime() + delay;
 
-		for (const [index, delayMs] of this.#retryDelaysMs.entries()) {
-			if (delayMs > 0) {
-				await this.#scheduler.sleep(delayMs);
-			}
-
-			const outcome = await this.#attempt(url, body, headers);
-			const attempt = index + 1;
-
-			records.push(
-				await this.#record({
-					eventType,
-					url,
-					body,
-					headers,
-					attempt,
-					responseStatus: outcome.status,
-					responseBody: outcome.responseBody,
-					error: outcome.error,
-					durationMs: outcome.durationMs,
-				}),
-			);
-
-			const isRetryable = outcome.status === null || outcome.status >= 500;
-
-			if (!isRetryable) {
-				this.#logger.debug({ eventType, url, status: outcome.status, attempt }, "webhook delivered");
-
-				return records;
-			}
-
-			this.#logger.warn(
-				{ eventType, url, status: outcome.status, err: outcome.error, attempt },
-				"webhook delivery attempt failed",
-			);
+		if (due - Date.parse(chainStartedAt) > this.#retryMaxAgeMs) {
+			return null;
 		}
 
-		return records;
+		const dueAt = new Date(due);
+
+		return dueAt.toISOString();
+	}
+
+	#skipReason(app: WebhookApp): string {
+		return app.isDefault
+			? SKIPPED_DELIVERY_ERROR
+			: `app "${app.name}" has no callback URL: nothing was sent, the payload is logged only`;
+	}
+
+	/** The first attempt of one app's copy; a failure leaves a retry on the queue. */
+	async #deliver(route: WebhookRoute, eventType: string, body: string): Promise<WebhookDeliveryRecord> {
+		const headers = this.#headers(route.app, body);
+
+		if (route.url === null) {
+			// Still logged so the console shows what the app would have received (SPEC §3).
+			this.#logger.debug({ eventType, app: route.app.key }, "webhook delivery skipped, the app has no URL");
+
+			return this.#record({
+				eventType,
+				url: SKIPPED_DELIVERY_URL,
+				body,
+				headers,
+				attempt: 1,
+				appKey: route.app.key,
+				error: this.#skipReason(route.app),
+			});
+		}
+
+		const outcome = await this.#attempt(route.url, body, headers);
+		const isSuccess = outcome.status === SUCCESS_STATUS;
+		const startedAt = this.#scheduler.now().toISOString();
+		const record = await this.#record({
+			eventType,
+			url: route.url,
+			body,
+			headers,
+			attempt: 1,
+			appKey: route.app.key,
+			nextAttemptAt: isSuccess ? null : this.#nextAttemptAt(startedAt, 1),
+			responseStatus: outcome.status,
+			responseBody: outcome.responseBody,
+			error: outcome.error,
+			durationMs: outcome.durationMs,
+		});
+
+		this.#logOutcome(record);
+
+		if (record.nextAttemptAt !== null) {
+			await this.#arm();
+		}
+
+		return record;
+	}
+
+	#logOutcome(record: WebhookDeliveryRecord): void {
+		const context = {
+			eventType: record.eventType,
+			url: record.url,
+			app: record.appKey,
+			status: record.responseStatus,
+			attempt: record.attempt,
+			nextAttemptAt: record.nextAttemptAt,
+		};
+
+		if (record.responseStatus === SUCCESS_STATUS) {
+			this.#logger.debug(context, "webhook delivered");
+		} else {
+			this.#logger.warn({ ...context, err: record.error }, "webhook delivery attempt failed");
+		}
+	}
+
+	/** One retry of a claimed row: the same URL, headers and bytes, as the next attempt of its chain. */
+	async #retry(previous: WebhookDeliveryRecord): Promise<void> {
+		const chainStart = await this.#repositories.webhookDeliveries.findById(previous.chainId);
+		const startedAt = chainStart?.createdAt ?? previous.createdAt;
+		const outcome = await this.#attempt(previous.url, previous.requestBody, previous.requestHeaders);
+		const attempt = previous.attempt + 1;
+		const record = await this.#record({
+			eventType: previous.eventType,
+			url: previous.url,
+			body: previous.requestBody,
+			headers: previous.requestHeaders,
+			attempt,
+			appKey: previous.appKey ?? DEFAULT_APP_KEY,
+			chainId: previous.chainId,
+			nextAttemptAt: outcome.status === SUCCESS_STATUS ? null : this.#nextAttemptAt(startedAt, attempt),
+			responseStatus: outcome.status,
+			responseBody: outcome.responseBody,
+			error: outcome.error,
+			durationMs: outcome.durationMs,
+		});
+
+		this.#logOutcome(record);
+	}
+
+	/** Points the timer at the earliest due retry, or clears it when nothing is owed. */
+	async #arm(): Promise<void> {
+		if (this.#isStopped) {
+			return;
+		}
+
+		let nextDueAt: string | null;
+
+		// Arming runs after a send and from timers, where nobody awaits it: a failure (a database
+		// closed during shutdown) is logged rather than left as an unhandled rejection.
+		try {
+			nextDueAt = await this.#repositories.webhookDeliveries.nextDueAt();
+		} catch (error) {
+			this.#logger.error({ err: error }, "could not schedule webhook retries");
+
+			return;
+		}
+
+		if (nextDueAt === null) {
+			this.#timer?.cancel();
+			this.#timer = null;
+			this.#timerDueAt = null;
+
+			return;
+		}
+
+		const dueAt = Date.parse(nextDueAt);
+
+		if (this.#timer !== null && this.#timerDueAt !== null && this.#timerDueAt <= dueAt) {
+			return;
+		}
+
+		this.#timer?.cancel();
+		this.#timerDueAt = dueAt;
+
+		const delay = Math.min(Math.max(0, dueAt - this.#scheduler.now().getTime()), MAX_TIMER_DELAY_MS);
+
+		this.#timer = this.#scheduler.schedule(delay, () => {
+			this.#timer = null;
+			this.#timerDueAt = null;
+			void this.runDueRetries();
+		});
+	}
+
+	/** Sends one batch of due rows, each claimed first so it can never go out twice. */
+	async #sendDue(due: readonly WebhookDeliveryRecord[]): Promise<number> {
+		let sent = 0;
+
+		for (const row of due) {
+			const isClaimed = await this.#repositories.webhookDeliveries.claim(row.id);
+
+			if (isClaimed) {
+				await this.#retry(row);
+				sent += 1;
+			}
+		}
+
+		return sent;
+	}
+
+	/** Batches until nothing is due; a retry that fails again is due later, not now. */
+	async #sendAllDue(): Promise<number> {
+		let processed = 0;
+
+		for (;;) {
+			const now = this.#scheduler.now().toISOString();
+			const due = await this.#repositories.webhookDeliveries.listDue(now);
+
+			if (due.length === 0 || this.#isStopped) {
+				return processed;
+			}
+
+			processed += await this.#sendDue(due);
+		}
+	}
+
+	async #drain(): Promise<void> {
+		let processed = 0;
+
+		try {
+			processed = await this.#sendAllDue();
+		} catch (error) {
+			this.#logger.error({ err: error }, "webhook retry pass failed");
+		}
+
+		// A timer that fired a hair early finds nothing due; re-arm once, not forever.
+		this.#idleFires = processed === 0 ? this.#idleFires + 1 : 0;
+
+		if (this.#idleFires <= MAX_IDLE_FIRES) {
+			await this.#arm();
+		}
+	}
+
+	async #runPass(): Promise<void> {
+		try {
+			await this.#drain();
+		} finally {
+			this.#draining = null;
+		}
 	}
 
 	#handshakeFailure(url: string, challenge: string, error: string): HandshakeResult {
-		const result: HandshakeResult = {
+		return {
 			ok: false,
 			url,
 			status: null,
@@ -265,10 +488,6 @@ export class WebhookEmitter {
 			error,
 			at: this.#scheduler.now().toISOString(),
 		};
-
-		this.#lastHandshake = result;
-
-		return result;
 	}
 
 	/** The round trip itself: `hub.mode=subscribe` in, the challenge echoed back out. */
@@ -298,83 +517,38 @@ export class WebhookEmitter {
 		};
 	}
 
-	get isConfigured(): boolean {
-		return this.#target.url !== undefined;
-	}
+	async #emitToRoutes(eventType: string, envelope: JsonObject): Promise<WebhookDeliveryRecord[]> {
+		const body = serializeMetaJson(envelope);
+		const routes = await this.#apps.route(routeOf(eventType, envelope));
+		const records: WebhookDeliveryRecord[] = [];
 
-	/** Result of the most recent handshake, served by `GET /api/state` (SPEC §5). */
-	get lastHandshake(): HandshakeResult | null {
-		return this.#lastHandshake;
-	}
-
-	/**
-	 * Serializes, signs and delivers a webhook envelope. Fire-and-forget by design: callers
-	 * announce an event and move on, so a send response is never held up by a slow receiver.
-	 * Never rejects — a failure is a logged delivery row.
-	 */
-	async emit(eventType: string, envelope: JsonObject): Promise<WebhookDeliveryRecord[]> {
-		try {
-			return await this.#deliver(eventType, serializeMetaJson(envelope));
-		} catch (error) {
-			this.#logger.error({ err: error, eventType }, "webhook emission failed");
-
-			return [];
-		}
-	}
-
-	/** `POST /api/webhook/raw` — any JSON object, signed and logged like a real event. */
-	async emitRaw(payload: JsonObject): Promise<WebhookDeliveryRecord[]> {
-		return this.emit(RAW_EVENT_TYPE, payload);
-	}
-
-	/**
-	 * Re-sends a stored delivery's body as new attempt rows (SPEC §5). The body is replayed
-	 * byte for byte and **re-signed**, so a delivery captured before `MOCKWA_APP_SECRET` was
-	 * set goes out signed the second time.
-	 */
-	async redeliver(deliveryId: string): Promise<WebhookDeliveryRecord[] | null> {
-		const delivery = await this.#repositories.webhookDeliveries.findById(deliveryId);
-
-		if (delivery === null) {
-			return null;
+		for (const route of routes) {
+			records.push(await this.#deliver(route, eventType, body));
 		}
 
-		return this.#deliver(delivery.eventType, delivery.requestBody);
+		return records;
 	}
 
-	async listDeliveries(query: { limit?: number; before?: string } = {}): Promise<WebhookDeliveryRecord[]> {
-		return this.#repositories.webhookDeliveries.list(query);
-	}
-
-	/**
-	 * The `hub.challenge` handshake, initiated by whaloc (SPEC §1.13): `GET <webhookUrl>` with
-	 * `hub.mode=subscribe`, the configured verify token and a random challenge, which the
-	 * receiver must echo back verbatim. Run on demand from the control plane, and at boot when
-	 * `MOCKWA_VERIFY_ON_START` is set.
-	 */
-	async handshake(): Promise<HandshakeResult> {
+	async #handshakeWith(url: string | null, verifyToken: string | null, missing: { url: string; token: string }) {
 		const challenge = createWebhookChallenge(this.#random);
-		const url = this.#target.url;
 
-		if (url === undefined) {
-			return this.#handshakeFailure("", challenge, "MOCKWA_WEBHOOK_URL is not set");
+		if (url === null) {
+			return this.#handshakeFailure("", challenge, missing.url);
 		}
 
-		if (this.#target.verifyToken === undefined) {
-			return this.#handshakeFailure(url, challenge, "MOCKWA_WEBHOOK_VERIFY_TOKEN is not set");
+		if (verifyToken === null) {
+			return this.#handshakeFailure(url, challenge, missing.token);
 		}
 
 		let result: HandshakeResult;
 
 		try {
-			result = await this.#verify(url, this.#target.verifyToken, challenge);
+			result = await this.#verify(url, verifyToken, challenge);
 		} catch (error) {
 			this.#logger.warn({ url, err: error }, "webhook handshake failed");
 
 			return this.#handshakeFailure(url, challenge, describeError(error));
 		}
-
-		this.#lastHandshake = result;
 
 		if (result.ok) {
 			this.#logger.info({ url }, "webhook handshake succeeded");
@@ -383,5 +557,190 @@ export class WebhookEmitter {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Sends every retry that is due, then re-arms for the next one. Public so a spec (and the
+	 * boot sequence) can drain the queue without waiting on a timer; concurrent calls share one
+	 * pass.
+	 */
+	async runDueRetries(): Promise<void> {
+		this.#draining ??= this.#runPass();
+
+		return this.#draining;
+	}
+
+	/** Boot, reset and import call this: whatever the database owes is scheduled again. */
+	async resumeRetries(): Promise<void> {
+		this.#isStopped = false;
+		this.#idleFires = 0;
+		this.#timer?.cancel();
+		this.#timer = null;
+		this.#timerDueAt = null;
+		await this.#arm();
+	}
+
+	/** Shutdown: stops the timer. Pending rows stay pending, for the next boot. */
+	stop(): void {
+		this.#isStopped = true;
+		this.#timer?.cancel();
+		this.#timer = null;
+		this.#timerDueAt = null;
+	}
+
+	/** Cancels the pending retry of the chain a delivery belongs to. `null` for an unknown delivery. */
+	async cancelRetry(deliveryId: string): Promise<WebhookDeliveryRecord | null> {
+		const delivery = await this.#repositories.webhookDeliveries.findById(deliveryId);
+
+		if (delivery === null) {
+			return null;
+		}
+
+		const chain = await this.#repositories.webhookDeliveries.listChain(delivery.chainId);
+		const pending = chain.filter(row => row.nextAttemptAt !== null);
+
+		await this.#repositories.webhookDeliveries.cancelPending({ chainId: delivery.chainId });
+
+		for (const row of pending) {
+			this.#announce({ ...row, nextAttemptAt: null });
+		}
+
+		await this.#arm();
+
+		return (await this.#repositories.webhookDeliveries.findById(deliveryId)) ?? delivery;
+	}
+
+	get apps(): AppService {
+		return this.#apps;
+	}
+
+	/** Whether the default app has somewhere to send to. */
+	get isConfigured(): boolean {
+		return this.#apps.defaultApp.callbackUrl !== null;
+	}
+
+	/** Result of the most recent default-app handshake, served by `GET /api/state` (SPEC §5). */
+	get lastHandshake(): HandshakeResult | null {
+		return this.#lastHandshake;
+	}
+
+	/**
+	 * Serializes once, then signs and delivers a copy to every app the event routes to. Returns
+	 * each copy's first attempt; failures go on the retry queue. Never rejects — a failure is a
+	 * logged delivery row.
+	 */
+	async emit(eventType: string, envelope: JsonObject): Promise<WebhookDeliveryRecord[]> {
+		try {
+			return await this.#emitToRoutes(eventType, envelope);
+		} catch (error) {
+			this.#logger.error({ err: error, eventType }, "webhook emission failed");
+
+			return [];
+		}
+	}
+
+	/**
+	 * `POST /api/webhook/raw` — any JSON object, signed and logged like a real event. Routed by
+	 * its own `entry`, or to one app when `appKey` names it.
+	 */
+	async emitRaw(payload: JsonObject, appKey?: string): Promise<WebhookDeliveryRecord[]> {
+		if (appKey === undefined) {
+			return this.emit(RAW_EVENT_TYPE, payload);
+		}
+
+		const app = await this.#apps.require(appKey);
+
+		return [
+			await this.#deliver(
+				{ app, url: app.callbackUrl, source: "app", verifyToken: app.verifyToken },
+				RAW_EVENT_TYPE,
+				serializeMetaJson(payload),
+			),
+		];
+	}
+
+	/**
+	 * Re-sends a stored delivery's body as a new chain (SPEC §5). The body is replayed byte for
+	 * byte and **re-signed** with its app's current secret, and it goes where that app's copy
+	 * would go now — so a delivery captured before a URL or a secret was set goes out the second
+	 * time. A delivery whose app is gone falls back to the URL it went to.
+	 */
+	async redeliver(deliveryId: string): Promise<WebhookDeliveryRecord[] | null> {
+		const delivery = await this.#repositories.webhookDeliveries.findById(deliveryId);
+
+		if (delivery === null) {
+			return null;
+		}
+
+		const appKey = delivery.appKey ?? DEFAULT_APP_KEY;
+		const app = await this.#apps.find(appKey);
+
+		if (app === null) {
+			return [
+				await this.#deliver(
+					{
+						app: { ...this.#apps.defaultApp, key: appKey, name: appKey, isDefault: false, callbackUrl: null },
+						url: delivery.url === SKIPPED_DELIVERY_URL ? null : delivery.url,
+						source: "app",
+						verifyToken: null,
+					},
+					delivery.eventType,
+					delivery.requestBody,
+				),
+			];
+		}
+
+		const envelope = JSON.parse(delivery.requestBody) as unknown;
+		const routes = isRecord(envelope) ? await this.#apps.route(routeOf(delivery.eventType, envelope)) : [];
+		const route = routes.find(candidate => candidate.app.key === app.key) ?? {
+			app,
+			url: app.callbackUrl,
+			source: "app" as const,
+			verifyToken: app.verifyToken,
+		};
+
+		return [await this.#deliver(route, delivery.eventType, delivery.requestBody)];
+	}
+
+	async listDeliveries(query: { limit?: number; before?: string } = {}): Promise<WebhookDeliveryRecord[]> {
+		return this.#repositories.webhookDeliveries.list(query);
+	}
+
+	/**
+	 * The `hub.challenge` handshake against the default app, initiated by mockwa (SPEC §1.13):
+	 * `GET <webhookUrl>` with `hub.mode=subscribe`, the configured verify token and a random
+	 * challenge, which the receiver must echo back verbatim. Run on demand from the control
+	 * plane, and at boot when `MOCKWA_VERIFY_ON_START` is set.
+	 */
+	async handshake(): Promise<HandshakeResult> {
+		const app = this.#apps.defaultApp;
+		const result = await this.#handshakeWith(app.callbackUrl, app.verifyToken, {
+			url: "MOCKWA_WEBHOOK_URL is not set",
+			token: "MOCKWA_WEBHOOK_VERIFY_TOKEN is not set",
+		});
+
+		this.#lastHandshake = result;
+
+		return result;
+	}
+
+	/**
+	 * The handshake against any app, at its callback URL or at one of its overrides (`url`),
+	 * with the verify token that belongs to that URL.
+	 */
+	async handshakeApp(
+		appKey: string,
+		target: { url?: string; verifyToken?: string | null } = {},
+	): Promise<HandshakeResult> {
+		const app = await this.#apps.require(appKey);
+
+		if (app.isDefault && target.url === undefined) {
+			return this.handshake();
+		}
+
+		return this.#handshakeWith(target.url ?? app.callbackUrl, target.verifyToken ?? app.verifyToken, {
+			url: `app "${app.name}" has no callback URL`,
+			token: `app "${app.name}" has no verify token`,
+		});
 	}
 }

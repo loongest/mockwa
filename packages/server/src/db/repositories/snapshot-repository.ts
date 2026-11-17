@@ -26,6 +26,9 @@ export const SNAPSHOT_TABLES = [
 	"webhook_deliveries",
 	"injection_rules",
 	"expired_tokens",
+	"apps",
+	"webhook_subscriptions",
+	"phone_number_webhook_overrides",
 ] as const;
 
 export type SnapshotTableName = (typeof SNAPSHOT_TABLES)[number];
@@ -99,6 +102,19 @@ export class SnapshotRepository {
 				.orderBy("id")
 				.execute(),
 			expired_tokens: await this.#db.selectFrom("expired_tokens").selectAll().orderBy("token_id").execute(),
+			apps: await this.#db.selectFrom("apps").selectAll().orderBy("created_at").orderBy("id").execute(),
+			webhook_subscriptions: await this.#db
+				.selectFrom("webhook_subscriptions")
+				.selectAll()
+				.orderBy("waba_id")
+				.orderBy("app_key")
+				.execute(),
+			phone_number_webhook_overrides: await this.#db
+				.selectFrom("phone_number_webhook_overrides")
+				.selectAll()
+				.orderBy("phone_number_id")
+				.orderBy("app_key")
+				.execute(),
 		};
 	}
 
@@ -140,6 +156,15 @@ export class SnapshotRepository {
 			});
 			await inChunks(tables.expired_tokens, async chunk => {
 				await trx.insertInto("expired_tokens").values(chunk).execute();
+			});
+			await inChunks(tables.apps, async chunk => {
+				await trx.insertInto("apps").values(chunk).execute();
+			});
+			await inChunks(tables.webhook_subscriptions, async chunk => {
+				await trx.insertInto("webhook_subscriptions").values(chunk).execute();
+			});
+			await inChunks(tables.phone_number_webhook_overrides, async chunk => {
+				await trx.insertInto("phone_number_webhook_overrides").values(chunk).execute();
 			});
 		});
 	}

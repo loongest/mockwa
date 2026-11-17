@@ -340,6 +340,71 @@ export const MIGRATIONS: Record<string, Migration> = {
 			await db.schema.alterTable("contacts").addColumn("display_number", "text").execute();
 		},
 	},
+
+	/**
+	 * mockwa M2: Meta's webhook model (SPEC §3, "Apps and routing").
+	 *
+	 * - `apps` holds the apps registered at runtime or through `MOCKWA_APPS`. The app configured
+	 *   by `MOCKWA_WEBHOOK_URL`/`MOCKWA_APP_SECRET` is not a row: it is the **default app**, read
+	 *   from the environment on every boot, and the other two tables name it by the reserved
+	 *   key `default` so a changed `MOCKWA_APP_ID` does not orphan its overrides.
+	 * - `webhook_subscriptions` is a registered app's subscription to a WABA, and any app's WABA
+	 *   override. The default app's subscription itself stays `wabas.subscribed_at`, unchanged.
+	 * - `phone_number_webhook_overrides` is Meta's `webhook_configuration` on a number, per app.
+	 * - `webhook_deliveries` learns which app an attempt was for, which chain of attempts it
+	 *   belongs to, and when the next attempt is due — the persisted retry queue. Existing rows
+	 *   keep `NULL` in all three: they were the default app's, each its own chain, never pending.
+	 */
+	"0009_webhook_apps_and_retries": {
+		up: async (db: Kysely<never>): Promise<void> => {
+			await db.schema
+				.createTable("apps")
+				.addColumn("id", "text", column => column.primaryKey())
+				.addColumn("name", "text", column => column.notNull())
+				.addColumn("app_secret", "text")
+				.addColumn("verify_token", "text")
+				.addColumn("callback_url", "text")
+				.addColumn("access_token", "text")
+				.addColumn("created_at", "text", column => column.notNull())
+				.addColumn("updated_at", "text", column => column.notNull())
+				.execute();
+
+			// The bearer token is how a Graph call says which app it is (SPEC §2.20).
+			await db.schema.createIndex("apps_access_token_unique").on("apps").column("access_token").unique().execute();
+
+			await db.schema
+				.createTable("webhook_subscriptions")
+				.addColumn("waba_id", "text", column => column.notNull().references("wabas.id").onDelete("cascade"))
+				.addColumn("app_key", "text", column => column.notNull())
+				.addColumn("override_callback_uri", "text")
+				.addColumn("override_verify_token", "text")
+				.addColumn("subscribed_at", "text", column => column.notNull())
+				.addPrimaryKeyConstraint("webhook_subscriptions_pk", ["waba_id", "app_key"])
+				.execute();
+
+			await db.schema
+				.createTable("phone_number_webhook_overrides")
+				.addColumn("phone_number_id", "text", column =>
+					column.notNull().references("phone_numbers.id").onDelete("cascade"),
+				)
+				.addColumn("app_key", "text", column => column.notNull())
+				.addColumn("callback_uri", "text", column => column.notNull())
+				.addColumn("verify_token", "text")
+				.addColumn("updated_at", "text", column => column.notNull())
+				.addPrimaryKeyConstraint("phone_number_webhook_overrides_pk", ["phone_number_id", "app_key"])
+				.execute();
+
+			await db.schema.alterTable("webhook_deliveries").addColumn("app_key", "text").execute();
+			await db.schema.alterTable("webhook_deliveries").addColumn("chain_id", "text").execute();
+			await db.schema.alterTable("webhook_deliveries").addColumn("next_attempt_at", "text").execute();
+
+			await db.schema
+				.createIndex("webhook_deliveries_next_attempt_at")
+				.on("webhook_deliveries")
+				.column("next_attempt_at")
+				.execute();
+		},
+	},
 };
 
 /** Serves {@link MIGRATIONS} to Kysely's `Migrator`. */

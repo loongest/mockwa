@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { DomainServices } from "../composition.ts";
 import type { Logger } from "../logging/index.ts";
+import { createAppRoutes } from "./app-routes.ts";
 import { createContactRoutes } from "./contact-routes.ts";
 import { createControlErrorHandler, type ControlEnv } from "./control-env.ts";
 import { createConversationRoutes } from "./conversation-routes.ts";
@@ -56,6 +57,7 @@ export function createControlRoutes(options: ControlRoutesOptions): Hono<Control
 	routes.route("/", createInjectionRoutes({ injection: services.injection }));
 	routes.route("/", createTokenRoutes({ tokens: services.tokens }));
 	routes.route("/", createWebhookRoutes({ webhooks: services.webhooks, accountEvents: services.accountEvents }));
+	routes.route("/", createAppRoutes({ apps: services.apps, webhooks: services.webhooks }));
 	routes.route(
 		"/",
 		createPhoneNumberRoutes({ phoneNumbers: services.phoneNumbers, businessProfiles: services.businessProfiles }),

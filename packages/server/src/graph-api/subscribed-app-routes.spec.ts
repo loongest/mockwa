@@ -77,7 +77,8 @@ describe("subscribed apps (SPEC §2.20)", () => {
 
 		await call("POST");
 
-		expect(events).toEqual(["waba.changed"]);
+		// The routing view changes with it: the console's Apps settings listen for that one.
+		expect(events).toEqual(["waba.changed", "webhook_routing.changed"]);
 	});
 
 	it("unsubscribes, and stays a success when there was nothing to remove", async () => {
@@ -154,5 +155,135 @@ describe("subscribed apps (SPEC §2.20)", () => {
 		await fixture.services.domain.tasks.whenIdle();
 
 		expect(await fixture.services.repositories.webhookDeliveries.list()).not.toEqual([]);
+	});
+
+	describe("overrides and apps (SPEC §2.20, §3)", () => {
+		const BILLING_TOKEN = "billing-token";
+		let multi: TestApp;
+
+		beforeEach(async () => {
+			multi = await createTestApp({
+				MOCKWA_WEBHOOK_URL: "http://127.0.0.1:9/default",
+				MOCKWA_APPS: JSON.stringify([
+					{
+						id: "200000000000002",
+						name: "Billing",
+						accessToken: BILLING_TOKEN,
+						callbackUrl: "http://127.0.0.1:9/billing",
+					},
+				]),
+			});
+		});
+
+		afterEach(async () => {
+			await multi.close();
+		});
+
+		function asBilling(path: string, init: { method?: string; body?: unknown } = {}) {
+			return multi.app.request(`/v25.0/${path}`, {
+				method: init.method ?? "GET",
+				headers: { authorization: `Bearer ${BILLING_TOKEN}`, "content-type": "application/json" },
+				...(init.body !== undefined && { body: JSON.stringify(init.body) }),
+			});
+		}
+
+		it("acts on the app the access token belongs to", async () => {
+			await asBilling(`${multi.wabaId}/subscribed_apps`, { method: "POST" });
+
+			const page = await readJson<SubscribedAppsPage>(await asBilling(`${multi.wabaId}/subscribed_apps`));
+
+			expect(page.data.map(entry => entry.whatsapp_business_api_data)).toEqual([
+				{ id: "200000000000002", name: "Billing", link: TEST_PUBLIC_URL },
+			]);
+		});
+
+		it("sets a WABA override, reports it next to the app, and clears it with a bare POST", async () => {
+			const set = await asBilling(`${multi.wabaId}/subscribed_apps`, {
+				method: "POST",
+				body: { override_callback_uri: "https://override.test/waba", verify_token: "vt" },
+			});
+
+			expect(set.status).toBe(200);
+			expect(await set.json()).toEqual({ success: true });
+			expect(await readJson(await asBilling(`${multi.wabaId}/subscribed_apps`))).toEqual({
+				data: [
+					{
+						whatsapp_business_api_data: { id: "200000000000002", name: "Billing", link: TEST_PUBLIC_URL },
+						override_callback_uri: "https://override.test/waba",
+					},
+				],
+			});
+
+			await asBilling(`${multi.wabaId}/subscribed_apps`, { method: "POST" });
+
+			const page = await readJson<{ data: Record<string, unknown>[] }>(
+				await asBilling(`${multi.wabaId}/subscribed_apps`),
+			);
+
+			expect(page.data[0]).not.toHaveProperty("override_callback_uri");
+		});
+
+		it("needs the override URL and its verify token together, as Meta does", async () => {
+			const response = await asBilling(`${multi.wabaId}/subscribed_apps`, {
+				method: "POST",
+				body: { override_callback_uri: "https://override.test/waba" },
+			});
+
+			expect(response.status).toBe(400);
+			expect(await response.json()).toMatchObject({ error: { code: 100 } });
+		});
+
+		it("rejects an override URL longer than Meta's 200 characters", async () => {
+			const response = await asBilling(`${multi.wabaId}/subscribed_apps`, {
+				method: "POST",
+				body: { override_callback_uri: `https://override.test/${"a".repeat(200)}`, verify_token: "vt" },
+			});
+
+			expect(response.status).toBe(400);
+		});
+
+		it("sets, reads and removes a number's webhook_configuration", async () => {
+			await asBilling(`${multi.wabaId}/subscribed_apps`, {
+				method: "POST",
+				body: { override_callback_uri: "https://override.test/waba", verify_token: "vt" },
+			});
+
+			const set = await asBilling(multi.phoneNumberId, {
+				method: "POST",
+				body: { webhook_configuration: { override_callback_uri: "https://override.test/phone", verify_token: "vt" } },
+			});
+
+			expect(set.status).toBe(200);
+			expect(await set.json()).toEqual({ success: true });
+			expect(await readJson(await asBilling(`${multi.phoneNumberId}?fields=webhook_configuration`))).toEqual({
+				webhook_configuration: {
+					phone_number: "https://override.test/phone",
+					whatsapp_business_account: "https://override.test/waba",
+					application: "http://127.0.0.1:9/billing",
+				},
+				id: multi.phoneNumberId,
+			});
+
+			await asBilling(multi.phoneNumberId, {
+				method: "POST",
+				body: { webhook_configuration: { override_callback_uri: "" } },
+			});
+
+			const after = await readJson<{ webhook_configuration: Record<string, string> }>(
+				await asBilling(`${multi.phoneNumberId}?fields=webhook_configuration`),
+			);
+
+			expect(after.webhook_configuration).not.toHaveProperty("phone_number");
+		});
+
+		it("keeps the uniform missing-object envelope for an unknown number", async () => {
+			const response = await asBilling("999999999999999", {
+				method: "POST",
+				body: { webhook_configuration: { override_callback_uri: "https://override.test/phone", verify_token: "vt" } },
+			});
+
+			expect(response.status).toBe(400);
+			expect(await response.json()).toMatchObject({ error: { code: 100, error_subcode: 33 } });
+		});
 	});
 });

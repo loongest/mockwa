@@ -9,16 +9,19 @@ import { MIGRATIONS } from "./migrations.ts";
 import { runMigrations } from "./migrator.ts";
 
 const TABLES = [
+	"apps",
 	"contacts",
 	"expired_tokens",
 	"injection_rules",
 	"media",
 	"messages",
+	"phone_number_webhook_overrides",
 	"phone_numbers",
 	"templates",
 	"upload_sessions",
 	"wabas",
 	"webhook_deliveries",
+	"webhook_subscriptions",
 ];
 
 describe("runMigrations", () => {

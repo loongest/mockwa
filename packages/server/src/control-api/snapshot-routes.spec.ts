@@ -217,6 +217,57 @@ describe("state export/import", () => {
 			expect(state.wabas.map(candidate => candidate.id)).toEqual([wabaId]);
 		});
 
+		it("carries apps, subscriptions and overrides across, and drops pending retries", async () => {
+			const created = await fixture.app.request("/api/apps", {
+				method: "POST",
+				body: JSON.stringify({ name: "Billing", callbackUrl: "http://127.0.0.1:9/billing", appSecret: "s" }),
+				headers: { "content-type": "application/json" },
+			});
+			const { data: app } = await readJson<{ data: { key: string } }>(created);
+
+			await fixture.app.request(`/api/apps/${app.key}/subscriptions/${fixture.wabaId}`, { method: "PUT" });
+			await fixture.app.request(`/api/apps/${app.key}/phone-overrides/${fixture.phoneNumberId}`, {
+				method: "PUT",
+				body: JSON.stringify({ callbackUri: "http://127.0.0.1:9/phone" }),
+				headers: { "content-type": "application/json" },
+			});
+			// Port 9 refuses, so the copy fails and a retry is pending in the export.
+			await simulateInbound("needs a retry");
+
+			const snapshot = await exportSnapshot("?include=deliveries");
+
+			expect(snapshot.tables.apps).toHaveLength(1);
+			expect(snapshot.tables.webhook_subscriptions).toHaveLength(1);
+			expect(snapshot.tables.phone_number_webhook_overrides).toHaveLength(1);
+
+			await fixture.app.request("/api/reset", { method: "POST" });
+			const imported = await importSnapshot(snapshot);
+
+			expect(imported.status).toBe(200);
+
+			const routing = await readJson<{ data: { apps: { name: string }[]; phoneOverrides: unknown[] } }>(
+				await fixture.app.request("/api/apps"),
+			);
+
+			expect(routing.data.apps.map(candidate => candidate.name)).toEqual(["whaloc", "Billing"]);
+			expect(routing.data.phoneOverrides).toHaveLength(1);
+			// A snapshot is a picture, not a queue: it must not start calling somebody's URL.
+			expect(await fixture.services.repositories.webhookDeliveries.nextDueAt()).toBeNull();
+		});
+
+		it("still reads a snapshot written before apps existed", async () => {
+			const snapshot = await exportSnapshot();
+			const {
+				apps: _apps,
+				webhook_subscriptions: _subscriptions,
+				...older
+			} = snapshot.tables as Record<string, unknown>;
+
+			const imported = await importSnapshot({ ...snapshot, tables: older });
+
+			expect(imported.status).toBe(200);
+		});
+
 		it("reports what it loaded", async () => {
 			await simulateInbound();
 			await uploadMedia();

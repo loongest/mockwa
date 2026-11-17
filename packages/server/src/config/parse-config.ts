@@ -258,5 +258,9 @@ export function describeConfig(config: AppConfig): Record<string, unknown> {
 		webDir: config.webDir,
 		logLevel: config.logLevel,
 		seed: { wabas: config.seed.length, phoneNumbers, contacts, templates },
+		// Names only: each app carries a secret and possibly a token.
+		apps: config.apps.map(app => app.name),
+		webhookRetryScheduleMs: config.webhookRetryScheduleMs,
+		webhookRetryMaxAgeMs: config.webhookRetryMaxAgeMs,
 	};
 }

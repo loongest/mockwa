@@ -206,11 +206,31 @@ export {
 export { StateService, type StateServiceOptions } from "./state-service.ts";
 export { StatusLadder, type ManualStatus, type StatusLadderOptions } from "./status-ladder.ts";
 export {
-	APP_NAME,
+	parseOverride,
 	SubscribedAppService,
 	type SubscribedApp,
 	type SubscribedAppServiceOptions,
+	type WebhookConfiguration,
 } from "./subscribed-app-service.ts";
+export {
+	AppService,
+	DEFAULT_APP_KEY,
+	DEFAULT_APP_NAME,
+	MAX_OVERRIDE_URL_LENGTH,
+	OVERRIDABLE_FIELDS,
+	overrideUrlProblem,
+	toWebhookAppDto,
+	type AppServiceOptions,
+	type AppSubscription,
+	type CreateAppInput,
+	type DefaultAppConfig,
+	type OverrideInput,
+	type RouteRequest,
+	type RouteSource,
+	type UpdateAppFields,
+	type WebhookApp,
+	type WebhookRoute,
+} from "./app-service.ts";
 export { TemplateLifecycle, TEMPLATE_EVENTS, type TemplateLifecycleOptions } from "./template-lifecycle.ts";
 export {
 	extractPlaceholders,
@@ -252,11 +272,12 @@ export {
 } from "./upload-service.ts";
 export { WabaService, type WabaServiceOptions } from "./waba-service.ts";
 export {
-	DEFAULT_RETRY_DELAYS_MS,
 	MAX_RESPONSE_BODY_BYTES,
 	RAW_EVENT_TYPE,
+	routeOf,
 	SKIPPED_DELIVERY_ERROR,
 	SKIPPED_DELIVERY_URL,
+	SUCCESS_STATUS,
 	WebhookEmitter,
 	type FetchLike,
 	type WebhookEmitterOptions,

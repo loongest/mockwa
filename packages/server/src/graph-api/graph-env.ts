@@ -11,6 +11,8 @@ export interface GraphEnv extends AppEnv {
 		fbRequestId: string;
 		/** `v25.0`, `v99.9`, … — whatever prefix the caller used, echoed into `paging.next`. */
 		version: string;
+		/** The bearer token, once authenticated: it says which app a call acts as (SPEC §3). */
+		accessToken?: string;
 	};
 }
 

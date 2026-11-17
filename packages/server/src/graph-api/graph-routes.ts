@@ -45,8 +45,9 @@ export interface GraphRoutesOptions {
  * The whole Graph API mock, as one router (SPEC §2). {@link createApp} mounts it under
  * `/:version{v\d+\.\d+}` so every version answers identically.
  *
- * Route order is cosmetic **except for the uploads router**, which has to come before the
- * template one: `POST /upload:<opaque>` (SPEC §2.21) is one segment deep and would otherwise be
+ * Route order is cosmetic **except for two routers that must come before the template one**:
+ * the subscribed-apps router, whose `POST /{phoneNumberId}` takes a `webhook_configuration` body
+ * and passes anything else on to the template edit, and the uploads router: `POST /upload:<opaque>` (SPEC §2.21) is one segment deep and would otherwise be
  * taken by the template edit's `POST /{templateId}`. Nothing else overlaps — the object read, the
  * template edit and the media delete are one segment deep on different methods, and the rest are
  * two segments whose second segment is a literal (`messages`, `media`, `uploads`,
@@ -67,7 +68,10 @@ export function createGraphRoutes(options: GraphRoutesOptions): Hono<GraphEnv> {
 
 	// Before the template router: see the note above about `POST /upload:<opaque>`.
 	routes.route("/", createUploadRoutes({ uploads: options.uploads, media: options.media }));
-	routes.route("/", createObjectRoutes({ objects: options.objects, media: options.media }));
+	routes.route(
+		"/",
+		createObjectRoutes({ objects: options.objects, media: options.media, subscribedApps: options.subscribedApps }),
+	);
 	routes.route("/", createMessageRoutes({ messages: options.messages, readReceipts: options.readReceipts }));
 	routes.route("/", createMediaRoutes({ media: options.media }));
 	routes.route("/", createPhoneNumberRoutes({ phoneNumbers: options.phoneNumbers, objects: options.objects }));

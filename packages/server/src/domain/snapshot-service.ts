@@ -18,6 +18,7 @@ import type { StateService } from "./state-service.ts";
 import type { StatusLadder } from "./status-ladder.ts";
 import type { TemplateLifecycle } from "./template-lifecycle.ts";
 import type { TypingService } from "./typing-service.ts";
+import type { WebhookEmitter } from "./webhook-emitter.ts";
 
 /**
  * State export and import (SPEC §5) — one JSON file that is a whole whaloc.
@@ -44,6 +45,8 @@ export interface SnapshotServiceOptions {
 	statusLadder: StatusLadder;
 	templateLifecycle: TemplateLifecycle;
 	typing: TypingService;
+	/** Its retry queue is re-armed after the swap; optional so narrower specs need not build one. */
+	webhooks?: WebhookEmitter;
 	events?: EventPublisher;
 	/** Injected by tests so `exportedAt` is not the wall clock. */
 	scheduler?: Scheduler;
@@ -77,6 +80,7 @@ export class SnapshotService {
 	readonly #statusLadder: StatusLadder;
 	readonly #templateLifecycle: TemplateLifecycle;
 	readonly #typing: TypingService;
+	readonly #webhooks: WebhookEmitter | undefined;
 	readonly #events: EventPublisher;
 	readonly #scheduler: Scheduler;
 
@@ -88,6 +92,7 @@ export class SnapshotService {
 		this.#statusLadder = options.statusLadder;
 		this.#templateLifecycle = options.templateLifecycle;
 		this.#typing = options.typing;
+		this.#webhooks = options.webhooks;
 		this.#events = options.events ?? noopEventPublisher;
 		this.#scheduler = options.scheduler ?? createSystemScheduler();
 	}
@@ -213,6 +218,10 @@ export class SnapshotService {
 		const arriving = new Set(snapshot.mediaObjects.map(object => object.storageKey));
 
 		await this.#repositories.snapshots.replaceAll(snapshot.tables);
+		// A snapshot's pending retries were owed by somebody else's mockwa, at another time:
+		// like the timers above, they are cancelled rather than replayed (SPEC §5).
+		await this.#repositories.webhookDeliveries.cancelPending();
+		await this.#webhooks?.resumeRetries();
 		await deleteStoredMedia({
 			storageKeys: [
 				...previous.map(media => media.storageKey),
