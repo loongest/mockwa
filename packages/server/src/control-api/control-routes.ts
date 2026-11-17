@@ -16,6 +16,7 @@ import { createSnapshotRoutes } from "./snapshot-routes.ts";
 import { createStateRoutes } from "./state-routes.ts";
 import { createTemplateRoutes } from "./template-routes.ts";
 import { createTokenRoutes } from "./token-routes.ts";
+import { createMessagingRulesRoutes } from "./messaging-rules-routes.ts";
 import { createTypingRoutes } from "./typing-routes.ts";
 import { createWabaRoutes } from "./waba-routes.ts";
 import { createWebhookRoutes } from "./webhook-routes.ts";
@@ -54,6 +55,7 @@ export function createControlRoutes(options: ControlRoutesOptions): Hono<Control
 		createTemplateRoutes({ templates: services.templates, templateLifecycle: services.templateLifecycle }),
 	);
 	routes.route("/", createTypingRoutes({ typing: services.typing }));
+	routes.route("/", createMessagingRulesRoutes({ messagingRules: services.messagingRules }));
 	routes.route("/", createInjectionRoutes({ injection: services.injection }));
 	routes.route("/", createTokenRoutes({ tokens: services.tokens }));
 	routes.route("/", createWebhookRoutes({ webhooks: services.webhooks, accountEvents: services.accountEvents }));

@@ -49,10 +49,12 @@ export const messageResponseSchema = z.object({ data: messageSchema });
 export type MessageResponse = z.infer<typeof messageResponseSchema>;
 
 /**
- * The failure presets a manual `failed` transition can pick from (SPEC §4). Meta has hundreds
- * of codes; these four are the ones a whaloc user actually wants to rehearse.
+ * The failures a `failed` status can carry (SPEC §4): a manual transition, a `messages.status`
+ * injection rule, or one of the messaging rules (131047 outside the customer service window,
+ * 131048 over the messaging limit). Meta has hundreds of codes; these are the ones a mockwa user
+ * actually wants to rehearse.
  */
-export const MESSAGE_ERROR_CODES = [131_049, 131_026, 131_047, 130_472] as const;
+export const MESSAGE_ERROR_CODES = [131_049, 131_026, 131_047, 130_472, 131_048, 131_000] as const;
 
 export const messageErrorCodeSchema = z.literal(MESSAGE_ERROR_CODES);
 

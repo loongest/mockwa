@@ -1,6 +1,13 @@
 import path from "node:path";
 import { z } from "zod";
 import { DEFAULT_SEED, seedSchema } from "./seed.ts";
+import {
+	messagingLimitSchema,
+	pairRateLimitSchema,
+	serviceWindowSchema,
+	throughputSchema,
+	type MessagingRulesConfig,
+} from "./messaging-config.ts";
 import { appsEnvSchema, retryMaxAgeSchema, retryScheduleSchema } from "./webhook-config.ts";
 
 export const LOG_LEVELS = ["fatal", "error", "warn", "info", "debug", "trace", "silent"] as const;
@@ -236,6 +243,10 @@ export const appConfigSchema = z
 		MOCKWA_TEMPLATE_AUTO_APPROVE: templateAutoApproveSchema,
 		MOCKWA_TOKENS: tokensSchema,
 		MOCKWA_MEDIA_TTL_SECONDS: mediaTtlSchema,
+		MOCKWA_SERVICE_WINDOW: serviceWindowSchema,
+		MOCKWA_THROUGHPUT: throughputSchema,
+		MOCKWA_PAIR_RATE_LIMIT: pairRateLimitSchema,
+		MOCKWA_MESSAGING_LIMIT: messagingLimitSchema,
 		MOCKWA_DB_PATH: z.string().min(1).default(":memory:"),
 		// Where the bytes go (SPEC §6). `local` is the default and needs nothing else; `s3`
 		// requires the bucket and region below, and is checked before the server boots.
@@ -284,6 +295,13 @@ export const appConfigSchema = z
 		tokens: env.MOCKWA_TOKENS,
 		/** `undefined` = uploaded media never expires (SPEC §4). */
 		mediaTtlSeconds: env.MOCKWA_MEDIA_TTL_SECONDS,
+		/** The window, throughput, pair rate and messaging limit rules (SPEC §4); `null` = off. */
+		messaging: {
+			serviceWindowMs: env.MOCKWA_SERVICE_WINDOW,
+			throughput: env.MOCKWA_THROUGHPUT,
+			pairRateLimit: env.MOCKWA_PAIR_RATE_LIMIT,
+			messagingLimit: env.MOCKWA_MESSAGING_LIMIT,
+		} satisfies MessagingRulesConfig,
 		dbPath: env.MOCKWA_DB_PATH,
 		/** Which `MediaStorage` the boot sequence builds (SPEC §6). */
 		mediaBackend: env.MOCKWA_MEDIA_BACKEND,

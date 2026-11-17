@@ -6,7 +6,7 @@ import type { BackgroundTasks } from "./background-tasks.ts";
 import { toMessageDto } from "./control-dto.ts";
 import type { OutboundMessageEvents } from "./domain-events.ts";
 import { noopEventPublisher, type EventPublisher } from "./event-bus.ts";
-import { messageErrorNode, messageErrorPreset } from "./message-error-presets.ts";
+import { messageErrorNode, messageErrorPreset, sendFailureNode, type SendFailure } from "./message-error-presets.ts";
 import { createSystemScheduler, type ScheduledTask, type Scheduler } from "./scheduler.ts";
 import type { WebhookEmitter } from "./webhook-emitter.ts";
 import {
@@ -108,6 +108,17 @@ export class StatusLadder implements OutboundMessageEvents {
 		}
 	}
 
+	/** The automatic `failed` of a send a rule refused; nothing happens if it already moved on. */
+	async #fail(messageId: string, failure: SendFailure): Promise<void> {
+		const message = await this.#repositories.messages.findById(messageId);
+
+		if (message === null || !canTransition(message.status, "failed")) {
+			return;
+		}
+
+		await this.#transition(message, "failed", sendFailureNode(failure));
+	}
+
 	/**
 	 * The conversation category a status reports: the category of the template that was sent,
 	 * lowercased, or `service` for everything else (SPEC §4).
@@ -204,10 +215,28 @@ export class StatusLadder implements OutboundMessageEvents {
 	/**
 	 * `MessageService` announces every accepted send here. The UI hears about the message
 	 * straight away — it is already stored — and the ladder starts climbing at `sent`.
+	 *
+	 * A send that a messaging rule or an injection rule failed takes the `sent` rung's slot with
+	 * a `failed` status instead, and stops there: Meta reports such a send as accepted, then
+	 * failed, and never as sent (SPEC §4).
 	 */
-	onOutboundAccepted(message: MessageRecord): void {
+	onOutboundAccepted(message: MessageRecord, failure?: SendFailure): void {
 		this.#events.publish({ type: "message.created", payload: { message: toMessageDto(message) } });
-		this.#schedule(message.id, "sent", this.#delays.sent);
+
+		if (failure === undefined) {
+			this.#schedule(message.id, "sent", this.#delays.sent);
+
+			return;
+		}
+
+		this.cancel(message.id);
+
+		const task = this.#scheduler.schedule(this.#delays.sent, () => {
+			this.#pending.delete(message.id);
+			this.#tasks.run(() => this.#fail(message.id, failure));
+		});
+
+		this.#pending.set(message.id, task);
 	}
 
 	/** Drops the pending timer of one message — a manual transition, or a reset. */

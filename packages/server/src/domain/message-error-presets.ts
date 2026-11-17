@@ -47,6 +47,23 @@ export const MESSAGE_ERROR_PRESETS: Record<MessageErrorCode, MessageErrorPreset>
 		details:
 			"Message failed to send because this user's phone number is part of an experiment. Learn more in the documentation.",
 	},
+	// 131048 and 131000: Meta's error-code reference gives these a description only, so the
+	// description is the title as well, the way the 131049 fixture repeats its own.
+	131_048: {
+		code: 131_048,
+		title:
+			"Message failed to send because there are restrictions on how many messages can be sent from this phone number.",
+		message:
+			"Message failed to send because there are restrictions on how many messages can be sent from this phone number.",
+		details:
+			"Message failed to send because there are restrictions on how many messages can be sent from this phone number.",
+	},
+	131_000: {
+		code: 131_000,
+		title: "Message failed to send due to an unknown error.",
+		message: "Message failed to send due to an unknown error.",
+		details: "Message failed to send due to an unknown error.",
+	},
 };
 
 /** The preset a manual `failed` transition uses when the caller does not pick one. */
@@ -64,6 +81,36 @@ export function messageErrorNode(preset: MessageErrorPreset): JsonObject {
 		message: preset.message,
 		error_data: { details: preset.details },
 		href: ERROR_DOCS_HREF,
+	};
+}
+
+/**
+ * mockwa's own code for a send over the messaging limit (SPEC §4, "Messaging rules"). Meta
+ * documents the limit but no error code for exceeding it, so this one is deliberately outside
+ * Meta's numbering and says in its own text that mockwa made it up: an app must never learn to
+ * key behavior on it as if Meta sent it.
+ */
+export const SIMULATED_MESSAGING_LIMIT_CODE = 990_001;
+
+/** Why an accepted send ends `failed`: one of Meta's codes, or mockwa's messaging-limit one. */
+export type SendFailure = MessageErrorCode | typeof SIMULATED_MESSAGING_LIMIT_CODE;
+
+const SIMULATED_MESSAGING_LIMIT_DETAILS =
+	"Simulated by mockwa: this business has reached its messaging limit of unique users in a moving 24 hours. " +
+	"Meta documents the limit but no error code for exceeding it, so this code is mockwa's own.";
+
+/** The `errors[]` node a {@link SendFailure} puts on its `failed` status. */
+export function sendFailureNode(failure: SendFailure): JsonObject {
+	if (failure !== SIMULATED_MESSAGING_LIMIT_CODE) {
+		return messageErrorNode(messageErrorPreset(failure));
+	}
+
+	return {
+		code: SIMULATED_MESSAGING_LIMIT_CODE,
+		title: "[mockwa] Messaging limit reached (simulated)",
+		message: "[mockwa] Messaging limit reached (simulated)",
+		error_data: { details: SIMULATED_MESSAGING_LIMIT_DETAILS },
+		href: "/documentation/business-messaging/whatsapp/messaging-limits",
 	};
 }
 

@@ -186,6 +186,11 @@ export interface MessageTable {
 	template_snapshot: string | null;
 	/** When the message was sent or received — the value webhooks report as Unix seconds. */
 	timestamp: string;
+	/**
+	 * `1` for an outbound send that went out while the customer service window was closed (SPEC
+	 * §4) — what the messaging limit counts. `0` for everything else, and for rows older than it.
+	 */
+	business_initiated: number;
 	created_at: string;
 	updated_at: string;
 }
@@ -288,6 +293,8 @@ export interface InjectionRuleTable {
 	matches: number;
 	/** Countdown of a `next` trigger; `null` for the other two. */
 	remaining: number | null;
+	/** The `failed` status code of a `messages.status` rule; `null` for every other target. */
+	error_code: number | null;
 	created_at: string;
 	updated_at: string;
 }

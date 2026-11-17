@@ -3,17 +3,19 @@
 //
 //   node e2e/m0-smoke.mjs
 //
-// Environment: GRAPH_URL (http://127.0.0.1:8888), CONSOLE_URL (http://127.0.0.1:8025),
-// ECHO_URL (http://127.0.0.1:3001), APP_SECRET (the secret both mockwa and the echo app use).
+// Environment, required (e2e/targets.mjs): GRAPH_URL, CONSOLE_URL and ECHO_URL, each with an
+// explicit port. Optional: APP_SECRET (the secret both mockwa and the echo app use).
 // Runs every check, prints PASS/FAIL for each, and exits non-zero if any failed.
 
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { requireTargets } from "./targets.mjs";
 
-const GRAPH_URL = process.env.GRAPH_URL ?? "http://127.0.0.1:8888";
-const CONSOLE_URL = process.env.CONSOLE_URL ?? "http://127.0.0.1:8025";
-const ECHO_URL = process.env.ECHO_URL ?? "http://127.0.0.1:3001";
+const { GRAPH_URL, CONSOLE_URL, ECHO_URL } = requireTargets({
+	suite: "M0 smoke",
+	urls: ["GRAPH_URL", "CONSOLE_URL", "ECHO_URL"],
+});
 const APP_SECRET = process.env.APP_SECRET ?? "dev-app-secret";
 const AUTH = { authorization: "Bearer m0-smoke-token" };
 

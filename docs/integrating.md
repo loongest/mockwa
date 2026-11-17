@@ -161,7 +161,10 @@ curl -sS -X POST http://localhost:8888/v25.0/573542517421694/messages \
 ```
 
 The answer is Meta's: `{"messaging_product":"whatsapp","contacts":[…],"messages":[{"id":"wamid.…"}]}`.
-The seeded template needs nothing created or approved either:
+On a fresh mockwa that text is accepted and then **fails** with `131047`, because the seeded
+contact has not written yet and the 24-hour customer service window is closed; the inbound
+step below opens it. A template is never held back by the window, and the seeded one needs
+nothing created or approved either:
 
 ```sh
 curl -sS -X POST http://localhost:8888/v25.0/573542517421694/messages \
@@ -225,8 +228,13 @@ if you would rather automate it.
   `META_APP_ID` you are configured with. whaloc additionally takes a plain media ID in
   `profile_picture_handle`, which is one call instead of three if you are writing the setup script
   yourself.
-- **Nothing is throttled, delayed or dropped by default** beyond the configured status ladder, so
-  a client-side timeout is never in play. To exercise retry and backoff paths, arm a deterministic
+- **The 24-hour customer service window is on by default.** A free-form message to a contact
+  who has not written in the last 24 hours is accepted and then fails with `131047`, as on Meta.
+  Seeded contacts have never written, so send them a template first, or simulate an inbound
+  message, or set `MOCKWA_SERVICE_WINDOW=off` to accept every send as before.
+- **Nothing is throttled by default** beyond the window and the configured status ladder, so
+  a client-side timeout is never in play. Throughput, pair and messaging limits are opt-in
+  (`MOCKWA_THROUGHPUT`, `MOCKWA_PAIR_RATE_LIMIT`, `MOCKWA_MESSAGING_LIMIT`). To exercise retry and backoff paths, arm a deterministic
   rule in **Settings → Error injection** (e.g. `rate_limit_429` with `Retry-After` and
   `X-Business-Use-Case-Usage`, for the next N sends). Nothing ever fails unless a rule says so.
 - **whaloc's control plane is unauthenticated.** Publishing its port is for you, not for a shared

@@ -17,6 +17,7 @@ import {
 import type { StateService } from "./state-service.ts";
 import type { StatusLadder } from "./status-ladder.ts";
 import type { TemplateLifecycle } from "./template-lifecycle.ts";
+import type { MessagingRules } from "./messaging-rules.ts";
 import type { TypingService } from "./typing-service.ts";
 import type { WebhookEmitter } from "./webhook-emitter.ts";
 
@@ -45,6 +46,8 @@ export interface SnapshotServiceOptions {
 	statusLadder: StatusLadder;
 	templateLifecycle: TemplateLifecycle;
 	typing: TypingService;
+	/** Throughput and pair-rate counts, which describe traffic that is about to stop existing. */
+	messagingRules?: MessagingRules;
 	/** Its retry queue is re-armed after the swap; optional so narrower specs need not build one. */
 	webhooks?: WebhookEmitter;
 	events?: EventPublisher;
@@ -80,6 +83,7 @@ export class SnapshotService {
 	readonly #statusLadder: StatusLadder;
 	readonly #templateLifecycle: TemplateLifecycle;
 	readonly #typing: TypingService;
+	readonly #messagingRules: MessagingRules | undefined;
 	readonly #webhooks: WebhookEmitter | undefined;
 	readonly #events: EventPublisher;
 	readonly #scheduler: Scheduler;
@@ -92,6 +96,7 @@ export class SnapshotService {
 		this.#statusLadder = options.statusLadder;
 		this.#templateLifecycle = options.templateLifecycle;
 		this.#typing = options.typing;
+		this.#messagingRules = options.messagingRules;
 		this.#webhooks = options.webhooks;
 		this.#events = options.events ?? noopEventPublisher;
 		this.#scheduler = options.scheduler ?? createSystemScheduler();
@@ -212,6 +217,7 @@ export class SnapshotService {
 		this.#statusLadder.cancelAll();
 		this.#templateLifecycle.cancelAll();
 		this.#typing.clearAll();
+		this.#messagingRules?.reset();
 
 		const previous = await this.#repositories.media.listAll();
 		const previousUploads = await this.#repositories.uploadSessions.listAll();

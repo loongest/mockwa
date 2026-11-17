@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { messageErrorCodeSchema } from "./messages.ts";
 
 /**
  * Deterministic error injection (SPEC §4, "Error simulation").
@@ -17,9 +18,14 @@ import { z } from "zod";
  *
  * `graph.all` matches every request the injection middleware sees, the media byte endpoint
  * included.
+ *
+ * `messages.status` is not a route: it is the **status webhooks** of accepted sends. Its rules
+ * leave the request alone — the send answers 200 with a wamid, as Meta's does — and turn what
+ * would have been `sent` into a `failed` status carrying the rule's `errorCode`.
  */
 export const INJECTION_TARGETS = [
 	"messages.send",
+	"messages.status",
 	"media.upload",
 	"media.resolve",
 	"media.download",
@@ -67,6 +73,7 @@ export type InjectionTrigger = z.infer<typeof injectionTriggerSchema>;
  *   throttling headers.
  * - `server_error_500` — HTTP 500, code `1`.
  * - `custom` — the caller writes the envelope itself.
+ * - `failed_status` — only for `messages.status`: a `failed` status webhook with `errorCode`.
  */
 export const INJECTION_PRESETS = [
 	"rate_limit_429",
@@ -74,6 +81,7 @@ export const INJECTION_PRESETS = [
 	"spam_rate_4",
 	"server_error_500",
 	"custom",
+	"failed_status",
 ] as const;
 
 export const injectionPresetSchema = z.enum(INJECTION_PRESETS);
@@ -114,6 +122,8 @@ const injectionRuleShape = {
 	/** `X-Business-Use-Case-Usage.estimated_time_to_regain_access`, in **minutes** (SPEC §1.11). */
 	regainAccessMinutes: z.int().min(0).max(MAX_REGAIN_ACCESS_MINUTES).optional(),
 	custom: injectionCustomResponseSchema.optional(),
+	/** The `failed` status a `messages.status` rule produces (SPEC §4). */
+	errorCode: messageErrorCodeSchema.optional(),
 };
 
 /** `POST /api/injection-rules`. */
@@ -122,6 +132,14 @@ export const injectionRuleCreateRequestSchema = z
 	.refine(value => (value.preset === "custom") === (value.custom !== undefined), {
 		error: "custom is required for the custom preset, and not allowed for any other",
 		path: ["custom"],
+	})
+	.refine(value => (value.target === "messages.status") === (value.preset === "failed_status"), {
+		error: "the messages.status target takes the failed_status preset, and only it",
+		path: ["preset"],
+	})
+	.refine(value => (value.preset === "failed_status") === (value.errorCode !== undefined), {
+		error: "errorCode is required for the failed_status preset, and not allowed for any other",
+		path: ["errorCode"],
 	});
 
 export type InjectionRuleCreateRequest = z.infer<typeof injectionRuleCreateRequestSchema>;

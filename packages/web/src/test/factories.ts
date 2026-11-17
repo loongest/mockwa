@@ -167,6 +167,7 @@ export function makeStateResponse(overrides: Partial<StateResponse> = {}): State
 			templateAutoApproveMs: 2000,
 			strictTokens: false,
 			mediaTtlSeconds: null,
+			messaging: { serviceWindowMs: 86_400_000, throughput: null, pairRateLimit: null, messagingLimit: null },
 		},
 		webhook: {
 			url: "https://receiver.test/meta-webhooks",

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { messagingRulesConfigSchema } from "./messaging-rules.ts";
 import { phoneNumberSchema } from "./phone-numbers.ts";
 import { handshakeResultSchema } from "./webhooks.ts";
 
@@ -32,6 +33,8 @@ export const behaviorStateSchema = z.object({
 	strictTokens: z.boolean(),
 	/** `MOCKWA_MEDIA_TTL_SECONDS`; `null` = uploaded media never expires. */
 	mediaTtlSeconds: z.number().int().nonnegative().nullable(),
+	/** The customer service window, throughput, pair rate and messaging limit (SPEC §4). */
+	messaging: messagingRulesConfigSchema,
 });
 
 export type BehaviorState = z.infer<typeof behaviorStateSchema>;

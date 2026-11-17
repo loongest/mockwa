@@ -28,7 +28,8 @@
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",
 		"start": "npm run start --workspace @mockwa/server",
-		"test": "npm run test --workspaces --if-present",
+		"test": "npm run test --workspaces --if-present && npm run test:e2e-targets",
+		"test:e2e-targets": "node --test e2e/targets.test.mjs",
 		"typecheck": "npm run typecheck --workspaces --if-present"
 	},
 	"devDependencies": {

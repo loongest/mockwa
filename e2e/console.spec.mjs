@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { readTargets } from "./targets.mjs";
 
-const GRAPH_URL = process.env.GRAPH_URL ?? "http://127.0.0.1:8888";
+// Required, no defaults (e2e/targets.mjs): CONSOLE_URL is the project's baseURL.
+const { GRAPH_URL } = readTargets(process.env, { suite: "m0-console", urls: ["CONSOLE_URL", "GRAPH_URL"] });
 
 /** A seeded contact (`DEFAULT_SEED`), so nothing has to be created first. */
 const CONTACT = { waId: "5571990000002", name: "Bruno Lima" };

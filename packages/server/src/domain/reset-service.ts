@@ -10,6 +10,7 @@ import { deleteStoredMedia } from "./media-cleanup.ts";
 import type { StateService } from "./state-service.ts";
 import type { StatusLadder } from "./status-ladder.ts";
 import type { TemplateLifecycle } from "./template-lifecycle.ts";
+import type { MessagingRules } from "./messaging-rules.ts";
 import type { TypingService } from "./typing-service.ts";
 import type { WebhookEmitter } from "./webhook-emitter.ts";
 
@@ -38,6 +39,8 @@ export interface ResetServiceOptions {
 	statusLadder: StatusLadder;
 	templateLifecycle: TemplateLifecycle;
 	typing: TypingService;
+	/** Throughput and pair-rate counts, which describe traffic that is about to stop existing. */
+	messagingRules?: MessagingRules;
 	/** Re-registers `MOCKWA_APPS`; optional so the narrower specs need not build one. */
 	apps?: AppService;
 	/** Re-armed after the wipe so a cancelled retry queue does not keep a timer. */
@@ -59,6 +62,7 @@ export class ResetService {
 	readonly #statusLadder: StatusLadder;
 	readonly #templateLifecycle: TemplateLifecycle;
 	readonly #typing: TypingService;
+	readonly #messagingRules: MessagingRules | undefined;
 	readonly #apps: AppService | undefined;
 	readonly #webhooks: WebhookEmitter | undefined;
 	readonly #events: EventPublisher;
@@ -72,6 +76,7 @@ export class ResetService {
 		this.#statusLadder = options.statusLadder;
 		this.#templateLifecycle = options.templateLifecycle;
 		this.#typing = options.typing;
+		this.#messagingRules = options.messagingRules;
 		this.#apps = options.apps;
 		this.#webhooks = options.webhooks;
 		this.#events = options.events ?? noopEventPublisher;
@@ -103,6 +108,7 @@ export class ResetService {
 		// A typing indicator describes a conversation that is about to stop existing; the
 		// `state.reset` event below is what tells the UI to forget it.
 		this.#typing.clearAll();
+		this.#messagingRules?.reset();
 
 		await this.#deleteMediaObjects();
 		await deleteAllRows(this.#repositories);

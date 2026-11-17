@@ -218,7 +218,7 @@ mockwa plays **several apps** at once, the way one WhatsApp Business Account can
 
 ## 4. Deterministic status ladder & template lifecycle
 
-- On accepted send: emit `sent` immediately, then `delivered` after `MOCKWA_STATUS_DELAYS` (default `sent:0,delivered:800`). **`read` is manual by default** (button in UI, or `read:<ms>` in the env var to automate). `failed` only ever manual (UI picks an error code from presets: 131049 engagement, 131026 undeliverable, 131047 re-engagement window, 130472 experiment; sends proper `errors[]`).
+- On accepted send: emit `sent` immediately, then `delivered` after `MOCKWA_STATUS_DELAYS` (default `sent:0,delivered:800`). **`read` is manual by default** (button in UI, or `read:<ms>` in the env var to automate). `failed` is manual (UI picks an error code from presets: 131049 engagement, 131026 undeliverable, 131047 re-engagement window, 130472 experiment, 131048 sending restricted, 131000 unknown error; sends proper `errors[]`) — or decided at send time by a messaging rule or a `messages.status` injection rule (below), in which case `failed` takes the `sent` rung's slot and the ladder stops there: no `sent`, no `delivered`.
 - Status webhooks for `sent`/`delivered` include `conversation` + `pricing` shaped like the fixture (conversation ID = stable hash of phone+contact+day; `origin.type`/`pricing.category` = template category lowercased, else `service`; `expiration_timestamp` = now+24h as string).
 - Template create/edit → status `PENDING`; if `MOCKWA_TEMPLATE_AUTO_APPROVE` (default `2000` ms) is not `off`, auto-approve after the delay and emit the webhook. UI can approve/reject (with `reason`/`rejection_info`) any PENDING template, and later pause/disable — every transition emits the webhook. A **seeded** template never enters this flow: it is `APPROVED` at boot, announces nothing and schedules no timer (§7).
 - Timers must survive nothing: they are in-process `setTimeout`s; on restart pending timers are dropped (fine for a dev tool — document it).
@@ -254,6 +254,80 @@ created through the Graph endpoint has to climb. `request_code` is accepted at a
 is harmless and it is the shortest way to see the flow in the UI — and only `verify_code` moves
 anything.
 
+### Messaging rules (M3)
+
+Four of Meta's sending rules, decided in one domain service (`MessagingRules`) that reads the
+injectable clock — a test steps over a boundary instead of waiting a day. Every default figure
+is Meta's documented one; the variables of §7 exist to reach a boundary quickly or to turn a
+rule off.
+
+**Customer service window** (`MOCKWA_SERVICE_WINDOW`, default `24h`, **on**). Meta: when a
+customer messages a business number, a 24-hour customer service window opens, and each new
+message from them restarts it; inside it any message type may be sent, outside it only
+templates. mockwa derives the window from the latest **inbound** message between that business
+number and that contact (`POST /api/inbound`, the virtual phone, or anything else that stores an
+inbound message — an inbound `timestamp` is honored, which is how a test backdates one). The
+window is open while `now < last inbound + window` and **closed at exactly the boundary**.
+
+- A template may be sent at any time. One sent while the window is closed is
+  *business-initiated* (`messages.business_initiated = 1`), which is what the messaging limit
+  counts.
+- Any other type sent while the window is closed is **accepted** (200 with a wamid, like any
+  send) and then ends with a `failed` status webhook carrying `131047` ("Re-engagement message")
+  in the slot `sent` would have used. No `sent` or `delivered` follows.
+- `off` turns enforcement off: every send behaves as before M3, and `GET /api/service-window`
+  still reports the window (with `isEnforced:false`, measured against 24h).
+
+**Throughput** (`MOCKWA_THROUGHPUT`, default `off`). Meta: up to 80 messages per second per
+business number by default, up to 1,000 after the automatic upgrade; exceeding it is `130429`.
+`meta` uses each number's `throughput.level` (`STANDARD` → 80, `HIGH` → 1,000); a whole number
+applies one figure to every number. Counted per business phone number over **fixed one-second
+windows**; a send over the limit is **refused**: HTTP 429, code `130429`, `Retry-After: 1`.
+
+**Pair rate limit** (`MOCKWA_PAIR_RATE_LIMIT`, default `off`). Meta: one message every 6 seconds
+to the same WhatsApp user, bursts of up to 45; exceeding it is `131056`. `meta` is `6s/45`;
+`<interval>/<burst>` sets both. Modeled as a generic cell rate per (business number, contact):
+`burst` sends may go at once, after which one more is allowed per interval. A send over the
+limit is **refused**: HTTP 400, code `131056`, no headers.
+
+Throughput and pair limits are checked together and consumed together, after the request has
+been validated: a send one of them refuses consumes nothing. Their counters live in memory —
+a restart, `POST /api/reset` and `POST /api/import` clear them.
+
+**Messaging limit** (`MOCKWA_MESSAGING_LIMIT`, default `off`). Meta: the number of unique
+customers a business can reach with business-initiated messages in a moving 24 hours (tiers
+250, 2,000, 10,000, 100,000, unlimited). mockwa counts the unique contacts of non-failed
+business-initiated sends created in the last 24 hours (`created_at > now − 24h`), shared by
+every number of one WABA. A contact already in the count can always be reached again; a
+template to a *new* contact over the limit is accepted and ends `failed` with **`990001`**, a
+**simulator-specific** code (below). The
+period is always 24 hours, whatever the window is set to. `GET /api/messaging-rules` reports the
+count per WABA.
+
+**Order of decisions** on `POST /{phoneNumberId}/messages`: bearer and injection middleware →
+the send gate (`133010`) → request validation (recipient, template) → throughput and pair limit
+(refusals) → window and messaging limit (failures) → a `messages.status` injection rule (only if
+no rule already failed the send) → stored and answered 200.
+
+#### Differences from the real Meta Cloud API
+
+Deliberate, and each one either fills a gap in Meta's documentation or keeps mockwa simple.
+
+| Area | Meta | mockwa |
+|---|---|---|
+| Window error timing | Documents `131047` but not whether it is synchronous or asynchronous; its error page says codes may be either | Always asynchronous: 200, then a `failed` status webhook |
+| Window scope | Opened or restarted by a customer's message or call | Per business **phone number** and contact; opened only by inbound messages. Calls are not modeled |
+| Messaging limit scope | Per business portfolio | Per WABA (mockwa has no portfolio) |
+| Messaging limit error | Documents the limit, but no error code or behavior for exceeding it. `131048` is a restriction on the phone number (blocks, spam reports), and `131064` is a limit from template classification violations; neither is the tier limit | `failed` status with mockwa's own code `990001`, outside Meta's numbering: title `[mockwa] Messaging limit reached (simulated)`, details beginning `Simulated by mockwa`, `href` to Meta's messaging-limits page. An app must never key production behavior on it |
+| Messaging limit tiers | Raised automatically by quality and volume | A fixed number, set by `MOCKWA_MESSAGING_LIMIT`; no tier upgrades |
+| Throughput counting | Per business number, all messages; algorithm unpublished | Outbound sends only, fixed one-second windows |
+| Throughput upgrade | `131057` while the number is upgraded | Not simulated; set `throughput.level` from the console instead |
+| HTTP status of refusals | Lists no HTTP status for `130429` or `131056` | `429` for `130429` and `400` for `131056`, inherited from whaloc's injection presets (§4) |
+| Rate-limit headers | Not documented for `130429` | `Retry-After: 1` only; no `X-Business-Use-Case-Usage` (that stays with the `rate_limit_429` injection preset) |
+| WABA and app rate limits | Graph call limits (`80007` throttling, `4` app limit) | Not simulated; use an injection rule (`spam_rate_4`, or `custom`) |
+| Counters across restarts | — | Throughput and pair counters are in memory and start afresh; the window and messaging limit are read from stored messages and survive |
+| Pricing and conversations | Charged per delivered template | Unchanged from §4: conversation and pricing nodes only, nothing is billed |
+
 ### Error simulation: token registry, injection rules, media TTL
 
 Three ways to make whaloc misbehave **on purpose**. All three are off by default, none of them
@@ -272,9 +346,9 @@ runtime through the control plane and stored in the database (cleared by `POST /
 
 | Part | Values |
 |---|---|
-| Target (endpoint class) | `messages.send` (`POST /{phoneNumberId}/messages`), `media.upload`, `media.resolve` (`GET /{mediaId}?phone_number_id=`), `media.download` (`GET /whaloc-media/{token}`), `templates.create`, `templates.list`, `graph.all` (every Graph request, the byte endpoint included) |
+| Target (endpoint class) | `messages.send` (`POST /{phoneNumberId}/messages`), `messages.status` (the **status** of an accepted send, below), `media.upload`, `media.resolve` (`GET /{mediaId}?phone_number_id=`), `media.download` (`GET /whaloc-media/{token}`), `templates.create`, `templates.list`, `graph.all` (every Graph request, the byte endpoint included) |
 | Trigger | `always`; `next N` with a live countdown; `every Nth` counted off the rule's own request counter (fires on the 3rd, 6th, 9th…) |
-| Preset | `rate_limit_429` (429, code `130429`, `Retry-After: <seconds>` + `X-Business-Use-Case-Usage`), `throughput_131056` (400, code `131056`, no headers), `spam_rate_4` (429, code `4`, same two headers), `server_error_500` (500, code `1`), `custom` (caller supplies http status, code, optional subcode, message, details, type) |
+| Preset | `rate_limit_429` (429, code `130429`, `Retry-After: <seconds>` + `X-Business-Use-Case-Usage`), `throughput_131056` (400, code `131056`, no headers), `spam_rate_4` (429, code `4`, same two headers), `server_error_500` (500, code `1`), `custom` (caller supplies http status, code, optional subcode, message, details, type), `failed_status` (only for `messages.status`, with an `errorCode` from the message error presets) |
 
 The usage header is Meta's, keyed by business ID, with the throttled app's quota at 100 %:
 
@@ -292,6 +366,14 @@ matches has its request counter advanced; the **first one in creation order that
 arms** answers, and a rule shadowed by an earlier one keeps its countdown (it has not fired). A
 match short-circuits with the Meta envelope, its headers and an `info` log line. The decision is
 domain (`InjectionService`); only the short-circuit is Hono.
+
+**Status injection.** A `messages.status` rule never answers a request — `graph.all` does not
+match it either. It is evaluated by the message service for every send that was accepted and
+that no messaging rule already failed, with the same triggers and counters: when it fires, the
+send still answers 200 with its wamid, and its first status webhook is `failed` with the rule's
+`errorCode` instead of `sent`. That is how an app's handling of an asynchronous failure is
+tested on demand. Its only preset is `failed_status`, and `failed_status` belongs to no other
+target.
 
 **Media TTL** (`MOCKWA_MEDIA_TTL_SECONDS`, default off). An object whose age has *reached* the
 TTL — the boundary is inclusive — is gone from the Graph surface: the descriptor hop answers the
@@ -320,6 +402,8 @@ REST consumed by the web UI (and by test scripts). Suggested resources (final sh
 
   The riders merge with the `context` a `replyTo` produces rather than replacing it, so a forwarded reply about a catalog item is one `context` with `from`, `id`, `forwarded` and `referred_product` in it. Persists + emits webhook.
 - `POST /api/messages/:id/status` — `{status:"read"|"delivered"|"failed", errorCode?}` manual transitions; `GET /api/message-error-presets` lists the failure presets that action accepts (code + Meta's wording), which is what the UI's "fail…" menu is built from.
+- `GET /api/service-window?phoneNumberId=&waId=` — the customer service window between one business number and one contact (§4, "Messaging rules"): `{phoneNumberId, waId, isEnforced, isOpen, lastInboundAt, expiresAt, windowMs}`, the times as ISO strings or `null` when the contact never wrote. 404 for an unknown business number.
+- `GET /api/messaging-rules` — the configured rules (`serviceWindowMs`, `throughput`, `pairRateLimit`, `messagingLimit`, each `null` when off) and `usage`: per WABA, the messaging limit and the unique contacts counted against it. The same configuration is in `GET /api/state` as `behavior.messaging`.
 - `GET /api/typing?phoneNumberId=` — the typing indicators that are up right now (§4). Read-only: an indicator is something the *app under test* declares, so the control plane serves them (for a UI that just loaded, and for assertions) but never raises one.
 - `GET /api/media/:id` — the descriptor behind a media ID (`{id, url, mimeType, sha256, fileSize}`), so the UI can render an inline preview of a message whose payload only carries the ID.
 - `GET /api/uploads?handle=` — the same, for a **resumable-upload handle** (§2.21): `{handle, url, mimeType, sha256, fileSize, fileName, createdAt}`, 404 when no completed session owns it. A template's `example.header_handle` carries a handle rather than a media ID, so this is what lets the Templates view preview a media header with the picture it will actually send. The handle rides in the query string because Meta's handles are full of colons.
@@ -352,13 +436,13 @@ Replies are never mockwa's: whatever a phone receives was sent by the app under 
 
 Every route answers 404 for an unknown identity or business number, in the control plane's error shape. The Developer Console (`/`) and `/api/ws` are unchanged; the phone is not reachable on the Graph port (§8).
 
-WebSocket `/api/ws`: server → client events `{type, payload}`: `message.created`, `message.status_changed` (a read receipt on an inbound message arrives this way — there is no separate `message.read`), `typing.changed` (`payload.typing.expiresAt === null` means it came down), `template.changed`, `webhook.delivery`, `contact.changed` (with `previousWaId` when the contact changed number, so a client can re-key what it derived from the old one), `waba.changed`, `phone_number.changed` (both carry `event:"created"|"updated"|"deleted"`; a phone number's rung on the ladder — a `request_code` included — arrives this way too), `injection.changed` (an `updated` event is published for every rule a request touched, which is what makes the UI's countdown live), `token.changed`, `webhook_routing.changed` (the whole routing, §3), `state.reset`, `state.imported` (the same payload as a reset — a client drops everything and reloads either way; the two are separate because one comes back to the seed and the other to somebody else's world). UI is a pure client of REST+WS — no other coupling.
+WebSocket `/api/ws`: server → client events `{type, payload}`: `message.created`, `message.status_changed` (a read receipt on an inbound message arrives this way — there is no separate `message.read`), `typing.changed` (`payload.typing.expiresAt === null` means it came down), `template.changed`, `webhook.delivery`, `contact.changed` (with `previousWaId` when the contact changed number, so a client can re-key what it derived from the old one), `waba.changed`, `phone_number.changed` (both carry `event:"created"|"updated"|"deleted"`; a phone number's rung on the ladder — a `request_code` included — arrives this way too), `injection.changed` (an `updated` event is published for every rule a request touched, which is what makes the UI's countdown live), `token.changed`, `webhook_routing.changed` (the whole routing, §3), `state.reset`, `state.imported` (the same payload as a reset — a client drops everything and reloads either way; the two are separate because one comes back to the seed and the other to somebody else's world). UI is a pure client of REST+WS — no other coupling. On shutdown (`SIGTERM`/`SIGINT`) every open WebSocket — console or phone — is sent a close frame with code `1001` (going away) and given two seconds to answer before it is cut, so an open tab never holds the process until the shutdown deadline.
 
 ## 6. Data model & persistence
 
 **Kysely + `node:sqlite`** (built into Node 24; no native deps, no WASM). Default DB is `:memory:`; `MOCKWA_DB_PATH=/data/whaloc.db` makes state survive restarts (volume). Use Kysely's SQLite dialect surface with a thin custom driver over `node:sqlite`'s `DatabaseSync` (prefer a well-maintained npm dialect if one exists — verify on npm — else write the ~100-line driver in `packages/server/src/db/`; reuse Kysely's `SqliteAdapter`/`SqliteQueryCompiler`/`SqliteIntrospector`). Migrations run at boot (Kysely migrator, in-code migration list).
 
-Tables (roughly): `wabas`, `phone_numbers` (`id`, waba_id, display_phone_number, verified_name, quality_rating, throughput_level), `contacts` (wa_id, profile_name, user_id — the BSUID, nullable and unique), `templates` (`id` digits, waba_id, name, language, category, parameter_format, components JSON, status, rejected_reason, quality_score), `messages` (wamid, direction, phone_number_id, contact, type, payload JSON, status, error JSON, biz_opaque_callback_data, template_snapshot JSON — `{parameter_format, components}` for a template send, `null` otherwise and for rows stored before it existed, timestamps, reply_to), `media` (`id` digits, phone_number_id, mime_type, sha256, file_size, storage_key, url_token), `upload_sessions` (`id`, app_id, file_name, file_type, file_length, received_bytes, handle unique, storage_key, sha256, url_token unique, timestamps — §2.21; one row is the whole life of an upload, which is why a handle survives a restart), `webhook_deliveries` (`id`, event_type, url, request_body, request_headers, response_status, response_body, error, attempt, duration_ms, created_at, app_key, chain_id, next_attempt_at — the last three `null` on rows written before apps existed, read as the default app, a chain of one and nothing pending), `apps` (`id`, name, app_secret, verify_token, callback_url, access_token unique, timestamps), `webhook_subscriptions` (waba_id, app_key, override_callback_uri, override_verify_token, subscribed_at), `phone_number_webhook_overrides` (phone_number_id, app_key, callback_uri, verify_token, updated_at), `injection_rules` (`id` time-ordered, target, trigger_kind, trigger_count, preset, retry_after_seconds, regain_access_minutes, custom JSON, seen, matches, remaining, timestamps), `expired_tokens` (token_id = truncated SHA-256, expired_at).
+Tables (roughly): `wabas`, `phone_numbers` (`id`, waba_id, display_phone_number, verified_name, quality_rating, throughput_level), `contacts` (wa_id, profile_name, user_id — the BSUID, nullable and unique), `templates` (`id` digits, waba_id, name, language, category, parameter_format, components JSON, status, rejected_reason, quality_score), `messages` (wamid, direction, business_initiated — `1` for a template sent while the window was closed, `0` otherwise and on rows stored before M3, phone_number_id, contact, type, payload JSON, status, error JSON, biz_opaque_callback_data, template_snapshot JSON — `{parameter_format, components}` for a template send, `null` otherwise and for rows stored before it existed, timestamps, reply_to), `media` (`id` digits, phone_number_id, mime_type, sha256, file_size, storage_key, url_token), `upload_sessions` (`id`, app_id, file_name, file_type, file_length, received_bytes, handle unique, storage_key, sha256, url_token unique, timestamps — §2.21; one row is the whole life of an upload, which is why a handle survives a restart), `webhook_deliveries` (`id`, event_type, url, request_body, request_headers, response_status, response_body, error, attempt, duration_ms, created_at, app_key, chain_id, next_attempt_at — the last three `null` on rows written before apps existed, read as the default app, a chain of one and nothing pending), `apps` (`id`, name, app_secret, verify_token, callback_url, access_token unique, timestamps), `webhook_subscriptions` (waba_id, app_key, override_callback_uri, override_verify_token, subscribed_at), `phone_number_webhook_overrides` (phone_number_id, app_key, callback_uri, verify_token, updated_at), `injection_rules` (`id` time-ordered, target, trigger_kind, trigger_count, preset, retry_after_seconds, regain_access_minutes, custom JSON, error_code — the `failed_status` code, `null` otherwise, seen, matches, remaining, timestamps), `expired_tokens` (token_id = truncated SHA-256, expired_at).
 
 **Media bytes** go through a `MediaStorage` interface (`put(stream|buffer, meta) → {storageKey, sha256, byteSize}`, `get(storageKey, {range?}) → {stream, size}`, `delete`, optional `close`), with two implementations selected by `MOCKWA_MEDIA_BACKEND`:
 
@@ -404,6 +488,10 @@ Parsed once at boot with zod (fail fast, print every error). Everything is an en
 | `MOCKWA_TEMPLATE_AUTO_APPROVE` | `2000` | ms until auto-approval; `off` = manual |
 | `MOCKWA_TOKENS` | *(unset → any non-empty bearer token)* | Comma-separated bearer-token registry (§1.9, §4). Set it and only these tokens pass; blank entries are dropped, duplicates rejected. Each can be expired/restored from the control plane |
 | `MOCKWA_MEDIA_TTL_SECONDS` | *(unset → media never expires)* | Whole seconds after which a media object is gone from the Graph surface (§4) |
+| `MOCKWA_SERVICE_WINDOW` | `24h` | Customer service window (§4, "Messaging rules"); a duration (`30s`, `24h`) or `off` — `off` restores the pre-M3 behavior of accepting any free-form send |
+| `MOCKWA_THROUGHPUT` | `off` | Messages per second per business number: `off`, `meta` (each number's `throughput.level`: 80 or 1,000) or a whole number. Over it: 429 / `130429` |
+| `MOCKWA_PAIR_RATE_LIMIT` | `off` | Messages to one contact from one number: `off`, `meta` (`6s/45`) or `<interval>/<burst>`. Over it: 400 / `131056` |
+| `MOCKWA_MESSAGING_LIMIT` | `off` | Unique contacts reached by business-initiated templates per WABA in a moving 24 hours: `off`/`unlimited` or a whole number (Meta's tiers: 250, 2000, 10000, 100000). Over it: `failed` / `990001` (simulator-specific, §4) |
 | `MOCKWA_DB_PATH` | `:memory:` | SQLite path for persistence |
 | `MOCKWA_MEDIA_BACKEND` | `local` | `local` (a directory) or `s3` (an S3-compatible bucket), §6 |
 | `MOCKWA_MEDIA_DIR` | `/data/media` (image) | Media storage root, for the `local` backend |

@@ -59,6 +59,7 @@ export class StateService {
 				// if it should render the token section at all (SPEC §1.9).
 				strictTokens: this.#config.tokens !== undefined,
 				mediaTtlSeconds: this.#config.mediaTtlSeconds ?? null,
+				messaging: this.#config.messaging,
 			},
 			webhook: {
 				url: this.#config.webhookUrl ?? null,

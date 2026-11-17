@@ -95,6 +95,10 @@ export async function createTestApp(
 		// in front of them, so an unrouted path is a 404 and not the SPA fallback. The web UI
 		// spec points this at a fixture instead.
 		MOCKWA_WEB_DIR: path.join(mediaDir, "no-web-bundle"),
+		// The specs written before M3 send to contacts that never wrote and assert on the ladder
+		// that follows; the window's own specs pass `MOCKWA_SERVICE_WINDOW` to switch it back on.
+		// The shipped default (24h) is pinned by the configuration spec.
+		MOCKWA_SERVICE_WINDOW: "off",
 		...withCanonicalNames(env),
 	});
 

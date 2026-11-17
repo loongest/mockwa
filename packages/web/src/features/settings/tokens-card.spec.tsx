@@ -100,6 +100,7 @@ describe("SettingsPage token section", () => {
 					templateAutoApproveMs: 2000,
 					strictTokens: true,
 					mediaTtlSeconds: 5,
+					messaging: { serviceWindowMs: 86_400_000, throughput: null, pairRateLimit: null, messagingLimit: null },
 				},
 			}),
 		});

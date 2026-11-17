@@ -8,6 +8,7 @@ import { useAction, useAppState, useDispatch, useToasts } from "../../store/stor
 import { AppsCard } from "./apps-card.tsx";
 import { DangerZoneCard } from "./danger-zone-card.tsx";
 import { InjectionCard } from "./injection-card.tsx";
+import { MessagingRulesCard } from "./messaging-rules-card.tsx";
 import { TokensCard } from "./tokens-card.tsx";
 import { WabaSection } from "./waba-section.tsx";
 
@@ -431,6 +432,7 @@ export function SettingsPage() {
 		{ id: "contacts", label: "Contacts" },
 		{ id: "apps", label: "Apps & webhooks" },
 		...(hasTokens ? [{ id: "tokens", label: "Access tokens" }] : []),
+		{ id: "messaging-rules", label: "Messaging rules" },
 		{ id: "error-injection", label: "Error injection" },
 		{ id: "behavior", label: "Behavior" },
 		{ id: "danger-zone", label: "Danger zone" },
@@ -461,6 +463,10 @@ export function SettingsPage() {
 							<TokensCard />
 						</Section>
 					)}
+
+					<Section id="messaging-rules" title="Messaging rules">
+						<MessagingRulesCard rules={server.behavior.messaging} />
+					</Section>
 
 					<Section id="error-injection" title="Error injection">
 						<InjectionCard />
