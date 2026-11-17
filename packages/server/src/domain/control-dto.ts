@@ -156,6 +156,7 @@ export function toInjectionRuleDto(record: InjectionRuleRecord): InjectionRule {
 		...(record.retryAfterSeconds !== null && { retryAfterSeconds: record.retryAfterSeconds }),
 		...(record.regainAccessMinutes !== null && { regainAccessMinutes: record.regainAccessMinutes }),
 		...(record.custom !== null && { custom: record.custom }),
+		...(record.errorCode !== null && { errorCode: record.errorCode }),
 		seen: record.seen,
 		matches: record.matches,
 		remaining: record.remaining,

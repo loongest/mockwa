@@ -1,4 +1,5 @@
 import type { MessageRecord, TemplateRecord } from "../db/index.ts";
+import type { SendFailure } from "./message-error-presets.ts";
 
 /**
  * The seams the status ladder and the template lifecycle plug into (SPEC §4).
@@ -13,8 +14,11 @@ import type { MessageRecord, TemplateRecord } from "../db/index.ts";
  */
 
 export interface OutboundMessageEvents {
-	/** A send was accepted and persisted; the ladder starts here (SPEC §4). */
-	onOutboundAccepted: (message: MessageRecord) => void;
+	/**
+	 * A send was accepted and persisted; the ladder starts here (SPEC §4). `failure` is set when
+	 * a messaging rule or a `messages.status` injection rule decided it ends `failed` instead.
+	 */
+	onOutboundAccepted: (message: MessageRecord, failure?: SendFailure) => void;
 }
 
 /**
@@ -26,9 +30,13 @@ export interface OutboundMessageEvents {
  */
 export function combineOutboundMessageEvents(...listeners: readonly OutboundMessageEvents[]): OutboundMessageEvents {
 	return {
-		onOutboundAccepted: message => {
+		onOutboundAccepted: (message, failure) => {
 			for (const listener of listeners) {
-				listener.onOutboundAccepted(message);
+				if (failure === undefined) {
+					listener.onOutboundAccepted(message);
+				} else {
+					listener.onOutboundAccepted(message, failure);
+				}
 			}
 		},
 	};

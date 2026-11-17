@@ -210,18 +210,72 @@ jobs:
           done
           test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m2)" = "healthy"
 
+      # A fourth instance for API fidelity (M3): Meta's default 24-hour window, the opt-in limits
+      # set low enough to reach, a file database on a volume for the restart check, and an echo
+      # app whose replies are the free-form sends the window judges.
+      - name: Start the M3 image and its echo app 🧪
+        run: |
+          set -euo pipefail
+          PORT=3005 APP_SECRET=m3-app-secret VERIFY_TOKEN=m3-verify-token \
+            GRAPH_API_BASE_URL=http://127.0.0.1:58888/v25.0 \
+            nohup node examples/echo-app/server.mjs > echo-app-m3.log 2>&1 &
+          docker volume create mockwa-ci-m3-data
+          docker run -d --name mockwa-ci-m3 \
+            --add-host=host.docker.internal:host-gateway \
+            -p 127.0.0.1:58888:8888 -p 127.0.0.1:58025:8025 \
+            -v mockwa-ci-m3-data:/data \
+            -e MOCKWA_DB_PATH=/data/mockwa.db \
+            -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3005/webhook \
+            -e MOCKWA_APP_SECRET=m3-app-secret \
+            -e MOCKWA_WEBHOOK_VERIFY_TOKEN=m3-verify-token \
+            -e MOCKWA_THROUGHPUT=5 \
+            -e MOCKWA_PAIR_RATE_LIMIT=1m/2 \
+            -e MOCKWA_MESSAGING_LIMIT=2 \
+            mockwa:ci
+          for _ in $(seq 1 60); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m3)"
+            [ "$status" = "healthy" ] && break
+            [ "$status" = "unhealthy" ] && break
+            sleep 1
+          done
+          test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m3)" = "healthy"
+
       - name: M0 smoke checks (AC-01, AC-02, signed webhooks) ✅
         run: node e2e/m0-smoke.mjs
         env:
+          GRAPH_URL: http://127.0.0.1:8888
+          CONSOLE_URL: http://127.0.0.1:8025
+          ECHO_URL: http://127.0.0.1:3001
           APP_SECRET: ci-app-secret
 
       - name: M2 webhook checks (AC-06 routing, AC-07 retries and restart) ✅
         run: node e2e/m2-webhooks.mjs
+        env:
+          M2_GRAPH_URL: http://127.0.0.1:28888
+          M2_CONSOLE_URL: http://127.0.0.1:28025
+          M2_SALES_ECHO_URL: http://127.0.0.1:3003
+          M2_SUPPORT_ECHO_URL: http://127.0.0.1:3004
+          M2_CONTAINER: mockwa-ci-m2
 
-      - name: Playwright against the console, the virtual phone and the M2 webhook views 🎭
+      - name: M3 fidelity checks (24-hour window, limits, failure injection, restart) ✅
+        run: node e2e/m3-fidelity.mjs
+        env:
+          M3_GRAPH_URL: http://127.0.0.1:58888
+          M3_CONSOLE_URL: http://127.0.0.1:58025
+          M3_ECHO_URL: http://127.0.0.1:3005
+          M3_CONTAINER: mockwa-ci-m3
+
+      - name: Playwright against the console, the virtual phone, the M2 webhook views and M3 🎭
         run: npx playwright test -c e2e/playwright.config.mjs --trace off
         env:
+          GRAPH_URL: http://127.0.0.1:8888
+          CONSOLE_URL: http://127.0.0.1:8025
+          M1_CONSOLE_URL: http://127.0.0.1:18025
+          M1_ECHO_URL: http://127.0.0.1:3002
           M1_APP_SECRET: m1-app-secret
+          M2_CONSOLE_URL: http://127.0.0.1:28025
+          M2_SALES_ECHO_URL: http://127.0.0.1:3003
+          M3_CONSOLE_URL: http://127.0.0.1:58025
 
       - name: Logs on failure 📜
         if: failure()
@@ -233,12 +287,14 @@ jobs:
           docker logs mockwa-ci-m2 || true
           cat echo-app-m2-sales.log || true
           cat echo-app-m2-support.log || true
+          docker logs mockwa-ci-m3 || true
+          cat echo-app-m3.log || true
 
       - name: Stop the image 🧹
         if: always()
         run: |
-          docker rm --force mockwa-ci mockwa-ci-m1 mockwa-ci-m2 || true
-          docker volume rm mockwa-ci-m2-data || true
+          docker rm --force mockwa-ci mockwa-ci-m1 mockwa-ci-m2 mockwa-ci-m3 || true
+          docker volume rm mockwa-ci-m2-data mockwa-ci-m3-data || true
 
       - name: Login to GitHub Container Registry 🔑
         if: env.PUBLISH == 'true'

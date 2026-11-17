@@ -19,6 +19,10 @@ import {
 	templateResponseSchema,
 	tokenListResponseSchema,
 	typingIndicatorListResponseSchema,
+	messagingRulesResponseSchema,
+	serviceWindowResponseSchema,
+	type MessagingRules,
+	type ServiceWindow,
 	tokenResponseSchema,
 	uploadResponseSchema,
 	wabaResponseSchema,
@@ -226,6 +230,23 @@ export const api = {
 			schema: messageErrorPresetListResponseSchema,
 			...options,
 		});
+
+		return data;
+	},
+
+	/** The customer service window between one number and one contact (SPEC §4). */
+	async getServiceWindow(phoneNumberId: string, waId: string, options: Signal = {}): Promise<ServiceWindow> {
+		const { data } = await request(`/api/service-window${queryString({ phoneNumberId, waId })}`, {
+			schema: serviceWindowResponseSchema,
+			...options,
+		});
+
+		return data;
+	},
+
+	/** The configured messaging rules and each WABA's messaging-limit count (SPEC §4). */
+	async getMessagingRules(options: Signal = {}): Promise<MessagingRules> {
+		const { data } = await request("/api/messaging-rules", { schema: messagingRulesResponseSchema, ...options });
 
 		return data;
 	},

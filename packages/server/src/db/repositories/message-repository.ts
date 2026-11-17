@@ -46,6 +46,8 @@ export interface MessageRecord {
 	bizOpaqueCallbackData: string | null;
 	/** What a `template` send was validated against; `null` for anything else (SPEC §2.5). */
 	templateSnapshot: TemplateSnapshotRecord | null;
+	/** Sent while the customer service window was closed; what the messaging limit counts (SPEC §4). */
+	isBusinessInitiated: boolean;
 	timestamp: string;
 	createdAt: string;
 	updatedAt: string;
@@ -62,6 +64,7 @@ export interface InsertMessageInput {
 	replyTo?: string | null;
 	bizOpaqueCallbackData?: string | null;
 	templateSnapshot?: TemplateSnapshotRecord | null;
+	isBusinessInitiated?: boolean;
 	/** When the message was sent or received; defaults to now. */
 	timestamp?: string;
 	createdAt?: string;
@@ -105,6 +108,7 @@ function toRecord(row: MessageTable): MessageRecord {
 		replyTo: row.reply_to,
 		bizOpaqueCallbackData: row.biz_opaque_callback_data,
 		templateSnapshot: decodeTemplateSnapshot(row.template_snapshot),
+		isBusinessInitiated: row.business_initiated === 1,
 		timestamp: row.timestamp,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
@@ -136,6 +140,7 @@ export class MessageRepository {
 				reply_to: input.replyTo ?? null,
 				biz_opaque_callback_data: input.bizOpaqueCallbackData ?? null,
 				template_snapshot: input.templateSnapshot ? encodeTemplateSnapshot(input.templateSnapshot) : null,
+				business_initiated: input.isBusinessInitiated === true ? 1 : 0,
 				timestamp: input.timestamp ?? createdAt,
 				created_at: createdAt,
 				updated_at: createdAt,
@@ -229,6 +234,57 @@ export class MessageRepository {
 				lastMessageAt: row.last_message_at,
 			};
 		});
+	}
+
+	/**
+	 * When the contact last wrote to this number, or `null` if they never have: what opens and
+	 * refreshes the customer service window (SPEC §4). Compared as instants rather than as text,
+	 * because an inbound may carry a caller-supplied timestamp written with or without
+	 * milliseconds.
+	 */
+	async lastInboundAt(phoneNumberId: string, contactWaId: string): Promise<Date | null> {
+		const rows = await this.#db
+			.selectFrom("messages")
+			.select("timestamp")
+			.where("phone_number_id", "=", phoneNumberId)
+			.where("contact_wa_id", "=", contactWaId)
+			.where("direction", "=", "inbound")
+			.execute();
+		let latest: number | null = null;
+
+		for (const row of rows) {
+			const at = Date.parse(row.timestamp);
+
+			if (Number.isFinite(at) && (latest === null || at > latest)) {
+				latest = at;
+			}
+		}
+
+		return latest === null ? null : new Date(latest);
+	}
+
+	/**
+	 * The contacts that business-initiated sends from these numbers have reached after `since`
+	 * — Meta's messaging limit counts unique users, not messages (SPEC §4). A `failed` send
+	 * reached nobody, so it does not count, and one exactly `since` old has left the period.
+	 */
+	async listBusinessInitiatedRecipients(phoneNumberIds: readonly string[], since: Date): Promise<string[]> {
+		if (phoneNumberIds.length === 0) {
+			return [];
+		}
+
+		const rows = await this.#db
+			.selectFrom("messages")
+			.select("contact_wa_id")
+			.distinct()
+			.where("phone_number_id", "in", phoneNumberIds)
+			.where("direction", "=", "outbound")
+			.where("business_initiated", "=", 1)
+			.where("status", "!=", "failed")
+			.where("created_at", ">", since.toISOString())
+			.execute();
+
+		return rows.map(row => row.contact_wa_id);
 	}
 
 	/** Advances a message along the status ladder (SPEC §4). */

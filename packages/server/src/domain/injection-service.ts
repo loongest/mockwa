@@ -1,4 +1,4 @@
-import type { InjectionRuleCreateRequest, InjectionTarget, InjectionTrigger } from "@mockwa/shared";
+import type { InjectionRuleCreateRequest, InjectionTarget, InjectionTrigger, MessageErrorCode } from "@mockwa/shared";
 import type { InjectionRuleRecord, Repositories } from "../db/index.ts";
 import { toInjectionRuleDto } from "./control-dto.ts";
 import { controlNotFound } from "./control-plane-error.ts";
@@ -74,6 +74,38 @@ export class InjectionService {
 		return wabas[0]?.id;
 	}
 
+	/**
+	 * Counts one event against every matching rule and returns the first that its trigger arms,
+	 * already updated, or `null`.
+	 */
+	async #advance(matching: readonly InjectionRuleRecord[]): Promise<InjectionRuleRecord | null> {
+		let fired: InjectionRuleRecord | null = null;
+
+		for (const rule of matching) {
+			const seen = rule.seen + 1;
+			const isArms = fired === null && isArmed(rule.trigger, { seen, remaining: rule.remaining });
+			const updated = await this.#repositories.injectionRules.updateCounters(rule.id, {
+				seen,
+				matches: isArms ? rule.matches + 1 : rule.matches,
+				remaining: isArms && rule.trigger.kind === "next" ? Math.max((rule.remaining ?? 0) - 1, 0) : rule.remaining,
+			});
+
+			if (updated === null) {
+				continue;
+			}
+
+			// Every rule the event touched is announced: the countdown in the UI is only live if
+			// the frames that move it are sent.
+			this.#announce(updated, "updated");
+
+			if (isArms) {
+				fired = updated;
+			}
+		}
+
+		return fired;
+	}
+
 	async list(): Promise<InjectionRuleRecord[]> {
 		return this.#repositories.injectionRules.list();
 	}
@@ -89,6 +121,7 @@ export class InjectionService {
 			retryAfterSeconds: request.retryAfterSeconds,
 			regainAccessMinutes: request.regainAccessMinutes,
 			custom: request.custom,
+			errorCode: request.errorCode,
 		});
 
 		this.#announce(rule, "created");
@@ -119,35 +152,7 @@ export class InjectionService {
 	 */
 	async evaluate(target: InjectionTarget | null): Promise<InjectionDecision | null> {
 		const rules = await this.#repositories.injectionRules.list();
-		const matching = rules.filter(rule => rule.target === "graph.all" || rule.target === target);
-
-		if (matching.length === 0) {
-			return null;
-		}
-
-		let fired: InjectionRuleRecord | null = null;
-
-		for (const rule of matching) {
-			const seen = rule.seen + 1;
-			const isArms = fired === null && isArmed(rule.trigger, { seen, remaining: rule.remaining });
-			const updated = await this.#repositories.injectionRules.updateCounters(rule.id, {
-				seen,
-				matches: isArms ? rule.matches + 1 : rule.matches,
-				remaining: isArms && rule.trigger.kind === "next" ? Math.max((rule.remaining ?? 0) - 1, 0) : rule.remaining,
-			});
-
-			if (updated === null) {
-				continue;
-			}
-
-			// Every rule the request touched is announced: the countdown in the UI is only live
-			// if the frames that move it are sent.
-			this.#announce(updated, "updated");
-
-			if (isArms) {
-				fired = updated;
-			}
-		}
+		const fired = await this.#advance(rules.filter(rule => rule.target === "graph.all" || rule.target === target));
 
 		if (fired === null) {
 			return null;
@@ -163,5 +168,17 @@ export class InjectionService {
 				wabaId: await this.#usageWabaId(),
 			}),
 		};
+	}
+
+	/**
+	 * Runs the `messages.status` rules against one accepted send (SPEC §4): the error code its
+	 * status webhook should fail with, or `null` to let it climb the ladder. `graph.all` does not
+	 * reach here — it names requests, and this is not one.
+	 */
+	async evaluateStatus(): Promise<MessageErrorCode | null> {
+		const rules = await this.#repositories.injectionRules.list();
+		const fired = await this.#advance(rules.filter(rule => rule.target === "messages.status"));
+
+		return fired?.errorCode ?? null;
 	}
 }

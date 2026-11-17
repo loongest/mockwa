@@ -127,6 +127,68 @@ describe("StatusLadder", () => {
 		expect(ladder.pendingCount).toBe(0);
 	});
 
+	describe("a send a rule failed (SPEC §4, messaging rules)", () => {
+		it("emits failed in the sent rung's place, with Meta's errors[], and nothing after it", async () => {
+			const ladder = createLadder({ sent: 50, delivered: 100, read: 100 });
+			const message = await insertOutbound();
+
+			ladder.onOutboundAccepted(message, 131_047);
+			await tick(49);
+			expect(await statusOf(message.id)).toBe("accepted");
+
+			await tick(1);
+			expect(await statusOf(message.id)).toBe("failed");
+
+			await tick(10_000);
+
+			const emitted = await emittedStatuses();
+
+			expect(emitted.map(entry => entry.status)).toEqual(["failed"]);
+			expect(emitted[0]?.value).toMatchObject({
+				errors: [
+					{
+						code: 131_047,
+						title: "Re-engagement message",
+						message: "Re-engagement message",
+						error_data: {
+							details: "More than 24 hours have passed since the recipient last replied to the sender number.",
+						},
+						href: "/documentation/business-messaging/whatsapp/support/error-codes",
+					},
+				],
+			});
+			// Meta's failed fixture carries neither: a failed send opened no conversation.
+			expect(emitted[0]?.value).not.toHaveProperty("conversation");
+			expect(emitted[0]?.value).not.toHaveProperty("pricing");
+			expect(ladder.pendingCount).toBe(0);
+		});
+
+		it("is cancelled by a reset like any pending rung", async () => {
+			const ladder = createLadder({ sent: 50, delivered: 100, read: null });
+			const message = await insertOutbound();
+
+			ladder.onOutboundAccepted(message, 131_047);
+			ladder.cancelAll();
+			await tick(100);
+
+			expect(await statusOf(message.id)).toBe("accepted");
+		});
+
+		it("does nothing to a message a manual transition already failed", async () => {
+			const ladder = createLadder({ sent: 50, delivered: 100, read: null });
+			const message = await insertOutbound();
+
+			ladder.onOutboundAccepted(message, 131_047);
+			await ladder.markStatus(message.id, "failed", 131_026);
+			await tick(100);
+
+			expect(await emittedStatusNames()).toEqual(["failed"]);
+			const stored = await harness.repositories.messages.findById(message.id);
+
+			expect(stored?.error).toMatchObject({ code: 131_026 });
+		});
+	});
+
 	/**
 	 * The recipient's BSUID (SPEC §1.15). A status is the only place a consumer learns which
 	 * business-scoped id a message went to, so it rides along on every rung.

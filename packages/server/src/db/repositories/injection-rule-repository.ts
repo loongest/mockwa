@@ -1,6 +1,8 @@
 import {
 	injectionCustomResponseSchema,
+	messageErrorCodeSchema,
 	type InjectionCustomResponse,
+	type MessageErrorCode,
 	type InjectionPreset,
 	type InjectionTarget,
 	type InjectionTrigger,
@@ -18,6 +20,8 @@ export interface InjectionRuleRecord {
 	retryAfterSeconds: number | null;
 	regainAccessMinutes: number | null;
 	custom: InjectionCustomResponse | null;
+	/** The `failed` status of a `messages.status` rule; `null` for every other target. */
+	errorCode: MessageErrorCode | null;
 	seen: number;
 	matches: number;
 	remaining: number | null;
@@ -33,6 +37,7 @@ export interface InsertInjectionRuleInput {
 	retryAfterSeconds?: number | undefined;
 	regainAccessMinutes?: number | undefined;
 	custom?: InjectionCustomResponse | undefined;
+	errorCode?: MessageErrorCode | undefined;
 	createdAt?: string;
 }
 
@@ -76,6 +81,13 @@ function triggerCount(trigger: InjectionTrigger): number | null {
 	}
 }
 
+/** A code the presets no longer list reads as no code, rather than failing the whole listing. */
+function toErrorCode(raw: number | null): MessageErrorCode | null {
+	const parsed = messageErrorCodeSchema.safeParse(raw);
+
+	return parsed.success ? parsed.data : null;
+}
+
 function toRecord(row: InjectionRuleTable): InjectionRuleRecord {
 	return {
 		id: row.id,
@@ -85,6 +97,7 @@ function toRecord(row: InjectionRuleTable): InjectionRuleRecord {
 		retryAfterSeconds: row.retry_after_seconds,
 		regainAccessMinutes: row.regain_access_minutes,
 		custom: decodeNullableJsonColumn(injectionCustomResponseSchema, row.custom, "injection_rules.custom"),
+		errorCode: toErrorCode(row.error_code),
 		seen: row.seen,
 		matches: row.matches,
 		remaining: row.remaining,
@@ -117,6 +130,7 @@ export class InjectionRuleRepository {
 				retry_after_seconds: input.retryAfterSeconds ?? null,
 				regain_access_minutes: input.regainAccessMinutes ?? null,
 				custom: input.custom === undefined ? null : encodeJsonColumn(input.custom),
+				error_code: input.errorCode ?? null,
 				seen: 0,
 				matches: 0,
 				// A `next` rule starts fully armed; the other triggers have nothing to count down.

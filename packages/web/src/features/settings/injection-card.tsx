@@ -5,6 +5,8 @@ import {
 	INJECTION_TARGETS,
 	INJECTION_TRIGGER_KINDS,
 	isRuleArmed,
+	MESSAGE_ERROR_CODES,
+	type MessageErrorCode,
 	type InjectionPreset,
 	type InjectionRule,
 	type InjectionRuleCreateRequest,
@@ -28,6 +30,7 @@ import { useAction, useAppState, useDispatch, useToasts } from "../../store/stor
 /** What each endpoint class actually covers, spelled out so the dropdown is not a riddle. */
 const TARGET_LABELS: Record<InjectionTarget, string> = {
 	"messages.send": "messages.send — POST /{phone-number-id}/messages",
+	"messages.status": "messages.status — the status webhooks of accepted sends",
 	"media.upload": "media.upload — POST /{phone-number-id}/media",
 	"media.resolve": "media.resolve — GET /{media-id}?phone_number_id=",
 	"media.download": "media.download — GET /whaloc-media/{token}",
@@ -42,7 +45,25 @@ const PRESET_LABELS: Record<InjectionPreset, string> = {
 	spam_rate_4: "spam_rate_4 — 429, code 4, Retry-After",
 	server_error_500: "server_error_500 — 500, code 1",
 	custom: "custom — write the envelope yourself",
+	failed_status: "failed_status — accept the send, then a failed status webhook",
 };
+
+/** What each code means, so the picker reads like the failure it rehearses. */
+const ERROR_CODE_LABELS: Record<MessageErrorCode, string> = {
+	131_049: "131049 — healthy ecosystem engagement",
+	131_026: "131026 — message undeliverable",
+	131_047: "131047 — re-engagement (window closed)",
+	130_472: "130472 — part of an experiment",
+	131_048: "131048 — messaging restrictions on the number",
+	131_000: "131000 — unknown error",
+};
+
+/** `messages.status` takes `failed_status` and only it; every other target takes the rest. */
+function presetsFor(target: InjectionTarget): readonly InjectionPreset[] {
+	return target === "messages.status"
+		? ["failed_status"]
+		: INJECTION_PRESETS.filter(preset => preset !== "failed_status");
+}
 
 const TRIGGER_LABELS: Record<InjectionTriggerKind, string> = {
 	always: "always",
@@ -83,7 +104,10 @@ function RuleRow(props: { rule: InjectionRule }) {
 	return (
 		<tr>
 			<td className="mono">{rule.target}</td>
-			<td className="mono">{rule.preset}</td>
+			<td className="mono">
+				{rule.preset}
+				{rule.errorCode !== undefined && ` (${String(rule.errorCode)})`}
+			</td>
 			<td>
 				<span className={clsx("badge", isArmed ? "badge--danger" : "")}>{describeTrigger(rule)}</span>
 			</td>
@@ -153,6 +177,7 @@ function AddRuleForm() {
 	const [customStatus, setCustomStatus] = useState("400");
 	const [customCode, setCustomCode] = useState("131047");
 	const [customMessage, setCustomMessage] = useState("(#131047) Re-engagement message");
+	const [errorCode, setErrorCode] = useState<MessageErrorCode>(131_026);
 
 	const submit = (): void => {
 		const parsedCount = Number(count);
@@ -174,6 +199,7 @@ function AddRuleForm() {
 			...(preset === "custom" && {
 				custom: { httpStatus: Number(customStatus), code: Number(customCode), message: customMessage },
 			}),
+			...(preset === "failed_status" && { errorCode }),
 		};
 
 		run(async () => {
@@ -200,7 +226,10 @@ function AddRuleForm() {
 						aria-label="Rule target"
 						value={target}
 						onChange={changed => {
-							setTarget(changed.target.value as InjectionTarget);
+							const next = changed.target.value as InjectionTarget;
+
+							setTarget(next);
+							setPreset(presetsFor(next)[0]!);
 						}}
 					>
 						{INJECTION_TARGETS.map(option => (
@@ -221,7 +250,7 @@ function AddRuleForm() {
 							setPreset(changed.target.value as InjectionPreset);
 						}}
 					>
-						{INJECTION_PRESETS.map(option => (
+						{presetsFor(target).map(option => (
 							<option key={option} value={option}>
 								{PRESET_LABELS[option]}
 							</option>
@@ -292,6 +321,28 @@ function AddRuleForm() {
 				</div>
 			)}
 
+			{preset === "failed_status" && (
+				<div className="row row--wrap">
+					<label className="field">
+						<span className="field__label">Error code</span>
+						<select
+							className="select"
+							aria-label="Failed status error code"
+							value={errorCode}
+							onChange={changed => {
+								setErrorCode(Number(changed.target.value) as MessageErrorCode);
+							}}
+						>
+							{MESSAGE_ERROR_CODES.map(option => (
+								<option key={option} value={option}>
+									{ERROR_CODE_LABELS[option]}
+								</option>
+							))}
+						</select>
+					</label>
+				</div>
+			)}
+
 			{preset === "custom" && (
 				<div className="row row--wrap">
 					<label className="field">
@@ -358,7 +409,8 @@ export function InjectionCard() {
 			<p className="muted">
 				Deterministic failures on the Graph surface: a rule says which endpoint class to fail, when, and with which Meta
 				envelope. Nothing here is random — a rule fires on exactly the requests its trigger names. Rules are evaluated
-				in the order below and the first one that fires answers.
+				in the order below and the first one that fires answers. A <code>messages.status</code> rule lets the send
+				through and fails its status webhook instead.
 			</p>
 
 			{rules.length === 0 ? (

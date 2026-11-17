@@ -116,7 +116,20 @@ export {
 	MESSAGE_ERROR_PRESETS,
 	type MessageErrorPreset,
 } from "./message-error-presets.ts";
-export { MessageService, toWaId, type MessageServiceOptions, type SendMessageResult } from "./message-service.ts";
+export {
+	MessageService,
+	toWaId,
+	type MessageServiceOptions,
+	type SendMessageResult,
+	type StatusFailureSource,
+} from "./message-service.ts";
+export {
+	MessagingRules,
+	type MessagingLimitUsage,
+	type MessagingRulesOptions,
+	type SendVerdict,
+	type ServiceWindowState,
+} from "./messaging-rules.ts";
 export { metaSignatureHeader, serializeMetaJson, SIGNATURE_HEADER, isValidMetaSignature } from "./meta-json.ts";
 export {
 	applicationRateLimitError,

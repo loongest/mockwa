@@ -23,6 +23,7 @@ import {
 	InjectionService,
 	MediaService,
 	MessageService,
+	MessagingRules,
 	ObjectService,
 	PhoneNumberService,
 	ReadReceiptService,
@@ -78,6 +79,8 @@ export interface DomainServices {
 	typing: TypingService;
 	/** Error simulation (SPEC §4): the injection rules and the bearer-token registry. */
 	injection: InjectionService;
+	/** The customer service window, throughput, pair rate and messaging limit (SPEC §4). */
+	messagingRules: MessagingRules;
 	tokens: TokenRegistry;
 	/** Control plane (SPEC §5). */
 	contacts: ContactService;
@@ -209,10 +212,23 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 		...(scheduler !== undefined && { scheduler }),
 	});
 
+	const injection = new InjectionService({ repositories, events });
+	const messagingRules = new MessagingRules({
+		repositories,
+		config: config.messaging,
+		...(scheduler !== undefined && { scheduler }),
+	});
+
 	return {
 		objects: new ObjectService({ repositories }),
 		// An accepted send starts the ladder *and* drops the conversation's typing indicator.
-		messages: new MessageService({ repositories, events: combineOutboundMessageEvents(statusLadder, typing) }),
+		messages: new MessageService({
+			repositories,
+			events: combineOutboundMessageEvents(statusLadder, typing),
+			rules: messagingRules,
+			statusFailures: injection,
+			...(scheduler !== undefined && { scheduler }),
+		}),
 		readReceipts: new ReadReceiptService({
 			repositories,
 			typing,
@@ -234,7 +250,8 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 			...(scheduler !== undefined && { scheduler }),
 		}),
 		typing,
-		injection: new InjectionService({ repositories, events }),
+		injection,
+		messagingRules,
 		tokens: new TokenRegistry({
 			repositories,
 			tokens: config.tokens,
@@ -272,6 +289,7 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 			statusLadder,
 			templateLifecycle,
 			typing,
+			messagingRules,
 			apps,
 			webhooks,
 			events,
@@ -286,6 +304,7 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 			statusLadder,
 			templateLifecycle,
 			typing,
+			messagingRules,
 			webhooks,
 			events,
 			...(scheduler !== undefined && { scheduler }),

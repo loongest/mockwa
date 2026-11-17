@@ -8,7 +8,12 @@ import { defineConfig } from "@playwright/test";
  * - `m1-phone` drives the virtual phone of an instance seeded from e2e/fixtures/m1-seed.json,
  *   at M1_CONSOLE_URL, with its own echo app at M1_ECHO_URL;
  * - `m2-webhooks` drives the apps and retries of an instance started with
- *   e2e/fixtures/m2-seed.json and m2-apps.json, at M2_CONSOLE_URL.
+ *   e2e/fixtures/m2-seed.json and m2-apps.json, at M2_CONSOLE_URL;
+ * - `m3-fidelity` drives the messaging-rule views of the instance e2e/m3-fidelity.mjs checks,
+ *   at M3_CONSOLE_URL.
+ *
+ * Every URL is required and has no default (e2e/targets.mjs): each spec file checks its own
+ * before any test runs, so a missing one can never reach a developer's own instance.
  *
  * PLAYWRIGHT_CHANNEL=chrome runs the locally installed Chrome instead of Playwright's Chromium.
  */
@@ -25,17 +30,22 @@ export default defineConfig({
 		{
 			name: "m0-console",
 			testMatch: "console.spec.mjs",
-			use: { baseURL: process.env.CONSOLE_URL ?? "http://127.0.0.1:8025" },
+			use: { baseURL: process.env.CONSOLE_URL },
 		},
 		{
 			name: "m1-phone",
 			testMatch: "m1-*.spec.mjs",
-			use: { baseURL: process.env.M1_CONSOLE_URL ?? "http://127.0.0.1:18025" },
+			use: { baseURL: process.env.M1_CONSOLE_URL },
 		},
 		{
 			name: "m2-webhooks",
 			testMatch: "m2-*.spec.mjs",
-			use: { baseURL: process.env.M2_CONSOLE_URL ?? "http://127.0.0.1:28025" },
+			use: { baseURL: process.env.M2_CONSOLE_URL },
+		},
+		{
+			name: "m3-fidelity",
+			testMatch: "m3-*.spec.mjs",
+			use: { baseURL: process.env.M3_CONSOLE_URL },
 		},
 	],
 });

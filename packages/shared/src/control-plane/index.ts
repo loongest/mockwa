@@ -243,6 +243,22 @@ export {
 	type TokenState,
 } from "./tokens.ts";
 export {
+	messagingLimitUsageSchema,
+	messagingRulesConfigSchema,
+	messagingRulesResponseSchema,
+	messagingRulesSchema,
+	serviceWindowQuerySchema,
+	serviceWindowResponseSchema,
+	serviceWindowSchema,
+	type MessagingLimitUsage,
+	type MessagingRules,
+	type MessagingRulesConfig,
+	type MessagingRulesResponse,
+	type ServiceWindow,
+	type ServiceWindowQuery,
+	type ServiceWindowResponse,
+} from "./messaging-rules.ts";
+export {
 	listTypingIndicatorsQuerySchema,
 	typingIndicatorListResponseSchema,
 	typingIndicatorSchema,

@@ -22,6 +22,7 @@ export { createSnapshotRoutes, snapshotFilename, type SnapshotRoutesOptions } fr
 export { createStateRoutes, type StateRoutesOptions } from "./state-routes.ts";
 export { createTemplateRoutes, type TemplateRoutesOptions } from "./template-routes.ts";
 export { createTokenRoutes, type TokenRoutesOptions } from "./token-routes.ts";
+export { createMessagingRulesRoutes, type MessagingRulesRoutesOptions } from "./messaging-rules-routes.ts";
 export { createTypingRoutes, type TypingRoutesOptions } from "./typing-routes.ts";
 export { createWabaRoutes, type WabaRoutesOptions } from "./waba-routes.ts";
 export { createWebhookRoutes, type WebhookRoutesOptions } from "./webhook-routes.ts";

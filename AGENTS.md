@@ -11,7 +11,7 @@ code without re-deriving the project's rules.
 ```sh
 npm ci                # install exactly what package-lock.json pins
 npm run dev           # server :8888 Graph + :8025 console (native TS, watch) + Vite :5173
-npm test              # vitest, all packages
+npm test              # vitest, all packages, plus the e2e target checks
 npm run lint          # ESLint (typescript-eslint strict + unicorn + prettier)
 npm run typecheck     # tsc --noEmit, per package
 npm run format:check  # prettier (markdown and YAML included)

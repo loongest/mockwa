@@ -128,5 +128,11 @@ export function injectionResponse(options: InjectionResponseOptions): GraphApiEr
 
 			return custom === null ? unknownServerError() : customError(custom);
 		}
+
+		// Never answers a request: the schema ties it to `messages.status`, which fails a status
+		// webhook instead (SPEC §4). Kept so this stays total.
+		case "failed_status": {
+			return unknownServerError();
+		}
 	}
 }

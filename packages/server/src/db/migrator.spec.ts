@@ -102,6 +102,42 @@ describe("runMigrations", () => {
 		expect(await db.selectFrom("wabas").selectAll().executeTakeFirstOrThrow()).toMatchObject({ subscribed_at: null });
 	});
 
+	/**
+	 * `0010_messaging_rules`: a message sent before M3 was never counted against a messaging
+	 * limit, and an existing injection rule targets a Graph route, so neither gets a value.
+	 */
+	it("brings pre-M3 messages and injection rules up uncounted and without an error code", async () => {
+		const { db } = openDatabase();
+		const names = Object.keys(MIGRATIONS);
+		const before = Object.fromEntries(names.slice(0, -1).map(name => [name, MIGRATIONS[name]!]));
+
+		const migrator = new Migrator({ db, provider: { getMigrations: () => Promise.resolve(before) } });
+
+		await migrator.migrateToLatest();
+		await sql`insert into wabas (id, name, created_at) values ('1', 'Acme', '2026-01-01T00:00:00.000Z')`.execute(db);
+		await sql`insert into phone_numbers
+			(id, waba_id, display_phone_number, verified_name, quality_rating, throughput_level, created_at)
+			values ('2', '1', '+55 11 91234-5678', 'Acme', 'GREEN', 'STANDARD', '2026-01-01T00:00:00.000Z')`.execute(db);
+		await sql`insert into contacts (wa_id, profile_name, created_at, updated_at)
+			values ('5511900000001', 'Ana', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`.execute(db);
+		await sql`insert into messages
+			(id, direction, phone_number_id, contact_wa_id, type, payload, status, timestamp, created_at, updated_at)
+			values ('wamid.1', 'outbound', '2', '5511900000001', 'template', '{}', 'sent',
+				'2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`.execute(db);
+		await sql`insert into injection_rules
+			(id, target, trigger_kind, preset, seen, matches, created_at, updated_at)
+			values ('r1', 'messages.send', 'always', 'rate_limit_429', 0, 0,
+				'2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`.execute(db);
+
+		expect(await runMigrations({ db })).toEqual({ applied: names.slice(-1) });
+		expect(await db.selectFrom("messages").selectAll().executeTakeFirstOrThrow()).toMatchObject({
+			business_initiated: 0,
+		});
+		expect(await db.selectFrom("injection_rules").selectAll().executeTakeFirstOrThrow()).toMatchObject({
+			error_code: null,
+		});
+	});
+
 	it("leaves a persisted database untouched on the next boot", async ({ onTestFinished }) => {
 		const directory = await mkdtemp(path.join(tmpdir(), "whaloc-migrator-"));
 

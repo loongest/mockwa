@@ -157,6 +157,53 @@ describe("InjectionCard", () => {
 		expect(screen.queryByLabelText("Retry-After seconds")).toBeNull();
 	});
 
+	it("arms a messages.status rule with failed_status and the picked error code only", async () => {
+		renderCard();
+
+		fireEvent.change(screen.getByLabelText("Rule target"), { target: { value: "messages.status" } });
+
+		const presets = screen.getByLabelText<HTMLSelectElement>("Rule preset");
+
+		expect([...presets.options].map(option => option.value)).toEqual(["failed_status"]);
+
+		fireEvent.change(screen.getByLabelText("Failed status error code"), { target: { value: "131049" } });
+		fireEvent.click(screen.getByRole("button", { name: "Arm rule" }));
+
+		await waitFor(() => {
+			expect(fetchMock).toHaveBeenCalled();
+		});
+
+		expect(requestBodyOf(fetchMock)).toEqual({
+			target: "messages.status",
+			preset: "failed_status",
+			trigger: { kind: "next", count: 3 },
+			errorCode: 131_049,
+		});
+	});
+
+	it("does not offer failed_status on a Graph route, and goes back to a Graph preset", () => {
+		renderCard();
+
+		const presets = (): string[] =>
+			[...screen.getByLabelText<HTMLSelectElement>("Rule preset").options].map(option => option.value);
+
+		expect(presets()).not.toContain("failed_status");
+
+		fireEvent.change(screen.getByLabelText("Rule target"), { target: { value: "messages.status" } });
+		fireEvent.change(screen.getByLabelText("Rule target"), { target: { value: "messages.send" } });
+
+		expect(screen.getByLabelText<HTMLSelectElement>("Rule preset").value).toBe("rate_limit_429");
+		expect(screen.queryByLabelText("Failed status error code")).toBeNull();
+	});
+
+	it("shows a status rule's error code next to its preset", () => {
+		renderCard({
+			injectionRules: [makeInjectionRule({ target: "messages.status", preset: "failed_status", errorCode: 131_026 })],
+		});
+
+		expect(within(screen.getByRole("table")).getByText("failed_status (131026)")).toBeTruthy();
+	});
+
 	it("carries the custom envelope when the custom preset is picked", async () => {
 		renderCard();
 

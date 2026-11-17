@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createHmac } from "node:crypto";
+import { readTargets } from "./targets.mjs";
 
 /**
  * Milestone M1 acceptance (AC-03, AC-04, AC-05): the virtual phone on 8025 against a real mockwa
@@ -7,11 +8,15 @@ import { createHmac } from "node:crypto";
  * app as the app under test. Nothing is faked: a phone's send is a signed webhook the echo app
  * verifies, and every reply it sees came back through the Graph API on 8888.
  *
- * Environment: M1_CONSOLE_URL (the Playwright baseURL, http://127.0.0.1:18025), M1_ECHO_URL
- * (http://127.0.0.1:3002), M1_APP_SECRET (the secret both sides were started with).
+ * Environment, required (e2e/targets.mjs): M1_CONSOLE_URL (the Playwright baseURL) and
+ * M1_ECHO_URL, each with an explicit port. Optional: M1_APP_SECRET (the secret both sides were
+ * started with).
  */
 
-const ECHO_URL = process.env.M1_ECHO_URL ?? "http://127.0.0.1:3002";
+const { M1_ECHO_URL: ECHO_URL } = readTargets(process.env, {
+	suite: "m1-phone",
+	urls: ["M1_CONSOLE_URL", "M1_ECHO_URL"],
+});
 const APP_SECRET = process.env.M1_APP_SECRET ?? "m1-app-secret";
 /** The seed's identities (e2e/fixtures/m1-seed.json). */
 const CUSTOMER_A = { waId: "60123450001", name: "Customer A" };

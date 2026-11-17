@@ -7,6 +7,7 @@ import { createServices } from "./composition.ts";
 import { collectConfigWarnings, describeConfig, parseConfig } from "./config/index.ts";
 import { registerShutdownHandlers } from "./graceful-shutdown.ts";
 import { createLogger } from "./logging/index.ts";
+import { closeWebSocketClients } from "./websocket-shutdown.ts";
 
 const configResult = parseConfig(process.env, filePath => readFileSync(filePath, "utf8"));
 
@@ -85,7 +86,9 @@ registerShutdownHandlers({
 	close: async () => {
 		webSocketServer.close();
 
-		await Promise.all(servers.map(server => closeServer(server)));
+		// The listeners stop accepting first; the open WebSockets are then closed properly, which
+		// is what lets the listeners finish closing at all.
+		await Promise.all([...servers.map(server => closeServer(server)), closeWebSocketClients(webSocketServer)]);
 
 		await services.close();
 	},

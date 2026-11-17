@@ -10,6 +10,7 @@ import { useAppState, useDispatch, useToasts } from "../../store/store.tsx";
 import { Composer } from "./composer.tsx";
 import { ConversationList } from "./conversation-list.tsx";
 import { MessageList } from "./message-list.tsx";
+import { ServiceWindowBadge } from "./service-window-badge.tsx";
 
 const PAGE_SIZE = 50;
 
@@ -209,6 +210,8 @@ export function ChatsPage() {
 	const contact =
 		state.contacts?.find(candidate => candidate.waId === endpoints?.contactWaId) ?? conversation?.contact ?? null;
 	const title = conversation?.contact?.profileName ?? contact?.profileName ?? endpoints?.contactWaId ?? "";
+	// Only the contact writing opens or refreshes the window, so its latest message is the key.
+	const latestInboundId = messages.findLast(message => message.direction === "inbound")?.id ?? null;
 
 	return (
 		<div className="chats">
@@ -237,6 +240,11 @@ export function ChatsPage() {
 							)}
 						</div>
 						<span className="spacer" />
+						<ServiceWindowBadge
+							phoneNumberId={endpoints.phoneNumberId}
+							waId={endpoints.contactWaId}
+							refreshKey={latestInboundId}
+						/>
 						{contact !== null && (
 							<button
 								type="button"

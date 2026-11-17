@@ -262,5 +262,6 @@ export function describeConfig(config: AppConfig): Record<string, unknown> {
 		apps: config.apps.map(app => app.name),
 		webhookRetryScheduleMs: config.webhookRetryScheduleMs,
 		webhookRetryMaxAgeMs: config.webhookRetryMaxAgeMs,
+		messaging: config.messaging,
 	};
 }

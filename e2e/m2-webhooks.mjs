@@ -9,21 +9,28 @@
 // to one WABA), a file database on a volume, and a short MOCKWA_WEBHOOK_RETRY_SCHEDULE so a
 // retry is due within seconds. See .github/workflows/docker.yml for the exact command.
 //
-// Environment: M2_GRAPH_URL (http://127.0.0.1:28888), M2_CONSOLE_URL (http://127.0.0.1:28025),
-// M2_SALES_ECHO_URL (http://127.0.0.1:3003), M2_SUPPORT_ECHO_URL (http://127.0.0.1:3004),
-// M2_CONTAINER (mockwa-ci-m2), M2_ECHO_HOST (host.docker.internal: how the container reaches
-// the echo apps). Prints PASS/FAIL per check and exits non-zero if any failed.
+// Environment, required (e2e/targets.mjs): M2_GRAPH_URL, M2_CONSOLE_URL, M2_SALES_ECHO_URL and
+// M2_SUPPORT_ECHO_URL, each with an explicit port, and M2_CONTAINER (the container the restart
+// check stops and starts). Optional: M2_ECHO_HOST (host.docker.internal: how the container
+// reaches the echo apps). Prints PASS/FAIL per check and exits non-zero if any failed.
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { requireTargets } from "./targets.mjs";
 
-const GRAPH_URL = process.env.M2_GRAPH_URL ?? "http://127.0.0.1:28888";
-const CONSOLE_URL = process.env.M2_CONSOLE_URL ?? "http://127.0.0.1:28025";
-const SALES_ECHO_URL = process.env.M2_SALES_ECHO_URL ?? "http://127.0.0.1:3003";
-const SUPPORT_ECHO_URL = process.env.M2_SUPPORT_ECHO_URL ?? "http://127.0.0.1:3004";
-const CONTAINER = process.env.M2_CONTAINER ?? "mockwa-ci-m2";
+const {
+	M2_GRAPH_URL: GRAPH_URL,
+	M2_CONSOLE_URL: CONSOLE_URL,
+	M2_SALES_ECHO_URL: SALES_ECHO_URL,
+	M2_SUPPORT_ECHO_URL: SUPPORT_ECHO_URL,
+	M2_CONTAINER: CONTAINER,
+} = requireTargets({
+	suite: "M2 webhooks",
+	urls: ["M2_GRAPH_URL", "M2_CONSOLE_URL", "M2_SALES_ECHO_URL", "M2_SUPPORT_ECHO_URL"],
+	names: ["M2_CONTAINER"],
+});
 const ECHO_HOST = process.env.M2_ECHO_HOST ?? "host.docker.internal";
 
 function readFixture(name) {

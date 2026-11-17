@@ -1,15 +1,19 @@
 import { expect, test } from "@playwright/test";
+import { readTargets } from "./targets.mjs";
 
 /**
  * Milestone M2 in the console: the apps of e2e/fixtures/m2-apps.json in Settings, and a failing
  * delivery's retry in the Webhooks view — the same instance e2e/m2-webhooks.mjs checks from the
  * outside.
  *
- * Environment: M2_CONSOLE_URL (the Playwright baseURL, http://127.0.0.1:28025),
- * M2_SALES_ECHO_URL (http://127.0.0.1:3003).
+ * Environment, required (e2e/targets.mjs): M2_CONSOLE_URL (the Playwright baseURL) and
+ * M2_SALES_ECHO_URL, each with an explicit port.
  */
 
-const SALES_ECHO_URL = process.env.M2_SALES_ECHO_URL ?? "http://127.0.0.1:3003";
+const { M2_SALES_ECHO_URL: SALES_ECHO_URL } = readTargets(process.env, {
+	suite: "m2-webhooks",
+	urls: ["M2_CONSOLE_URL", "M2_SALES_ECHO_URL"],
+});
 /** From e2e/fixtures/m2-seed.json. */
 const SALES_PHONE = "310000000000001";
 const SALES_CUSTOMER = "60123451001";

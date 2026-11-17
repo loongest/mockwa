@@ -61,7 +61,15 @@ describe("SettingsPage", () => {
 	 * dead ends.
 	 */
 	describe("the section layout", () => {
-		const SECTION_IDS = ["accounts", "contacts", "apps", "error-injection", "behavior", "danger-zone"];
+		const SECTION_IDS = [
+			"accounts",
+			"contacts",
+			"apps",
+			"messaging-rules",
+			"error-injection",
+			"behavior",
+			"danger-zone",
+		];
 
 		it("names every section in the sub-nav, in the order they are laid out", () => {
 			renderSettings();
@@ -85,6 +93,7 @@ describe("SettingsPage", () => {
 						templateAutoApproveMs: 2000,
 						strictTokens: true,
 						mediaTtlSeconds: null,
+						messaging: { serviceWindowMs: 86_400_000, throughput: null, pairRateLimit: null, messagingLimit: null },
 					},
 				}),
 			});
@@ -95,7 +104,16 @@ describe("SettingsPage", () => {
 				within(nav)
 					.getAllByRole("link")
 					.map(link => link.getAttribute("href")),
-			).toEqual(["#accounts", "#contacts", "#apps", "#tokens", "#error-injection", "#behavior", "#danger-zone"]);
+			).toEqual([
+				"#accounts",
+				"#contacts",
+				"#apps",
+				"#tokens",
+				"#messaging-rules",
+				"#error-injection",
+				"#behavior",
+				"#danger-zone",
+			]);
 		});
 
 		it("puts the create action in the Accounts header", () => {

@@ -42,6 +42,13 @@ export {
 	type ThroughputLevel,
 } from "./seed.ts";
 export {
+	DEFAULT_SERVICE_WINDOW_MS,
+	META_MESSAGING_LIMIT_TIERS,
+	META_PAIR_RATE_LIMIT,
+	META_THROUGHPUT_MPS,
+	type MessagingRulesConfig,
+} from "./messaging-config.ts";
+export {
 	DEFAULT_RETRY_MAX_AGE_MS,
 	DEFAULT_RETRY_SCHEDULE_MS,
 	parseDuration,

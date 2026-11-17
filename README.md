@@ -101,6 +101,10 @@ curl -X POST http://localhost:8888/v25.0/573542517421694/messages \
   -d '{"messaging_product":"whatsapp","to":"5571990000001","type":"text","text":{"body":"olá"}}'
 ```
 
+The answer is `200` with a wamid, but on a fresh mockwa that text then **fails** with `131047`:
+the contact has not written, so the 24-hour customer service window is closed (see **Messaging
+rules**). Simulate an inbound message first, or send a template, which is always allowed.
+
 The seed also ships one **approved, zero-parameter template**, `hello_whaloc`, so a
 `type: "template"` send works on a cold whaloc too — nothing to create, nothing to approve:
 
@@ -270,6 +274,10 @@ webhooks rather than failing), and values are trimmed.
 | `MOCKWA_TEMPLATE_AUTO_APPROVE`  | `2000`                                               | ms until a new template is approved; `off` leaves it `PENDING` for the UI                           |
 | `MOCKWA_TOKENS`                 | _unset → any non-empty bearer token is accepted_     | Comma-separated bearer-token registry; set it and only these tokens pass (see **Error simulation**) |
 | `MOCKWA_MEDIA_TTL_SECONDS`      | _unset → media never expires_                        | Seconds after which an uploaded media object is gone from the Graph surface                         |
+| `MOCKWA_SERVICE_WINDOW`         | `24h`                                                | Customer service window; a duration or `off` (see **Messaging rules**)                              |
+| `MOCKWA_THROUGHPUT`             | `off`                                                | Messages per second per number: `off`, `meta` (80 or 1,000 by `throughput.level`) or a number       |
+| `MOCKWA_PAIR_RATE_LIMIT`        | `off`                                                | Sends to one contact: `off`, `meta` (`6s/45`) or `<interval>/<burst>`                               |
+| `MOCKWA_MESSAGING_LIMIT`        | `off`                                                | Unique contacts per WABA reached by business-initiated templates in 24 hours, or `off`              |
 | `MOCKWA_DB_PATH`                | `:memory:`                                           | SQLite file for persistence, e.g. `/data/whaloc.db`                                                 |
 | `MOCKWA_MEDIA_BACKEND`          | `local`                                              | `local` (a directory) or `s3` (an S3-compatible bucket, see **Media storage**)                      |
 | `MOCKWA_MEDIA_DIR`              | `/data/media` in the image, `./data/media` otherwise | Media storage root, for the `local` backend                                                         |
@@ -423,6 +431,35 @@ read receipts naming older messages keep working — but the **derived conversat
 (`<phoneNumberId>:<waId>`), so anything holding one has to follow the `previousWaId` the
 `contact.changed` event carries. The UI does; the open chat moves with the person.
 
+## Messaging rules
+
+mockwa follows four of Meta's sending rules. Only the first is on by default, because every app
+meets it on its first day in production; the other three are opt-in.
+
+| Rule                    | Variable (default)               | What happens                                                                                                                                                            |
+| ----------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Customer service window | `MOCKWA_SERVICE_WINDOW` (`24h`)  | A free-form message to a contact who has not written in the last 24 hours is accepted (200), then gets a `failed` status webhook with `131047`. Templates always go out |
+| Throughput              | `MOCKWA_THROUGHPUT` (`off`)      | Too many sends per second from one number: `429`, code `130429`, `Retry-After: 1`                                                                                       |
+| Pair rate limit         | `MOCKWA_PAIR_RATE_LIMIT` (`off`) | Too many sends to one contact: `400`, code `131056`                                                                                                                     |
+| Messaging limit         | `MOCKWA_MESSAGING_LIMIT` (`off`) | A template to a new contact while the window is closed, over the limit: `failed`, mockwa's own code `990001`                                                            |
+
+The window opens when the contact writes (`POST /api/inbound`, or the virtual phone) and closes
+exactly 24 hours after their latest message. The chat header in the console shows it, and so
+does the control plane:
+
+```sh
+curl -s 'http://localhost:8025/api/service-window?phoneNumberId=<id>&waId=<wa_id>'
+curl -s http://localhost:8025/api/messaging-rules
+```
+
+To reach a boundary without waiting, shorten it: `MOCKWA_SERVICE_WINDOW=30s`. To get the
+behavior from before this feature, where any message goes out, set `MOCKWA_SERVICE_WINDOW=off`.
+Meta documents the messaging limit but **no error code** for going over it, so mockwa uses a
+code of its own, `990001`, titled `[mockwa] Messaging limit reached (simulated)`. Do not build
+production logic on that code: Meta will never send it. Where mockwa differs from Meta is listed
+in
+[SPEC §4, "Differences from the real Meta Cloud API"](docs/SPEC.md).
+
 ## Error simulation
 
 Everything whaloc does wrong, it does **on purpose**. All three switches below are off by
@@ -457,9 +494,9 @@ are managed from Settings or `POST /api/injection-rules`, and are cleared by `PO
 
 | Part    | Values                                                                                                                                                |
 | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Target  | `messages.send`, `media.upload`, `media.resolve`, `media.download`, `templates.create`, `templates.list`, `graph.all`                                 |
+| Target  | `messages.send`, `messages.status`, `media.upload`, `media.resolve`, `media.download`, `templates.create`, `templates.list`, `graph.all`              |
 | Trigger | `{"kind":"always"}`, `{"kind":"next","count":N}` (with a live countdown), `{"kind":"every","nth":N}` (fires on the Nth, 2Nth… request that rule sees) |
-| Preset  | `rate_limit_429` · `throughput_131056` · `spam_rate_4` · `server_error_500` · `custom`                                                                |
+| Preset  | `rate_limit_429` · `throughput_131056` · `spam_rate_4` · `server_error_500` · `custom` · `failed_status` (only for `messages.status`)                 |
 
 ```sh
 curl -sX POST http://localhost:8025/api/injection-rules -H 'Content-Type: application/json' \
@@ -498,6 +535,16 @@ Rules are evaluated in one middleware **before every handler** and **after** the
 an armed `graph.all` rule can never disguise a `401`. Each matching rule counts the request; the
 first one whose trigger arms it answers, and a rule shadowed by an earlier one keeps its
 countdown untouched. Every injection is logged at `info` with the rule that caused it.
+
+A `messages.status` rule fails the **status**, not the request: the send still answers `200`
+with a wamid, and its status webhook is `failed` with the code you pick, instead of `sent`. Use
+it to test how your app handles a message that fails after it was accepted:
+
+```sh
+curl -sX POST http://localhost:8025/api/injection-rules -H 'Content-Type: application/json' \
+  -d '{"target":"messages.status","trigger":{"kind":"next","count":1},
+       "preset":"failed_status","errorCode":131026}'
+```
 
 ### Media expiry
 
@@ -801,19 +848,24 @@ docker compose up                       # the demo above, against the published 
 
 The end-to-end checks drive a **built image** from the outside, with
 [`examples/echo-app`](examples/echo-app/server.mjs) as the app under test (it verifies every
-signature and replies through 8888). CI (`.github/workflows/docker.yml`) runs two instances; to
-run the virtual-phone suite locally against one seeded from `e2e/fixtures/m1-seed.json`:
+signature and replies through 8888). CI (`.github/workflows/docker.yml`) runs four instances.
+**Every suite needs its targets named explicitly** — `GRAPH_URL`, `CONSOLE_URL`, `ECHO_URL` for
+M0, the `M1_*`, `M2_*` and `M3_*` ones for the others, and the container a restart check may
+stop — with no defaults, so a suite can never reach a mockwa you are using: a missing or portless
+one stops it before its first request (`npm run test:e2e-targets` proves that). To run the
+virtual-phone suite locally against a dedicated container seeded from `e2e/fixtures/m1-seed.json`:
 
 ```sh
 docker build -t mockwa:local .
-PORT=3002 APP_SECRET=m1-app-secret VERIFY_TOKEN=m1-verify-token \
-  GRAPH_API_BASE_URL=http://127.0.0.1:18888/v25.0 node examples/echo-app/server.mjs &
-docker run -d --name mockwa-m1 --add-host=host.docker.internal:host-gateway \
-  -p 127.0.0.1:18888:8888 -p 127.0.0.1:18025:8025 \
+PORT=3102 APP_SECRET=m1-app-secret VERIFY_TOKEN=m1-verify-token \
+  GRAPH_API_BASE_URL=http://127.0.0.1:47888/v25.0 node examples/echo-app/server.mjs &
+docker run -d --name mockwa-test-m1 --add-host=host.docker.internal:host-gateway \
+  -p 127.0.0.1:47888:8888 -p 127.0.0.1:47025:8025 \
   -v "$PWD/e2e/fixtures/m1-seed.json:/seed/m1-seed.json:ro" -e MOCKWA_SEED_FILE=/seed/m1-seed.json \
-  -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3002/webhook -e MOCKWA_APP_SECRET=m1-app-secret \
+  -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3102/webhook -e MOCKWA_APP_SECRET=m1-app-secret \
   -e MOCKWA_WEBHOOK_VERIFY_TOKEN=m1-verify-token mockwa:local
-npx playwright test -c e2e/playwright.config.mjs --project m1-phone   # PLAYWRIGHT_CHANNEL=chrome for local Chrome
+M1_CONSOLE_URL=http://127.0.0.1:47025 M1_ECHO_URL=http://127.0.0.1:3102 \
+  npx playwright test -c e2e/playwright.config.mjs --project m1-phone   # PLAYWRIGHT_CHANNEL=chrome for local Chrome
 ```
 
 The S3 client is the one heavy dependency in the image (about 26 MB of the total): it ships

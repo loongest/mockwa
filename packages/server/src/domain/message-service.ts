@@ -1,15 +1,26 @@
-import { BSUID_PATTERN } from "@mockwa/shared";
-import type { MessageRecord, Repositories, TemplateSnapshotRecord } from "../db/index.ts";
+import { BSUID_PATTERN, type MessageErrorCode } from "@mockwa/shared";
+import type { MessageRecord, PhoneNumberRecord, Repositories, TemplateSnapshotRecord } from "../db/index.ts";
 import type { OutboundMessageEvents } from "./domain-events.ts";
 import { createWamid, defaultRandomBytes, type RandomBytes } from "./ids.ts";
+import type { MessagingRules, SendVerdict } from "./messaging-rules.ts";
 import { phoneNumberNotRegisteredError, unknownObjectError } from "./meta-errors.ts";
+import { createSystemScheduler, type Scheduler } from "./scheduler.ts";
 import { messagePayloadOf, type SendMessageRequest } from "./send-message-request.ts";
 import { assertTemplateIsSendable, assertTemplateParameters } from "./template-send-validation.ts";
+
+/** The `messages.status` injection rules (SPEC §4), as the send path sees them. */
+export interface StatusFailureSource {
+	evaluateStatus: () => Promise<MessageErrorCode | null>;
+}
 
 export interface MessageServiceOptions {
 	repositories: Repositories;
 	events: OutboundMessageEvents;
+	/** Window, throughput, pair-rate and messaging-limit rules; absent = none apply. */
+	rules?: MessagingRules;
+	statusFailures?: StatusFailureSource;
 	random?: RandomBytes;
+	scheduler?: Scheduler;
 }
 
 export interface SendMessageResult {
@@ -41,12 +52,38 @@ export function toWaId(input: string): string {
 export class MessageService {
 	readonly #repositories: Repositories;
 	readonly #events: OutboundMessageEvents;
+	readonly #rules: MessagingRules | undefined;
+	readonly #statusFailures: StatusFailureSource | undefined;
 	readonly #random: RandomBytes;
+	readonly #scheduler: Scheduler;
 
 	constructor(options: MessageServiceOptions) {
 		this.#repositories = options.repositories;
 		this.#events = options.events;
+		this.#rules = options.rules;
+		this.#statusFailures = options.statusFailures;
 		this.#random = options.random ?? defaultRandomBytes;
+		this.#scheduler = options.scheduler ?? createSystemScheduler();
+	}
+
+	/**
+	 * The messaging rules first, then the `messages.status` injection rules (SPEC §4). A send a
+	 * rule already fails is not offered to the injection rules: their countdown is for sends that
+	 * would otherwise have gone through.
+	 */
+	async #verdict(phoneNumber: PhoneNumberRecord, waId: string, request: SendMessageRequest): Promise<SendVerdict> {
+		const verdict = (await this.#rules?.verdict(phoneNumber, waId, request.type === "template")) ?? {
+			isBusinessInitiated: false,
+			failure: null,
+		};
+
+		if (verdict.failure !== null) {
+			return verdict;
+		}
+
+		const injected = (await this.#statusFailures?.evaluateStatus()) ?? null;
+
+		return injected === null ? verdict : { isBusinessInitiated: false, failure: injected };
 	}
 
 	/**
@@ -130,6 +167,12 @@ export class MessageService {
 		const { input, waId } = await this.#resolveRecipient(request);
 		const templateSnapshot = await this.#sendableTemplateSnapshot(phoneNumber.wabaId, request);
 
+		// Throughput and the pair rate limit refuse the request outright (SPEC §4); a send that
+		// was never valid must not have spent a slot, which is why they come after validation.
+		this.#rules?.admit(phoneNumber, waId);
+
+		const verdict = await this.#verdict(phoneNumber, waId, request);
+
 		await this.#ensureContact(waId);
 
 		const message = await this.#repositories.messages.insert({
@@ -145,9 +188,15 @@ export class MessageService {
 			// on the status webhooks of this message (SPEC §2.5).
 			bizOpaqueCallbackData: request.biz_opaque_callback_data ?? null,
 			templateSnapshot,
+			isBusinessInitiated: verdict.isBusinessInitiated,
+			createdAt: this.#scheduler.now().toISOString(),
 		});
 
-		this.#events.onOutboundAccepted(message);
+		if (verdict.failure === null) {
+			this.#events.onOutboundAccepted(message);
+		} else {
+			this.#events.onOutboundAccepted(message, verdict.failure);
+		}
 
 		return { input, waId, message };
 	}

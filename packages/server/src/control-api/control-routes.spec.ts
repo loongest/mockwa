@@ -109,6 +109,7 @@ describe("control-plane API", () => {
 				// Both error-simulation knobs are off unless their variable is set (SPEC §7).
 				strictTokens: false,
 				mediaTtlSeconds: null,
+				messaging: { serviceWindowMs: null, throughput: null, pairRateLimit: null, messagingLimit: null },
 			});
 			expect(state.webhook).toMatchObject({
 				url: capture.url,

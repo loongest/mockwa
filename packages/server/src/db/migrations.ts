@@ -405,6 +405,25 @@ export const MIGRATIONS: Record<string, Migration> = {
 				.execute();
 		},
 	},
+
+	/**
+	 * mockwa M3: the messaging rules (SPEC §4, "Messaging rules").
+	 *
+	 * - `messages.business_initiated` marks an outbound send that went out while the customer
+	 *   service window was closed — what Meta's messaging limit counts. Every existing row reads
+	 *   `0`: it was sent before anything counted, so it cannot use up a limit set today.
+	 * - `injection_rules.error_code` is the `failed` status a `messages.status` rule produces;
+	 *   `NULL` on every rule that targets a Graph route, which is all of the existing ones.
+	 */
+	"0010_messaging_rules": {
+		up: async (db: Kysely<never>): Promise<void> => {
+			await db.schema
+				.alterTable("messages")
+				.addColumn("business_initiated", "integer", column => column.notNull().defaultTo(0))
+				.execute();
+			await db.schema.alterTable("injection_rules").addColumn("error_code", "integer").execute();
+		},
+	},
 };
 
 /** Serves {@link MIGRATIONS} to Kysely's `Migrator`. */

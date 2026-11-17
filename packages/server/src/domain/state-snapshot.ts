@@ -110,6 +110,8 @@ const messageRowSchema = z.object({
 	// Likewise for the template a send was validated against (SPEC §2.5): an older file's
 	// template messages load without one, exactly as they were stored.
 	template_snapshot: nullable(jsonText).default(null),
+	// M3 (SPEC §4): an older file's sends were never counted against a messaging limit.
+	business_initiated: z.int().min(0).max(1).default(0),
 	timestamp,
 	created_at: timestamp,
 	updated_at: timestamp,
@@ -201,6 +203,8 @@ const injectionRuleRowSchema = z.object({
 	retry_after_seconds: nullable(z.int()),
 	regain_access_minutes: nullable(z.int()),
 	custom: nullable(jsonText),
+	// M3 (SPEC §4): only `messages.status` rules carry one, and older files have none of those.
+	error_code: nullable(z.int()).default(null),
 	seen: z.int().nonnegative(),
 	matches: z.int().nonnegative(),
 	remaining: nullable(z.int()),
