@@ -77,7 +77,7 @@ export function createWebUiRoutes(options: WebUiRoutesOptions): Hono<AppEnv> {
 	return routes;
 }
 
-/** Whether {@link createWebUiRoutes} has anything to serve: `npm run build --workspace @whaloc/web` ran. */
+/** Whether {@link createWebUiRoutes} has anything to serve: `npm run build --workspace @mockwa/web` ran. */
 export function hasWebUiBundle(webDir: string): boolean {
 	return existsSync(path.join(webDir, "index.html"));
 }

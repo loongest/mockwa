@@ -1,4 +1,4 @@
-import type { AppIdentity, WabaState } from "@whaloc/shared";
+import type { AppIdentity, WabaState } from "@mockwa/shared";
 import { useId, useState } from "react";
 import { api } from "../../api/endpoints.ts";
 import { CopyButton } from "../../components/copy-button.tsx";
@@ -87,7 +87,7 @@ function RenameDialog(props: { waba: WabaState; onClose: () => void }) {
 /**
  * Whether an app is subscribed to this WABA's webhooks (SPEC §2.20), read-only: only the app
  * under test can subscribe, through `POST /{wabaId}/subscribed_apps`. Deliveries go to
- * `WHALOC_WEBHOOK_URL` either way, which the copy says so nobody debugs a silence that is not
+ * `MOCKWA_WEBHOOK_URL` either way, which the copy says so nobody debugs a silence that is not
  * there.
  */
 function SubscriptionRow(props: { waba: WabaState; app: AppIdentity }) {

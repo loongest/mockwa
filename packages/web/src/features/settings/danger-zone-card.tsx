@@ -1,4 +1,4 @@
-import { EXPORT_PATH, type ImportSummary } from "@whaloc/shared";
+import { EXPORT_PATH, type ImportSummary } from "@mockwa/shared";
 import { useState } from "react";
 import { api } from "../../api/endpoints.ts";
 import { Dialog } from "../../components/dialog.tsx";
@@ -6,7 +6,7 @@ import { useDispatch, useToasts } from "../../store/store.tsx";
 
 /**
  * The three buttons that replace everything (SPEC §5): **export** the whole state to one file,
- * **import** such a file back, and **reset** to `WHALOC_SEED`.
+ * **import** such a file back, and **reset** to `MOCKWA_SEED`.
  *
  * Export is a plain link, not a `fetch`: `GET /api/export` answers with an attachment, so the
  * browser saves it without a snapshot ever passing through this bundle. Import and reset both
@@ -138,7 +138,7 @@ function SnapshotControls() {
 				>
 					<p>
 						Every WABA, phone number, contact, template, conversation and media object is deleted and replaced by the
-						snapshot's. <code>WHALOC_SEED</code> is <strong>not</strong> re-applied — use <code>Reset whaloc</code> for
+						snapshot's. <code>MOCKWA_SEED</code> is <strong>not</strong> re-applied — use <code>Reset whaloc</code> for
 						that — so the IDs a configured <code>GRAPH_API_BASE_URL</code> points at are the snapshot's IDs.
 					</p>
 				</Dialog>
@@ -177,7 +177,7 @@ function ResetControls() {
 		<div className="stack">
 			<h4 className="card__subtitle">Reset</h4>
 			<p className="muted">
-				Reset empties every table and deletes the stored media, then applies <code>WHALOC_SEED</code> again. Seeded IDs
+				Reset empties every table and deletes the stored media, then applies <code>MOCKWA_SEED</code> again. Seeded IDs
 				are deterministic, so a configured <code>GRAPH_API_BASE_URL</code> keeps working.
 			</p>
 			<div className="row">

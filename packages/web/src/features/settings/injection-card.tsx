@@ -11,7 +11,7 @@ import {
 	type InjectionTarget,
 	type InjectionTrigger,
 	type InjectionTriggerKind,
-} from "@whaloc/shared";
+} from "@mockwa/shared";
 import clsx from "clsx";
 import { useState } from "react";
 import { api } from "../../api/endpoints.ts";

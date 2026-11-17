@@ -6,7 +6,7 @@ import {
 	type Message,
 	type ReferralMediaType,
 	type ReferralSourceType,
-} from "@whaloc/shared";
+} from "@mockwa/shared";
 import clsx from "clsx";
 import { useEffect, useId, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { describeError } from "../../api/client.ts";

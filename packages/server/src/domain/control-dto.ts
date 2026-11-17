@@ -7,8 +7,8 @@ import type {
 	Template,
 	Waba,
 	WebhookDelivery,
-} from "@whaloc/shared";
-import { conversationId } from "@whaloc/shared";
+} from "@mockwa/shared";
+import { conversationId } from "@mockwa/shared";
 import type {
 	ContactRecord,
 	InjectionRuleRecord,
@@ -20,7 +20,7 @@ import type {
 } from "../db/index.ts";
 
 /**
- * Repository records → the control-plane contract in `@whaloc/shared` (SPEC §5).
+ * Repository records → the control-plane contract in `@mockwa/shared` (SPEC §5).
  *
  * The mapping lives in the domain rather than in `control-api/` because the WebSocket events
  * carry the same shapes and are published from the services themselves. Everything the UI
@@ -102,7 +102,7 @@ export function toTemplateDto(record: TemplateRecord): Template {
 
 /**
  * A delivery attempt. `skipped` is derived from the empty URL such a row is stored with:
- * with `WHALOC_WEBHOOK_URL` unset whaloc still logs what it *would* have sent (SPEC §3), and
+ * with `MOCKWA_WEBHOOK_URL` unset whaloc still logs what it *would* have sent (SPEC §3), and
  * the UI needs to tell that apart from a real attempt.
  */
 export function toWebhookDeliveryDto(record: WebhookDeliveryRecord): WebhookDelivery {

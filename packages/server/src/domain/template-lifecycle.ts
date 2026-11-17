@@ -1,4 +1,4 @@
-import type { RejectTemplateRequest } from "@whaloc/shared";
+import type { RejectTemplateRequest } from "@mockwa/shared";
 import type { QualityRating } from "../config/index.ts";
 import type { Repositories, TemplateRecord, TemplateStatus } from "../db/index.ts";
 import type { Logger } from "../logging/index.ts";
@@ -21,7 +21,7 @@ import {
 /**
  * Template review, the way Meta's looks from the outside (SPEC §4).
  *
- * A created or edited template is `PENDING`; `WHALOC_TEMPLATE_AUTO_APPROVE` decides whether it
+ * A created or edited template is `PENDING`; `MOCKWA_TEMPLATE_AUTO_APPROVE` decides whether it
  * approves itself after a delay or waits for a human to press approve or reject in the UI.
  * Every transition persists and emits `message_template_status_update` — including `DELETED`,
  * which Meta does send when a template is removed.
@@ -39,7 +39,7 @@ export interface TemplateLifecycleOptions {
 	webhooks: WebhookEmitter;
 	tasks: BackgroundTasks;
 	logger: Logger;
-	/** `WHALOC_TEMPLATE_AUTO_APPROVE`; `null` keeps review manual (SPEC §7). */
+	/** `MOCKWA_TEMPLATE_AUTO_APPROVE`; `null` keeps review manual (SPEC §7). */
 	autoApproveMs: number | null;
 	events?: EventPublisher;
 	scheduler?: Scheduler;

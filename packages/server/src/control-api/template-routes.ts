@@ -4,7 +4,7 @@ import {
 	templateListResponseSchema,
 	templateQualityRequestSchema,
 	templateResponseSchema,
-} from "@whaloc/shared";
+} from "@mockwa/shared";
 import { Hono, type Context } from "hono";
 import type { TemplateRecord } from "../db/index.ts";
 import { toTemplateDto, type TemplateLifecycle, type TemplateService } from "../domain/index.ts";

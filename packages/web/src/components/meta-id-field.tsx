@@ -1,4 +1,4 @@
-import { metaIdSchema } from "@whaloc/shared";
+import { metaIdSchema } from "@mockwa/shared";
 
 /**
  * The optional **Meta ID** both create dialogs offer (SPEC §5).

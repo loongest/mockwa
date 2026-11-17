@@ -1,4 +1,4 @@
-import type { JsonObject } from "@whaloc/shared";
+import type { JsonObject } from "@mockwa/shared";
 
 /**
  * Message payloads and template components are `Record<string, unknown>` by contract — they

@@ -1,4 +1,4 @@
-import type { WabaState } from "@whaloc/shared";
+import type { WabaState } from "@mockwa/shared";
 import clsx from "clsx";
 import { useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
@@ -180,7 +180,7 @@ export function AppShell() {
 				{/* Home: `/` re-resolves to the last-used scope's chats, like a fresh visit. */}
 				<Link className="topbar__brand" to="/">
 					<span className="topbar__brand-dot" aria-hidden="true" />
-					<span className="topbar__brand-name">whaloc</span>
+					<span className="topbar__brand-name">mockwa</span>
 				</Link>
 
 				<ScopeBreadcrumb view={view} />

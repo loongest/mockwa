@@ -1,4 +1,4 @@
-import { TEMPLATE_CATEGORIES, TEMPLATE_STATUSES } from "@whaloc/shared";
+import { TEMPLATE_CATEGORIES, TEMPLATE_STATUSES } from "@mockwa/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 import {
@@ -15,7 +15,7 @@ import { parseOrThrow, readJsonBody } from "./request-parsing.ts";
 
 export interface TemplateRoutesOptions {
 	templates: TemplateService;
-	/** `WHALOC_PUBLIC_URL`; `paging.next` has to be reachable from another container (SPEC §1.7). */
+	/** `MOCKWA_PUBLIC_URL`; `paging.next` has to be reachable from another container (SPEC §1.7). */
 	publicUrl: string;
 }
 
@@ -67,7 +67,7 @@ interface PageUrlOptions {
 }
 
 /**
- * Built from `WHALOC_PUBLIC_URL` so the consumer can follow it from another container, and
+ * Built from `MOCKWA_PUBLIC_URL` so the consumer can follow it from another container, and
  * carrying the caller's own `fields` and filters so the next page is the same listing.
  */
 function pageUrl(options: PageUrlOptions): string {

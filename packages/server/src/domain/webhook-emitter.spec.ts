@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { WsEvent } from "@whaloc/shared";
+import type { WsEvent } from "@mockwa/shared";
 import { startCaptureServer, type CaptureServer } from "../testing/capture-server.ts";
 import { createDomainHarness, createRecordingScheduler, type DomainHarness } from "../testing/domain-harness.ts";
 import type { EventPublisher } from "./event-bus.ts";
@@ -283,13 +283,13 @@ describe("WebhookEmitter", () => {
 		it("fails without ever leaving the process when nothing is configured", async () => {
 			const { emitter } = createEmitter({ url: undefined });
 
-			expect(await emitter.handshake()).toMatchObject({ ok: false, error: "WHALOC_WEBHOOK_URL is not set" });
+			expect(await emitter.handshake()).toMatchObject({ ok: false, error: "MOCKWA_WEBHOOK_URL is not set" });
 
 			const { emitter: tokenless } = createEmitter({ verifyToken: undefined });
 
 			expect(await tokenless.handshake()).toMatchObject({
 				ok: false,
-				error: "WHALOC_WEBHOOK_VERIFY_TOKEN is not set",
+				error: "MOCKWA_WEBHOOK_VERIFY_TOKEN is not set",
 			});
 			expect(capture.requests).toHaveLength(0);
 		});

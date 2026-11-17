@@ -1,5 +1,5 @@
 import { serve, type ServerType } from "@hono/node-server";
-import { wsEventSchema, type WsEvent } from "@whaloc/shared";
+import { wsEventSchema, type WsEvent } from "@mockwa/shared";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WebSocketServer } from "ws";
@@ -25,7 +25,7 @@ describe("GET /api/ws", () => {
 		webSocketServer = new WebSocketServer({ noServer: true });
 		server = await new Promise<ServerType>(resolve => {
 			const created = serve(
-				{ fetch: fixture.app.fetch, hostname: "127.0.0.1", port: 0, websocket: { server: webSocketServer } },
+				{ fetch: fixture.consoleApp.fetch, hostname: "127.0.0.1", port: 0, websocket: { server: webSocketServer } },
 				() => {
 					resolve(created);
 				},

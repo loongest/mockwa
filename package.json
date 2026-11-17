@@ -1,15 +1,15 @@
 {
-	"name": "whaloc",
+	"name": "mockwa",
 	"version": "0.0.0",
 	"private": true,
 	"type": "module",
 	"description": "Local emulator of the Meta WhatsApp Cloud API",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/dgadelha/whaloc.git"
+		"url": "git+https://github.com/loongest/mockwa.git"
 	},
-	"homepage": "https://github.com/dgadelha/whaloc#readme",
-	"bugs": "https://github.com/dgadelha/whaloc/issues",
+	"homepage": "https://github.com/loongest/mockwa#readme",
+	"bugs": "https://github.com/loongest/mockwa/issues",
 	"license": "MIT",
 	"workspaces": [
 		"packages/shared",
@@ -21,18 +21,19 @@
 		"npm": ">=11.0.0"
 	},
 	"scripts": {
-		"build": "npm run build --workspace @whaloc/shared && npm run build --workspace @whaloc/server && npm run build --workspace @whaloc/web",
-		"dev": "concurrently --kill-others-on-fail --names server,web --prefix-colors blue,green \"npm run dev --workspace @whaloc/server\" \"npm run dev --workspace @whaloc/web\"",
+		"build": "npm run build --workspace @mockwa/shared && npm run build --workspace @mockwa/server && npm run build --workspace @mockwa/web",
+		"dev": "concurrently --kill-others-on-fail --names server,web --prefix-colors blue,green \"npm run dev --workspace @mockwa/server\" \"npm run dev --workspace @mockwa/web\"",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",
-		"start": "npm run start --workspace @whaloc/server",
+		"start": "npm run start --workspace @mockwa/server",
 		"test": "npm run test --workspaces --if-present",
 		"typecheck": "npm run typecheck --workspaces --if-present"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
+		"@playwright/test": "^1.64.1",
 		"concurrently": "^10.0.5",
 		"eslint": "^10.9.1",
 		"eslint-config-prettier": "^10.1.8",

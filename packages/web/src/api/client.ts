@@ -1,4 +1,4 @@
-import { controlErrorSchema } from "@whaloc/shared";
+import { controlErrorSchema } from "@mockwa/shared";
 import type { output, ZodType } from "zod";
 
 /**

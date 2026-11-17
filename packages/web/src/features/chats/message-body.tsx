@@ -1,4 +1,4 @@
-import type { JsonObject, Message } from "@whaloc/shared";
+import type { JsonObject, Message } from "@mockwa/shared";
 import { JsonBlock } from "../../components/json-block.tsx";
 import { asArray, asNumber, asRecord, asString, readString } from "../../lib/json.ts";
 import { InteractiveMessage } from "./interactive-message.tsx";

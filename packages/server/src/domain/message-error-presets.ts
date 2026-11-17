@@ -1,4 +1,4 @@
-import { MESSAGE_ERROR_CODES, type MessageErrorCode } from "@whaloc/shared";
+import { MESSAGE_ERROR_CODES, type MessageErrorCode } from "@mockwa/shared";
 import type { JsonObject } from "../db/index.ts";
 
 /**

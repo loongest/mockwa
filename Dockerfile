@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
-# whaloc ships as a single image serving all three surfaces on one port (SPEC §8):
-# the Graph API mock, the control plane (+ WebSocket) and the static web UI.
+# mockwa (a fork of whaloc) ships as a single image with two listeners (SPEC §8): the Graph API
+# mock on 8888, and the control plane (+ WebSocket) with the static web UI on 8025.
 
 ARG NODE_IMAGE=node:24-alpine
 
@@ -50,25 +50,25 @@ COPY packages/shared/package.json packages/shared/
 COPY packages/server/package.json packages/server/
 
 RUN --mount=type=cache,id=npm,target=/root/.npm,sharing=locked \
-	npm ci --omit=dev --workspace @whaloc/server --include-workspace-root
+	npm ci --omit=dev --workspace @mockwa/server --include-workspace-root
 
 # --- runtime -------------------------------------------------------------------------------
 FROM ${NODE_IMAGE} AS runtime
 
-LABEL org.opencontainers.image.title="whaloc" \
-	org.opencontainers.image.description="Local emulator of the Meta WhatsApp Cloud API (Graph API v25.0)" \
-	org.opencontainers.image.source="https://github.com/dgadelha/whaloc" \
+LABEL org.opencontainers.image.title="mockwa" \
+	org.opencontainers.image.description="WhatsApp Cloud API simulator (Graph API v25.0), a fork of whaloc" \
+	org.opencontainers.image.source="https://github.com/loongest/mockwa" \
 	org.opencontainers.image.licenses="MIT"
 
 # The image keeps the repository's own layout, so the web bundle lands exactly where the server
-# looks for it by default (`packages/web/dist`, beside the server) and `WHALOC_WEB_DIR` needs no
+# looks for it by default (`packages/web/dist`, beside the server) and `MOCKWA_WEB_DIR` needs no
 # value here.
 ENV NODE_ENV=production \
-	WHALOC_MEDIA_DIR=/data/media
+	MOCKWA_MEDIA_DIR=/data/media
 
 WORKDIR /app
 
-# The production `node_modules` carries `@whaloc/shared` as a symlink into `packages/shared`, so
+# The production `node_modules` carries `@mockwa/shared` as a symlink into `packages/shared`, so
 # the manifests it resolves through travel with it — `exports` there is what points the server's
 # `dist` at the shared `dist`.
 COPY --from=deps /app/node_modules node_modules
@@ -88,16 +88,21 @@ RUN mkdir -p /data/media && chown -R node:node /data
 
 USER node
 
-EXPOSE 8080
+# 8888: the Graph API the app under test calls. 8025: the console (UI, /api, /api/ws). Publish
+# them to loopback (`-p 127.0.0.1:8888:8888`) unless the network is trusted: dev mode has no login.
+EXPOSE 8888 8025
 VOLUME /data
 
 # busybox `wget` is already in the image, so the probe costs no extra layer and no Node boot.
+# Both listeners must answer: one of them down is an unhealthy container. The legacy
+# `WHALOC_PORT` still moves the Graph listener (SPEC §7), so the probe follows it too.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-	CMD wget -q --spider -T 3 "http://127.0.0.1:${WHALOC_PORT:-8080}/health" || exit 1
+	CMD wget -q --spider -T 3 "http://127.0.0.1:${MOCKWA_GRAPH_PORT:-${WHALOC_PORT:-8888}}/health" \
+	&& wget -q --spider -T 3 "http://127.0.0.1:${MOCKWA_CONSOLE_PORT:-8025}/health" || exit 1
 
 # The release tag, handed in by the publish workflow; last, so a new version rebuilds no layer.
-ARG WHALOC_VERSION=0.0.0-dev
-ENV WHALOC_VERSION=${WHALOC_VERSION}
+ARG MOCKWA_VERSION=0.0.0-dev
+ENV MOCKWA_VERSION=${MOCKWA_VERSION}
 
 # `node:sqlite` is still flagged experimental in Node 24 and warns on first use; the emulator
 # does not need the reminder on every boot.

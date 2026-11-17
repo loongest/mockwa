@@ -60,7 +60,7 @@ import {
 	type WabaCreateRequest,
 	type WebhookDelivery,
 	type WebhookDeliveryListResponse,
-} from "@whaloc/shared";
+} from "@mockwa/shared";
 import { z } from "zod";
 import { queryString, request } from "./client.ts";
 
@@ -412,7 +412,7 @@ export const api = {
 		return data;
 	},
 
-	/** The registry `WHALOC_TOKENS` configures; `strict:false` means there is none (SPEC §1.9). */
+	/** The registry `MOCKWA_TOKENS` configures; `strict:false` means there is none (SPEC §1.9). */
 	listTokens: async (options: Signal = {}): Promise<TokenListResponse> =>
 		request("/api/tokens", { schema: tokenListResponseSchema, ...options }),
 

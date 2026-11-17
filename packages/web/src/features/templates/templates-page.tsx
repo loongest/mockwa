@@ -8,7 +8,7 @@ import {
 	type Template,
 	type TemplateCategory,
 	type TemplateStatus,
-} from "@whaloc/shared";
+} from "@mockwa/shared";
 import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { api } from "../../api/endpoints.ts";

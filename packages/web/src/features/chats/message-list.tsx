@@ -1,4 +1,4 @@
-import type { Message } from "@whaloc/shared";
+import type { Message } from "@mockwa/shared";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { dayKey, formatDayLabel } from "../../lib/format.ts";
 import { readString } from "../../lib/json.ts";

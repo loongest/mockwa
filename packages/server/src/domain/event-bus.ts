@@ -1,4 +1,4 @@
-import type { WsEvent } from "@whaloc/shared";
+import type { WsEvent } from "@mockwa/shared";
 
 /**
  * The seam between the domain services and the control-plane WebSocket (SPEC §5).

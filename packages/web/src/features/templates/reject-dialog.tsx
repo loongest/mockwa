@@ -1,4 +1,4 @@
-import { TEMPLATE_REJECTION_REASONS, type RejectTemplateRequest, type TemplateRejectionReason } from "@whaloc/shared";
+import { TEMPLATE_REJECTION_REASONS, type RejectTemplateRequest, type TemplateRejectionReason } from "@mockwa/shared";
 import { useState } from "react";
 import { Dialog } from "../../components/dialog.tsx";
 

@@ -59,14 +59,14 @@ function wabaName(waba: SeedWaba): string {
 }
 
 /**
- * Applies `WHALOC_SEED` after the migrations (SPEC §7).
+ * Applies `MOCKWA_SEED` after the migrations (SPEC §7).
  *
  * Two properties matter, and both are tested:
  *
  * - **Idempotent.** Rows are matched by natural key (a WABA by id or derived id, a phone
  *   number by its display number within the WABA, a contact by `wa_id`, a template by its name
  *   and language within the WABA) and only inserted when missing, so restarting against a
- *   persisted `WHALOC_DB_PATH` never duplicates anything and never overwrites state the UI has
+ *   persisted `MOCKWA_DB_PATH` never duplicates anything and never overwrites state the UI has
  *   changed since.
  * - **Deterministic.** Ids omitted from the seed are derived from that same natural key, so
  *   a `:memory:` database hands out the same ids on every boot.

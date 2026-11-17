@@ -1,4 +1,4 @@
-import type { InjectionRuleCreateRequest, InjectionTarget, InjectionTrigger } from "@whaloc/shared";
+import type { InjectionRuleCreateRequest, InjectionTarget, InjectionTrigger } from "@mockwa/shared";
 import type { InjectionRuleRecord, Repositories } from "../db/index.ts";
 import { toInjectionRuleDto } from "./control-dto.ts";
 import { controlNotFound } from "./control-plane-error.ts";

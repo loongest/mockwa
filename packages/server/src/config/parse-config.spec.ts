@@ -30,9 +30,10 @@ describe("parseConfig", () => {
 			const config = parseOrThrow({});
 
 			expect(config).toMatchObject({
-				port: 8080,
+				graphPort: 8888,
+				consolePort: 8025,
 				host: "0.0.0.0",
-				publicUrl: "http://localhost:8080",
+				publicUrl: "http://localhost:8888",
 				webhookUrl: undefined,
 				appSecret: undefined,
 				webhookVerifyToken: undefined,
@@ -50,58 +51,123 @@ describe("parseConfig", () => {
 		});
 
 		it("resolves a relative web directory against the working directory", () => {
-			const config = parseOrThrow({ WHALOC_WEB_DIR: "./public" });
+			const config = parseOrThrow({ MOCKWA_WEB_DIR: "./public" });
 
 			expect(config.webDir).toBe(path.resolve("./public"));
 		});
 
 		it("ignores variables that are set to an empty or blank string", () => {
-			const config = parseOrThrow({ WHALOC_WEBHOOK_URL: "", WHALOC_APP_SECRET: " ".repeat(3) });
+			const config = parseOrThrow({ MOCKWA_WEBHOOK_URL: "", MOCKWA_APP_SECRET: " ".repeat(3) });
 
 			expect(config.webhookUrl).toBeUndefined();
 			expect(config.appSecret).toBeUndefined();
 		});
 
-		it("ignores environment variables that are not whaloc's", () => {
+		it("ignores environment variables that are not mockwa's", () => {
 			const config = parseOrThrow({ PORT: "3000", NODE_ENV: "production" });
 
-			expect(config.port).toBe(8080);
+			expect(config.graphPort).toBe(8888);
 		});
 	});
 
 	describe("network settings", () => {
 		it("parses the port and bind address", () => {
-			const config = parseOrThrow({ WHALOC_PORT: "3010", WHALOC_HOST: "127.0.0.1" });
+			const config = parseOrThrow({ MOCKWA_GRAPH_PORT: "3010", MOCKWA_HOST: "127.0.0.1" });
 
-			expect(config).toMatchObject({ port: 3010, host: "127.0.0.1" });
+			expect(config).toMatchObject({ graphPort: 3010, host: "127.0.0.1" });
 		});
 
 		it.each(["0", "70000", "8080.5", "-1", "eighty"])("rejects the invalid port %j", port => {
-			expect(errorsOf({ WHALOC_PORT: port })).toHaveLength(1);
+			expect(errorsOf({ MOCKWA_GRAPH_PORT: port })).toHaveLength(1);
 		});
 
 		it("explains why a port is invalid", () => {
-			expect(errorsOf({ WHALOC_PORT: "eighty" })).toEqual(["WHALOC_PORT: must be a whole number"]);
+			expect(errorsOf({ MOCKWA_GRAPH_PORT: "eighty" })).toEqual(["MOCKWA_GRAPH_PORT: must be a whole number"]);
 		});
 
 		it("strips trailing slashes from the public URL", () => {
-			const config = parseOrThrow({ WHALOC_PUBLIC_URL: "http://whaloc:8080//" });
+			const config = parseOrThrow({ MOCKWA_PUBLIC_URL: "http://whaloc:8080//" });
 
 			expect(config.publicUrl).toBe("http://whaloc:8080");
 		});
 
 		it("rejects a public URL that is not a URL", () => {
-			expect(errorsOf({ WHALOC_PUBLIC_URL: "whaloc:8080" })).toHaveLength(1);
+			expect(errorsOf({ MOCKWA_PUBLIC_URL: "whaloc:8080" })).toHaveLength(1);
+		});
+	});
+
+	describe("the two listeners", () => {
+		it("parses the Graph API and console ports", () => {
+			const config = parseOrThrow({ MOCKWA_GRAPH_PORT: "9888", MOCKWA_CONSOLE_PORT: "9025" });
+
+			expect(config).toMatchObject({ graphPort: 9888, consolePort: 9025 });
+		});
+
+		it("refuses one port for both listeners", () => {
+			expect(errorsOf({ MOCKWA_GRAPH_PORT: "8025" })).toEqual([
+				"MOCKWA_CONSOLE_PORT: must differ from MOCKWA_GRAPH_PORT (both are 8025)",
+			]);
+		});
+
+		it("reads the legacy WHALOC_PORT as the Graph API port", () => {
+			expect(parseOrThrow({ WHALOC_PORT: "8080" })).toMatchObject({ graphPort: 8080, consolePort: 8025 });
+		});
+
+		it("lets MOCKWA_GRAPH_PORT win over the legacy WHALOC_PORT", () => {
+			expect(parseOrThrow({ WHALOC_PORT: "3010", MOCKWA_GRAPH_PORT: "3011" }).graphPort).toBe(3011);
+		});
+	});
+
+	describe("WHALOC_* aliases", () => {
+		it("reads a WHALOC_* variable as its MOCKWA_* name", () => {
+			const config = parseOrThrow({ WHALOC_WEBHOOK_URL: "http://app:3001/hook", WHALOC_APP_SECRET: "s3cret" });
+
+			expect(config).toMatchObject({ webhookUrl: "http://app:3001/hook", appSecret: "s3cret" });
+		});
+
+		it("prefers the MOCKWA_* spelling when both are set", () => {
+			const config = parseOrThrow({ WHALOC_APP_SECRET: "old", MOCKWA_APP_SECRET: "new" });
+
+			expect(config.appSecret).toBe("new");
+		});
+
+		it("falls back to the alias when the MOCKWA_* spelling is blank", () => {
+			expect(parseOrThrow({ MOCKWA_APP_SECRET: " ", WHALOC_APP_SECRET: "old" }).appSecret).toBe("old");
+		});
+
+		it("names the variable that was actually set in an error", () => {
+			expect(errorsOf({ MOCKWA_LOG_LEVEL: "chatty" })).toEqual([expect.stringMatching(/^MOCKWA_LOG_LEVEL: /)]);
+			expect(errorsOf({ WHALOC_LOG_LEVEL: "chatty" })).toEqual([expect.stringMatching(/^WHALOC_LOG_LEVEL: /)]);
+		});
+
+		it("warns when both spellings are set to different values", () => {
+			const env = { WHALOC_APP_SECRET: "old", MOCKWA_APP_SECRET: "new", MOCKWA_WEBHOOK_URL: "http://app/hook" };
+
+			expect(collectConfigWarnings(parseOrThrow(env), env)).toEqual([
+				"WHALOC_APP_SECRET and MOCKWA_APP_SECRET are both set to different values: MOCKWA_APP_SECRET is used",
+			]);
+		});
+
+		it("names the legacy seed file variable in its errors", () => {
+			const result = parseConfig({ WHALOC_SEED_FILE: "/empty.json" }, () => "");
+
+			expect(!result.success && result.errors).toEqual(["WHALOC_SEED_FILE: /empty.json is empty"]);
+		});
+
+		it("does not warn when both spellings agree", () => {
+			const env = { WHALOC_APP_SECRET: "same", MOCKWA_APP_SECRET: "same", MOCKWA_WEBHOOK_URL: "http://app/hook" };
+
+			expect(collectConfigWarnings(parseOrThrow(env), env)).toEqual([]);
 		});
 	});
 
 	describe("webhook settings", () => {
 		it("keeps the webhook target, secret and verify token", () => {
 			const config = parseOrThrow({
-				WHALOC_WEBHOOK_URL: "http://meta-webhook-receiver:3001/meta-webhooks",
-				WHALOC_APP_SECRET: "dev-meta-app-secret",
-				WHALOC_WEBHOOK_VERIFY_TOKEN: "dev-verify-token",
-				WHALOC_VERIFY_ON_START: "true",
+				MOCKWA_WEBHOOK_URL: "http://meta-webhook-receiver:3001/meta-webhooks",
+				MOCKWA_APP_SECRET: "dev-meta-app-secret",
+				MOCKWA_WEBHOOK_VERIFY_TOKEN: "dev-verify-token",
+				MOCKWA_VERIFY_ON_START: "true",
 			});
 
 			expect(config).toMatchObject({
@@ -118,37 +184,37 @@ describe("parseConfig", () => {
 			["yes", true],
 			["false", false],
 			["0", false],
-		])("reads WHALOC_VERIFY_ON_START=%s as %s", (raw, expected) => {
-			expect(parseOrThrow({ WHALOC_VERIFY_ON_START: raw }).verifyOnStart).toBe(expected);
+		])("reads MOCKWA_VERIFY_ON_START=%s as %s", (raw, expected) => {
+			expect(parseOrThrow({ MOCKWA_VERIFY_ON_START: raw }).verifyOnStart).toBe(expected);
 		});
 
-		it("rejects a non-boolean WHALOC_VERIFY_ON_START", () => {
-			expect(errorsOf({ WHALOC_VERIFY_ON_START: "maybe" })).toHaveLength(1);
+		it("rejects a non-boolean MOCKWA_VERIFY_ON_START", () => {
+			expect(errorsOf({ MOCKWA_VERIFY_ON_START: "maybe" })).toHaveLength(1);
 		});
 
 		it("keeps a configured app id, and rejects one that is not digits", () => {
-			expect(parseOrThrow({ WHALOC_APP_ID: "1234567890" }).appId).toBe("1234567890");
+			expect(parseOrThrow({ MOCKWA_APP_ID: "1234567890" }).appId).toBe("1234567890");
 			// Blank counts as unset, like every other variable.
-			expect(parseOrThrow({ WHALOC_APP_ID: "  " }).appId).toBeUndefined();
-			expect(errorsOf({ WHALOC_APP_ID: "app-1" })).toHaveLength(1);
+			expect(parseOrThrow({ MOCKWA_APP_ID: "  " }).appId).toBeUndefined();
+			expect(errorsOf({ MOCKWA_APP_ID: "app-1" })).toHaveLength(1);
 		});
 	});
 
 	describe("status delays", () => {
 		it("parses the ladder and leaves read receipts manual", () => {
-			const config = parseOrThrow({ WHALOC_STATUS_DELAYS: "sent:10,delivered:1500" });
+			const config = parseOrThrow({ MOCKWA_STATUS_DELAYS: "sent:10,delivered:1500" });
 
 			expect(config.statusDelays).toEqual({ sent: 10, delivered: 1500, read: null });
 		});
 
 		it("automates read receipts when a read delay is given", () => {
-			const config = parseOrThrow({ WHALOC_STATUS_DELAYS: "sent:0,delivered:800,read:2500" });
+			const config = parseOrThrow({ MOCKWA_STATUS_DELAYS: "sent:0,delivered:800,read:2500" });
 
 			expect(config.statusDelays).toEqual({ sent: 0, delivered: 800, read: 2500 });
 		});
 
 		it("falls back to the default delay for steps that are omitted", () => {
-			const config = parseOrThrow({ WHALOC_STATUS_DELAYS: "read:100" });
+			const config = parseOrThrow({ MOCKWA_STATUS_DELAYS: "read:100" });
 
 			expect(config.statusDelays).toEqual({ sent: 0, delivered: 800, read: 100 });
 		});
@@ -156,22 +222,22 @@ describe("parseConfig", () => {
 		it.each(["sent", "sent:", "sent:abc", "opened:10", "sent:10;delivered:20"])(
 			"rejects the malformed ladder %j",
 			delays => {
-				expect(errorsOf({ WHALOC_STATUS_DELAYS: delays })).toHaveLength(1);
+				expect(errorsOf({ MOCKWA_STATUS_DELAYS: delays })).toHaveLength(1);
 			},
 		);
 	});
 
 	describe("template auto approval", () => {
 		it("parses the delay in milliseconds", () => {
-			expect(parseOrThrow({ WHALOC_TEMPLATE_AUTO_APPROVE: "500" }).templateAutoApproveMs).toBe(500);
+			expect(parseOrThrow({ MOCKWA_TEMPLATE_AUTO_APPROVE: "500" }).templateAutoApproveMs).toBe(500);
 		});
 
 		it('turns approval manual when set to "off"', () => {
-			expect(parseOrThrow({ WHALOC_TEMPLATE_AUTO_APPROVE: "off" }).templateAutoApproveMs).toBeNull();
+			expect(parseOrThrow({ MOCKWA_TEMPLATE_AUTO_APPROVE: "off" }).templateAutoApproveMs).toBeNull();
 		});
 
 		it("rejects anything else", () => {
-			expect(errorsOf({ WHALOC_TEMPLATE_AUTO_APPROVE: "later" })).not.toHaveLength(0);
+			expect(errorsOf({ MOCKWA_TEMPLATE_AUTO_APPROVE: "later" })).not.toHaveLength(0);
 		});
 	});
 
@@ -181,20 +247,20 @@ describe("parseConfig", () => {
 		});
 
 		it("splits a comma-separated list, trimming and dropping blanks", () => {
-			expect(parseOrThrow({ WHALOC_TOKENS: " one , two,,three, " }).tokens).toEqual(["one", "two", "three"]);
+			expect(parseOrThrow({ MOCKWA_TOKENS: " one , two,,three, " }).tokens).toEqual(["one", "two", "three"]);
 		});
 
 		it("takes a single token", () => {
-			expect(parseOrThrow({ WHALOC_TOKENS: "EAAonly" }).tokens).toEqual(["EAAonly"]);
+			expect(parseOrThrow({ MOCKWA_TOKENS: "EAAonly" }).tokens).toEqual(["EAAonly"]);
 		});
 
 		it("rejects a list that is only separators, and one that repeats a token", () => {
-			expect(errorsOf({ WHALOC_TOKENS: ",,," })).not.toHaveLength(0);
-			expect(errorsOf({ WHALOC_TOKENS: "same,same" })).not.toHaveLength(0);
+			expect(errorsOf({ MOCKWA_TOKENS: ",,," })).not.toHaveLength(0);
+			expect(errorsOf({ MOCKWA_TOKENS: "same,same" })).not.toHaveLength(0);
 		});
 
 		it("counts the tokens in the boot summary and never prints them", () => {
-			const described = describeConfig(parseOrThrow({ WHALOC_TOKENS: "EAAsecret-one,EAAsecret-two" }));
+			const described = describeConfig(parseOrThrow({ MOCKWA_TOKENS: "EAAsecret-one,EAAsecret-two" }));
 
 			expect(described["tokens"]).toEqual({ registered: 2 });
 			expect(JSON.stringify(described)).not.toContain("EAAsecret");
@@ -207,16 +273,16 @@ describe("parseConfig", () => {
 		});
 
 		it("parses a whole number of seconds", () => {
-			expect(parseOrThrow({ WHALOC_MEDIA_TTL_SECONDS: "30" }).mediaTtlSeconds).toBe(30);
+			expect(parseOrThrow({ MOCKWA_MEDIA_TTL_SECONDS: "30" }).mediaTtlSeconds).toBe(30);
 		});
 
 		it.each(["0", "-1", "1.5", "thirty"])("rejects %o", value => {
-			expect(errorsOf({ WHALOC_MEDIA_TTL_SECONDS: value })).not.toHaveLength(0);
+			expect(errorsOf({ MOCKWA_MEDIA_TTL_SECONDS: value })).not.toHaveLength(0);
 		});
 	});
 
 	describe("media backend (SPEC §6)", () => {
-		const S3_MINIMUM = { WHALOC_MEDIA_BACKEND: "s3", WHALOC_S3_BUCKET: "whaloc", WHALOC_S3_REGION: "us-east-1" };
+		const S3_MINIMUM = { MOCKWA_MEDIA_BACKEND: "s3", MOCKWA_S3_BUCKET: "whaloc", MOCKWA_S3_REGION: "us-east-1" };
 
 		it("stores media in a directory unless told otherwise", () => {
 			const config = parseOrThrow({});
@@ -228,9 +294,9 @@ describe("parseConfig", () => {
 		it("resolves the S3 settings when the backend is s3", () => {
 			const config = parseOrThrow({
 				...S3_MINIMUM,
-				WHALOC_S3_ENDPOINT: "http://rustfs:9000",
-				WHALOC_S3_ACCESS_KEY_ID: "whaloc",
-				WHALOC_S3_SECRET_ACCESS_KEY: "whaloc-secret",
+				MOCKWA_S3_ENDPOINT: "http://rustfs:9000",
+				MOCKWA_S3_ACCESS_KEY_ID: "whaloc",
+				MOCKWA_S3_SECRET_ACCESS_KEY: "whaloc-secret",
 			});
 
 			expect(config.mediaBackend).toBe("s3");
@@ -246,9 +312,9 @@ describe("parseConfig", () => {
 
 		it("addresses AWS itself with virtual-host style, and takes an explicit override either way", () => {
 			expect(parseOrThrow(S3_MINIMUM).s3?.forcePathStyle).toBe(false);
-			expect(parseOrThrow({ ...S3_MINIMUM, WHALOC_S3_FORCE_PATH_STYLE: "true" }).s3?.forcePathStyle).toBe(true);
+			expect(parseOrThrow({ ...S3_MINIMUM, MOCKWA_S3_FORCE_PATH_STYLE: "true" }).s3?.forcePathStyle).toBe(true);
 			expect(
-				parseOrThrow({ ...S3_MINIMUM, WHALOC_S3_ENDPOINT: "http://rustfs:9000", WHALOC_S3_FORCE_PATH_STYLE: "false" })
+				parseOrThrow({ ...S3_MINIMUM, MOCKWA_S3_ENDPOINT: "http://rustfs:9000", MOCKWA_S3_FORCE_PATH_STYLE: "false" })
 					.s3?.forcePathStyle,
 			).toBe(false);
 		});
@@ -258,16 +324,16 @@ describe("parseConfig", () => {
 		});
 
 		it("refuses an s3 backend with no bucket and no region, naming both", () => {
-			const errors = errorsOf({ WHALOC_MEDIA_BACKEND: "s3" });
+			const errors = errorsOf({ MOCKWA_MEDIA_BACKEND: "s3" });
 
 			expect(errors).toHaveLength(2);
-			expect(errors.join("\n")).toContain("WHALOC_S3_BUCKET");
-			expect(errors.join("\n")).toContain("WHALOC_S3_REGION");
+			expect(errors.join("\n")).toContain("MOCKWA_S3_BUCKET");
+			expect(errors.join("\n")).toContain("MOCKWA_S3_REGION");
 		});
 
 		it.each([
-			["WHALOC_S3_ACCESS_KEY_ID", "WHALOC_S3_SECRET_ACCESS_KEY"],
-			["WHALOC_S3_SECRET_ACCESS_KEY", "WHALOC_S3_ACCESS_KEY_ID"],
+			["MOCKWA_S3_ACCESS_KEY_ID", "MOCKWA_S3_SECRET_ACCESS_KEY"],
+			["MOCKWA_S3_SECRET_ACCESS_KEY", "MOCKWA_S3_ACCESS_KEY_ID"],
 		])("refuses %s without %s", (set, missing) => {
 			const errors = errorsOf({ ...S3_MINIMUM, [set]: "value" });
 
@@ -277,26 +343,26 @@ describe("parseConfig", () => {
 		// Half a credential is a typo, not a request for the default chain — even for `local`,
 		// where the variables are otherwise ignored.
 		it("checks the credential pair whatever the backend is", () => {
-			expect(errorsOf({ WHALOC_S3_ACCESS_KEY_ID: "whaloc" })).toEqual([
-				expect.stringContaining("WHALOC_S3_SECRET_ACCESS_KEY"),
+			expect(errorsOf({ MOCKWA_S3_ACCESS_KEY_ID: "whaloc" })).toEqual([
+				expect.stringContaining("MOCKWA_S3_SECRET_ACCESS_KEY"),
 			]);
 		});
 
 		it.each(["ftp://rustfs:9000", "rustfs:9000"])("rejects the endpoint %o", endpoint => {
-			expect(errorsOf({ ...S3_MINIMUM, WHALOC_S3_ENDPOINT: endpoint })).toEqual([
-				expect.stringContaining("WHALOC_S3_ENDPOINT"),
+			expect(errorsOf({ ...S3_MINIMUM, MOCKWA_S3_ENDPOINT: endpoint })).toEqual([
+				expect.stringContaining("MOCKWA_S3_ENDPOINT"),
 			]);
 		});
 
 		it("rejects a backend that is neither local nor s3", () => {
-			expect(errorsOf({ WHALOC_MEDIA_BACKEND: "gcs" })).toEqual([expect.stringContaining("WHALOC_MEDIA_BACKEND")]);
+			expect(errorsOf({ MOCKWA_MEDIA_BACKEND: "gcs" })).toEqual([expect.stringContaining("MOCKWA_MEDIA_BACKEND")]);
 		});
 	});
 
 	describe("seed", () => {
 		it("parses a JSON seed", () => {
 			const config = parseOrThrow({
-				WHALOC_SEED: JSON.stringify([
+				MOCKWA_SEED: JSON.stringify([
 					{
 						id: "102290129340398",
 						name: "Acme",
@@ -319,7 +385,7 @@ describe("parseConfig", () => {
 
 		it("defaults the contact and template lists of a seeded WABA", () => {
 			const config = parseOrThrow({
-				WHALOC_SEED: JSON.stringify([{ phoneNumbers: [{ displayPhoneNumber: "+1 555 000 0100" }] }]),
+				MOCKWA_SEED: JSON.stringify([{ phoneNumbers: [{ displayPhoneNumber: "+1 555 000 0100" }] }]),
 			});
 
 			expect(config.seed[0]).toMatchObject({ contacts: [], templates: [] });
@@ -327,7 +393,7 @@ describe("parseConfig", () => {
 
 		it("parses a seeded template and fills in everything but its name", () => {
 			const config = parseOrThrow({
-				WHALOC_SEED: JSON.stringify([
+				MOCKWA_SEED: JSON.stringify([
 					{ phoneNumbers: [{ displayPhoneNumber: "+1 555 000 0100" }], templates: [{ name: "order_update" }] },
 				]),
 			});
@@ -345,7 +411,7 @@ describe("parseConfig", () => {
 
 		it("keeps everything a seeded template spells out", () => {
 			const config = parseOrThrow({
-				WHALOC_SEED: JSON.stringify([
+				MOCKWA_SEED: JSON.stringify([
 					{
 						phoneNumbers: [{ displayPhoneNumber: "+1 555 000 0100" }],
 						templates: [
@@ -380,39 +446,39 @@ describe("parseConfig", () => {
 			["an empty component list", { name: "order_update", components: [] }],
 		])("rejects %s", (_case, template) => {
 			const errors = errorsOf({
-				WHALOC_SEED: JSON.stringify([
+				MOCKWA_SEED: JSON.stringify([
 					{ phoneNumbers: [{ displayPhoneNumber: "+1 555 000 0100" }], templates: [template] },
 				]),
 			});
 
 			expect(errors).toHaveLength(1);
-			expect(errors[0]).toContain("WHALOC_SEED.0.templates.0.");
+			expect(errors[0]).toContain("MOCKWA_SEED.0.templates.0.");
 		});
 
 		it("rejects a seed that is not JSON", () => {
-			expect(errorsOf({ WHALOC_SEED: "[{" })).toEqual(["WHALOC_SEED: must be valid JSON"]);
+			expect(errorsOf({ MOCKWA_SEED: "[{" })).toEqual(["MOCKWA_SEED: must be valid JSON"]);
 		});
 
 		it("reports the path of an invalid seed entry", () => {
-			const errors = errorsOf({ WHALOC_SEED: JSON.stringify([{ phoneNumbers: [{}] }]) });
+			const errors = errorsOf({ MOCKWA_SEED: JSON.stringify([{ phoneNumbers: [{}] }]) });
 
 			expect(errors).toHaveLength(1);
-			expect(errors[0]).toContain("WHALOC_SEED.0.phoneNumbers.0.displayPhoneNumber");
+			expect(errors[0]).toContain("MOCKWA_SEED.0.phoneNumbers.0.displayPhoneNumber");
 		});
 
 		it("rejects a WABA without phone numbers", () => {
-			expect(errorsOf({ WHALOC_SEED: JSON.stringify([{ phoneNumbers: [] }]) })).toHaveLength(1);
+			expect(errorsOf({ MOCKWA_SEED: JSON.stringify([{ phoneNumbers: [] }]) })).toHaveLength(1);
 		});
 
 		it("rejects a non-numeric WABA id", () => {
 			const errors = errorsOf({
-				WHALOC_SEED: JSON.stringify([{ id: "waba-1", phoneNumbers: [{ displayPhoneNumber: "+1 555 000 0100" }] }]),
+				MOCKWA_SEED: JSON.stringify([{ id: "waba-1", phoneNumbers: [{ displayPhoneNumber: "+1 555 000 0100" }] }]),
 			});
 
-			expect(errors).toEqual(["WHALOC_SEED.0.id: must be a string of 1-32 digits"]);
+			expect(errors).toEqual(["MOCKWA_SEED.0.id: must be a string of 1-32 digits"]);
 		});
 
-		describe("from a file (WHALOC_SEED_FILE)", () => {
+		describe("from a file (MOCKWA_SEED_FILE)", () => {
 			const seed = [{ id: "200000000000001", phoneNumbers: [{ displayPhoneNumber: "+1 555 000 0100" }] }];
 
 			/** An in-memory filesystem: config parsing must never touch the real one. */
@@ -430,59 +496,59 @@ describe("parseConfig", () => {
 
 			it("reads the seed JSON from the named file", () => {
 				const result = parseConfig(
-					{ WHALOC_SEED_FILE: "/seed/whaloc.json" },
+					{ MOCKWA_SEED_FILE: "/seed/whaloc.json" },
 					files({ "/seed/whaloc.json": `${JSON.stringify(seed, undefined, 2)}\n` }),
 				);
 
 				expect(result.success && result.config.seed[0]?.id).toBe("200000000000001");
 			});
 
-			it("refuses WHALOC_SEED and WHALOC_SEED_FILE together", () => {
+			it("refuses MOCKWA_SEED and MOCKWA_SEED_FILE together", () => {
 				const result = parseConfig(
-					{ WHALOC_SEED: JSON.stringify(seed), WHALOC_SEED_FILE: "/seed/whaloc.json" },
+					{ MOCKWA_SEED: JSON.stringify(seed), MOCKWA_SEED_FILE: "/seed/whaloc.json" },
 					files({ "/seed/whaloc.json": JSON.stringify(seed) }),
 				);
 
 				expect(result).toEqual({
 					success: false,
-					errors: ["WHALOC_SEED and WHALOC_SEED_FILE are both set: use only one of them"],
+					errors: ["MOCKWA_SEED and MOCKWA_SEED_FILE are both set: use only one of them"],
 				});
 			});
 
 			it("names the file it cannot read", () => {
-				const result = parseConfig({ WHALOC_SEED_FILE: "/missing.json" }, files({}));
+				const result = parseConfig({ MOCKWA_SEED_FILE: "/missing.json" }, files({}));
 
 				expect(result.success).toBe(false);
 				expect(!result.success && result.errors).toEqual([
-					"WHALOC_SEED_FILE: cannot read /missing.json: ENOENT: no such file or directory, open '/missing.json'",
+					"MOCKWA_SEED_FILE: cannot read /missing.json: ENOENT: no such file or directory, open '/missing.json'",
 				]);
 			});
 
 			it("refuses an empty file instead of falling back to the default seed", () => {
-				const result = parseConfig({ WHALOC_SEED_FILE: "/empty.json" }, files({ "/empty.json": " \n" }));
+				const result = parseConfig({ MOCKWA_SEED_FILE: "/empty.json" }, files({ "/empty.json": " \n" }));
 
-				expect(!result.success && result.errors).toEqual(["WHALOC_SEED_FILE: /empty.json is empty"]);
+				expect(!result.success && result.errors).toEqual(["MOCKWA_SEED_FILE: /empty.json is empty"]);
 			});
 
-			it("blames WHALOC_SEED_FILE for an invalid seed read from it", () => {
-				const notJson = parseConfig({ WHALOC_SEED_FILE: "/seed.json" }, files({ "/seed.json": "[{" }));
+			it("blames MOCKWA_SEED_FILE for an invalid seed read from it", () => {
+				const notJson = parseConfig({ MOCKWA_SEED_FILE: "/seed.json" }, files({ "/seed.json": "[{" }));
 				const invalid = parseConfig(
-					{ WHALOC_SEED_FILE: "/seed.json" },
+					{ MOCKWA_SEED_FILE: "/seed.json" },
 					files({ "/seed.json": JSON.stringify([{ id: "waba-1", phoneNumbers: [{ displayPhoneNumber: "1" }] }]) }),
 				);
 
-				expect(!notJson.success && notJson.errors).toEqual(["WHALOC_SEED_FILE: must be valid JSON"]);
-				expect(!invalid.success && invalid.errors).toEqual(["WHALOC_SEED_FILE.0.id: must be a string of 1-32 digits"]);
+				expect(!notJson.success && notJson.errors).toEqual(["MOCKWA_SEED_FILE: must be valid JSON"]);
+				expect(!invalid.success && invalid.errors).toEqual(["MOCKWA_SEED_FILE.0.id: must be a string of 1-32 digits"]);
 			});
 
 			it("refuses the variable when no file reader is available", () => {
-				expect(errorsOf({ WHALOC_SEED_FILE: "/seed.json" })).toEqual([
-					"WHALOC_SEED_FILE: reading files is not available here",
+				expect(errorsOf({ MOCKWA_SEED_FILE: "/seed.json" })).toEqual([
+					"MOCKWA_SEED_FILE: reading files is not available here",
 				]);
 			});
 
 			it("reports a file problem together with the rest of the environment's", () => {
-				const result = parseConfig({ WHALOC_SEED_FILE: "/missing.json", WHALOC_PORT: "eighty" }, files({}));
+				const result = parseConfig({ MOCKWA_SEED_FILE: "/missing.json", MOCKWA_GRAPH_PORT: "eighty" }, files({}));
 
 				expect(!result.success && result.errors).toHaveLength(2);
 			});
@@ -491,27 +557,27 @@ describe("parseConfig", () => {
 
 	describe("logging", () => {
 		it.each(["fatal", "error", "warn", "info", "debug", "trace", "silent"])("accepts the level %s", level => {
-			expect(parseOrThrow({ WHALOC_LOG_LEVEL: level }).logLevel).toBe(level);
+			expect(parseOrThrow({ MOCKWA_LOG_LEVEL: level }).logLevel).toBe(level);
 		});
 
 		it("rejects an unknown level", () => {
-			expect(errorsOf({ WHALOC_LOG_LEVEL: "verbose" })).toHaveLength(1);
+			expect(errorsOf({ MOCKWA_LOG_LEVEL: "verbose" })).toHaveLength(1);
 		});
 	});
 
 	it("reports every problem at once instead of failing on the first", () => {
 		const errors = errorsOf({
-			WHALOC_PORT: "nope",
-			WHALOC_PUBLIC_URL: "not-a-url",
-			WHALOC_LOG_LEVEL: "chatty",
-			WHALOC_STATUS_DELAYS: "sent:soon",
+			MOCKWA_GRAPH_PORT: "nope",
+			MOCKWA_PUBLIC_URL: "not-a-url",
+			MOCKWA_LOG_LEVEL: "chatty",
+			MOCKWA_STATUS_DELAYS: "sent:soon",
 		});
 
 		expect(errors).toHaveLength(4);
-		expect(errors.join("\n")).toContain("WHALOC_PORT");
-		expect(errors.join("\n")).toContain("WHALOC_PUBLIC_URL");
-		expect(errors.join("\n")).toContain("WHALOC_LOG_LEVEL");
-		expect(errors.join("\n")).toContain("WHALOC_STATUS_DELAYS");
+		expect(errors.join("\n")).toContain("MOCKWA_GRAPH_PORT");
+		expect(errors.join("\n")).toContain("MOCKWA_PUBLIC_URL");
+		expect(errors.join("\n")).toContain("MOCKWA_LOG_LEVEL");
+		expect(errors.join("\n")).toContain("MOCKWA_STATUS_DELAYS");
 	});
 });
 
@@ -520,35 +586,35 @@ describe("collectConfigWarnings", () => {
 		const warnings = collectConfigWarnings(parseOrThrow({}));
 
 		expect(warnings).toHaveLength(1);
-		expect(warnings[0]).toContain("WHALOC_WEBHOOK_URL");
+		expect(warnings[0]).toContain("MOCKWA_WEBHOOK_URL");
 	});
 
 	it("warns when deliveries would go out unsigned", () => {
-		const warnings = collectConfigWarnings(parseOrThrow({ WHALOC_WEBHOOK_URL: "http://receiver:3001/hooks" }));
+		const warnings = collectConfigWarnings(parseOrThrow({ MOCKWA_WEBHOOK_URL: "http://receiver:3001/hooks" }));
 
 		expect(warnings).toHaveLength(1);
-		expect(warnings[0]).toContain("WHALOC_APP_SECRET");
+		expect(warnings[0]).toContain("MOCKWA_APP_SECRET");
 	});
 
 	it("warns when the startup handshake cannot run", () => {
 		const warnings = collectConfigWarnings(
 			parseOrThrow({
-				WHALOC_WEBHOOK_URL: "http://receiver:3001/hooks",
-				WHALOC_APP_SECRET: "secret",
-				WHALOC_VERIFY_ON_START: "true",
+				MOCKWA_WEBHOOK_URL: "http://receiver:3001/hooks",
+				MOCKWA_APP_SECRET: "secret",
+				MOCKWA_VERIFY_ON_START: "true",
 			}),
 		);
 
-		expect(warnings).toEqual([expect.stringContaining("WHALOC_WEBHOOK_VERIFY_TOKEN")]);
+		expect(warnings).toEqual([expect.stringContaining("MOCKWA_WEBHOOK_VERIFY_TOKEN")]);
 	});
 
 	it("stays quiet on a fully configured environment", () => {
 		const warnings = collectConfigWarnings(
 			parseOrThrow({
-				WHALOC_WEBHOOK_URL: "http://receiver:3001/hooks",
-				WHALOC_APP_SECRET: "secret",
-				WHALOC_WEBHOOK_VERIFY_TOKEN: "token",
-				WHALOC_VERIFY_ON_START: "true",
+				MOCKWA_WEBHOOK_URL: "http://receiver:3001/hooks",
+				MOCKWA_APP_SECRET: "secret",
+				MOCKWA_WEBHOOK_VERIFY_TOKEN: "token",
+				MOCKWA_VERIFY_ON_START: "true",
 			}),
 		);
 
@@ -557,22 +623,22 @@ describe("collectConfigWarnings", () => {
 
 	/** A bucket nobody reads is invisible in the parsed config, so the raw environment is checked. */
 	it("warns when an S3 bucket is configured but the backend is still local", () => {
-		const env = { WHALOC_S3_BUCKET: "whaloc-media", WHALOC_S3_REGION: "us-east-1" };
+		const env = { MOCKWA_S3_BUCKET: "whaloc-media", MOCKWA_S3_REGION: "us-east-1" };
 		const warnings = collectConfigWarnings(parseOrThrow(env), env);
 
 		expect(warnings).toEqual([
-			expect.stringContaining("WHALOC_WEBHOOK_URL"),
-			expect.stringContaining("WHALOC_MEDIA_BACKEND"),
+			expect.stringContaining("MOCKWA_WEBHOOK_URL"),
+			expect.stringContaining("MOCKWA_MEDIA_BACKEND"),
 		]);
 	});
 
 	it("says when the S3 backend will fall back to the SDK's credential chain", () => {
-		const env = { WHALOC_MEDIA_BACKEND: "s3", WHALOC_S3_BUCKET: "whaloc", WHALOC_S3_REGION: "us-east-1" };
+		const env = { MOCKWA_MEDIA_BACKEND: "s3", MOCKWA_S3_BUCKET: "whaloc", MOCKWA_S3_REGION: "us-east-1" };
 		const warnings = collectConfigWarnings(parseOrThrow(env), env);
 
 		expect(warnings).toEqual([
-			expect.stringContaining("WHALOC_WEBHOOK_URL"),
-			expect.stringContaining("WHALOC_S3_ACCESS_KEY_ID"),
+			expect.stringContaining("MOCKWA_WEBHOOK_URL"),
+			expect.stringContaining("MOCKWA_S3_ACCESS_KEY_ID"),
 		]);
 	});
 });
@@ -581,8 +647,8 @@ describe("describeConfig", () => {
 	it("never prints secrets and summarises the seed", () => {
 		const described = describeConfig(
 			parseOrThrow({
-				WHALOC_APP_SECRET: "dev-meta-app-secret",
-				WHALOC_WEBHOOK_VERIFY_TOKEN: "dev-verify-token",
+				MOCKWA_APP_SECRET: "dev-meta-app-secret",
+				MOCKWA_WEBHOOK_VERIFY_TOKEN: "dev-verify-token",
 			}),
 		);
 
@@ -602,12 +668,12 @@ describe("describeConfig", () => {
 	it("summarises the S3 backend without printing the keys that open it", () => {
 		const described = describeConfig(
 			parseOrThrow({
-				WHALOC_MEDIA_BACKEND: "s3",
-				WHALOC_S3_BUCKET: "whaloc-media",
-				WHALOC_S3_REGION: "eu-west-1",
-				WHALOC_S3_ENDPOINT: "http://rustfs:9000",
-				WHALOC_S3_ACCESS_KEY_ID: "AKIAEXAMPLE",
-				WHALOC_S3_SECRET_ACCESS_KEY: "super-secret-key",
+				MOCKWA_MEDIA_BACKEND: "s3",
+				MOCKWA_S3_BUCKET: "whaloc-media",
+				MOCKWA_S3_REGION: "eu-west-1",
+				MOCKWA_S3_ENDPOINT: "http://rustfs:9000",
+				MOCKWA_S3_ACCESS_KEY_ID: "AKIAEXAMPLE",
+				MOCKWA_S3_SECRET_ACCESS_KEY: "super-secret-key",
 			}),
 		);
 

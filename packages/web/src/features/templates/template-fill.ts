@@ -1,4 +1,4 @@
-import type { JsonObject, TemplateParameterFormat } from "@whaloc/shared";
+import type { JsonObject, TemplateParameterFormat } from "@mockwa/shared";
 import { asArray, asNumber, asRecord, asString, readString } from "../../lib/json.ts";
 
 /**

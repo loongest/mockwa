@@ -17,7 +17,7 @@ import { TokensCard } from "./tokens-card.tsx";
 /**
  * The token registry in Settings (SPEC §1.9).
  *
- * Two properties are load-bearing: the section does not exist unless `WHALOC_TOKENS` is set, and
+ * Two properties are load-bearing: the section does not exist unless `MOCKWA_TOKENS` is set, and
  * the token value never reaches the browser.
  */
 function renderWith(node: ReactNode, state: Partial<AppState> = {}): void {
@@ -85,7 +85,7 @@ describe("SettingsPage token section", () => {
 		stubFetch(() => Promise.resolve(jsonResponse({ strict: true, data: TOKENS })));
 	});
 
-	it("is absent while WHALOC_TOKENS is unset", () => {
+	it("is absent while MOCKWA_TOKENS is unset", () => {
 		renderWith(<SettingsPage />);
 
 		expect(screen.queryByRole("heading", { name: "Access tokens" })).toBeNull();

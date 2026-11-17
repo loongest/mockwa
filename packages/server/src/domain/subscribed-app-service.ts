@@ -1,4 +1,4 @@
-import type { AppIdentity, ChangeEvent } from "@whaloc/shared";
+import type { AppIdentity, ChangeEvent } from "@mockwa/shared";
 import type { Repositories, WabaRecord } from "../db/index.ts";
 import { toWabaDto } from "./control-dto.ts";
 import { noopEventPublisher, type EventPublisher } from "./event-bus.ts";
@@ -11,12 +11,12 @@ import { createSystemScheduler, type Scheduler } from "./scheduler.ts";
  *
  * In production this endpoint is how an app registers itself for a WABA's webhooks, and a WABA
  * can have several apps subscribed. whaloc models **one** app — itself — because it *is* the
- * webhook target: `WHALOC_WEBHOOK_URL` decides where deliveries go, so a second subscription
+ * webhook target: `MOCKWA_WEBHOOK_URL` decides where deliveries go, so a second subscription
  * would have nowhere to point. The subscription is therefore a single per-WABA fact, and the
  * documented divergences are:
  *
  * - Whether an app is subscribed **does not gate delivery**. whaloc keeps posting webhooks to
- *   `WHALOC_WEBHOOK_URL` either way, because a dev tool that silently stopped delivering after
+ *   `MOCKWA_WEBHOOK_URL` either way, because a dev tool that silently stopped delivering after
  *   a `DELETE` would be a support question, not a feature. Consumers that call `subscribed_apps`
  *   at startup get the round trip they expect; nothing else changes.
  * - `DELETE` on a WABA nothing is subscribed to answers `{success:true}` rather than an error:
@@ -28,14 +28,14 @@ import { createSystemScheduler, type Scheduler } from "./scheduler.ts";
 /** The name whaloc reports as the subscribed app; Meta reports the app's display name. */
 export const APP_NAME = "whaloc";
 
-/** What the app id is derived from when `WHALOC_APP_ID` is unset — stable across restarts. */
+/** What the app id is derived from when `MOCKWA_APP_ID` is unset — stable across restarts. */
 const DERIVED_APP_ID_KEY = "app:whaloc";
 
 export interface SubscribedAppServiceOptions {
 	repositories: Repositories;
-	/** `WHALOC_APP_ID`; derived deterministically when unset. */
+	/** `MOCKWA_APP_ID`; derived deterministically when unset. */
 	appId?: string;
-	/** `WHALOC_PUBLIC_URL`, reported as the app's `link`. */
+	/** `MOCKWA_PUBLIC_URL`, reported as the app's `link`. */
 	publicUrl: string;
 	events?: EventPublisher;
 	scheduler?: Scheduler;

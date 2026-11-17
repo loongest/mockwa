@@ -1,4 +1,4 @@
-import { mediaResponseSchema, uploadQuerySchema, uploadResponseSchema } from "@whaloc/shared";
+import { mediaResponseSchema, uploadQuerySchema, uploadResponseSchema } from "@mockwa/shared";
 import { Hono } from "hono";
 import type { MediaService, UploadService } from "../domain/index.ts";
 import { controlError, parseOrThrow, type ControlEnv } from "./control-env.ts";
@@ -17,7 +17,7 @@ export interface MediaRoutesOptions {
  * clothes: no bearer token, whaloc's own error shape, and a plain 404 for an unknown id
  * instead of Meta's "object missing" envelope.
  *
- * `WHALOC_MEDIA_TTL_SECONDS` is deliberately **not** applied here (SPEC §4): the TTL belongs to
+ * `MOCKWA_MEDIA_TTL_SECONDS` is deliberately **not** applied here (SPEC §4): the TTL belongs to
  * the surface under test, and whaloc's own inspector still has to be able to say what a
  * message's media id points at after the Graph surface has aged it out.
  */

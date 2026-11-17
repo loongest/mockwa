@@ -95,7 +95,7 @@ export const wsEventSchema = z.discriminatedUnion("type", [
 	/**
 	 * `POST /api/import` replaced everything with a snapshot (SPEC §5). A client reacts exactly
 	 * as it does to `state.reset` — drop what it holds and reload — but the two are told apart
-	 * because one comes back to `WHALOC_SEED` and the other to somebody else's world.
+	 * because one comes back to `MOCKWA_SEED` and the other to somebody else's world.
 	 */
 	z.object({ type: z.literal("state.imported"), payload: resetPayloadSchema }),
 ]);

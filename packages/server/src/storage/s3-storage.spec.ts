@@ -13,7 +13,7 @@ import { S3MediaStorage } from "./s3-storage.ts";
  * ```sh
  * docker run -d --name whaloc-rustfs -p 9000:9000 \
  *   -e RUSTFS_ACCESS_KEY=whaloc -e RUSTFS_SECRET_KEY=whaloc-secret rustfs/rustfs:1.0.0
- * WHALOC_TEST_S3_ENDPOINT=http://127.0.0.1:9000 npm test --workspace @whaloc/server
+ * WHALOC_TEST_S3_ENDPOINT=http://127.0.0.1:9000 npm test --workspace @mockwa/server
  * ```
  *
  * The bucket is created by `beforeAll` rather than by a CLI step, so the only thing the

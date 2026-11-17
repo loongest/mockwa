@@ -18,7 +18,7 @@ export const webhookDeliverySchema = z.object({
 	error: z.string().nullable(),
 	attempt: z.number().int().positive(),
 	durationMs: z.number().int().nullable(),
-	/** `true` when `WHALOC_WEBHOOK_URL` is unset: nothing was sent, the payload is logged anyway. */
+	/** `true` when `MOCKWA_WEBHOOK_URL` is unset: nothing was sent, the payload is logged anyway. */
 	skipped: z.boolean(),
 	createdAt: z.iso.datetime(),
 });

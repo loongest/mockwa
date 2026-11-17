@@ -1,4 +1,4 @@
-import type { ContactCreateRequest, ContactNumberChangeRequest, ContactUpdateRequest } from "@whaloc/shared";
+import type { ContactCreateRequest, ContactNumberChangeRequest, ContactUpdateRequest } from "@mockwa/shared";
 import type { ContactRecord, PhoneNumberRecord, Repositories } from "../db/index.ts";
 import type { BackgroundTasks } from "./background-tasks.ts";
 import { toContactDto } from "./control-dto.ts";

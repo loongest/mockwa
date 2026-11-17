@@ -2,7 +2,7 @@ import {
 	messageErrorPresetListResponseSchema,
 	messageResponseSchema,
 	messageStatusRequestSchema,
-} from "@whaloc/shared";
+} from "@mockwa/shared";
 import { Hono } from "hono";
 import { listMessageErrorPresets, toMessageDto, type StatusLadder } from "../domain/index.ts";
 import { controlError, readBody, type ControlEnv } from "./control-env.ts";

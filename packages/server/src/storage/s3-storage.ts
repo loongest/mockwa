@@ -34,11 +34,11 @@ import {
  * the subset whaloc uses: `PutObject`, multipart upload, ranged `GetObject`, `DeleteObject`.
  */
 export interface S3MediaStorageOptions {
-	/** `WHALOC_S3_BUCKET`. It must already exist: whaloc never creates one. */
+	/** `MOCKWA_S3_BUCKET`. It must already exist: whaloc never creates one. */
 	bucket: string;
-	/** `WHALOC_S3_REGION`; any value will do for RustFS, but the SDK insists on having one. */
+	/** `MOCKWA_S3_REGION`; any value will do for RustFS, but the SDK insists on having one. */
 	region: string;
-	/** `WHALOC_S3_ENDPOINT` — set for RustFS, R2 or any other S3-compatible server. */
+	/** `MOCKWA_S3_ENDPOINT` — set for RustFS, R2 or any other S3-compatible server. */
 	endpoint?: string | undefined;
 	/** Path-style addressing (`<endpoint>/<bucket>/<key>`), which is what RustFS serves. */
 	forcePathStyle?: boolean;

@@ -1,4 +1,4 @@
-import { tokenListResponseSchema, tokenResponseSchema } from "@whaloc/shared";
+import { tokenListResponseSchema, tokenResponseSchema } from "@mockwa/shared";
 import { Hono } from "hono";
 import type { TokenRegistry } from "../domain/index.ts";
 import type { ControlEnv } from "./control-env.ts";
@@ -10,11 +10,11 @@ export interface TokenRoutesOptions {
 /**
  * `GET /api/tokens` and the two actions on one of them (SPEC §1.9).
  *
- * The registry is `WHALOC_TOKENS`, so there is nothing to create or delete here — only to
+ * The registry is `MOCKWA_TOKENS`, so there is nothing to create or delete here — only to
  * *invalidate*: `expire` makes a listed token answer 401 / 190 / subcode 463, and `restore`
  * brings it back. Both are idempotent, which keeps a UI button honest when it is clicked twice.
  *
- * With `WHALOC_TOKENS` unset the listing answers `{strict:false, data:[]}` rather than a 404:
+ * With `MOCKWA_TOKENS` unset the listing answers `{strict:false, data:[]}` rather than a 404:
  * "there is no registry" is a state the UI renders (by hiding the section), not an error.
  * Expiring anything in that mode is a 404 for the id, because there is no such token.
  */

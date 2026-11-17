@@ -1,4 +1,4 @@
-import type { InjectionPreset, InjectionTarget, InjectionTriggerKind } from "@whaloc/shared";
+import type { InjectionPreset, InjectionTarget, InjectionTriggerKind } from "@mockwa/shared";
 import type { QualityRating, TemplateCategory, TemplateParameterFormat, ThroughputLevel } from "../config/index.ts";
 
 /**
@@ -246,7 +246,7 @@ export interface InjectionRuleTable {
  * The registered bearer tokens that are currently "expired" (SPEC §1.9).
  *
  * Keyed by the token's derived id — a truncated SHA-256 — so a persisted database never holds a
- * credential: the registry itself lives in `WHALOC_TOKENS`, and this table only remembers which
+ * credential: the registry itself lives in `MOCKWA_TOKENS`, and this table only remembers which
  * of those tokens the control plane invalidated. A token missing from the table is valid.
  */
 export interface ExpiredTokenTable {

@@ -94,7 +94,7 @@ describe("MediaService", () => {
 		).rejects.toMatchObject({ code: 100, subcode: 33 });
 	});
 
-	it("builds the public URL from WHALOC_PUBLIC_URL (SPEC §1.7)", async () => {
+	it("builds the public URL from MOCKWA_PUBLIC_URL (SPEC §1.7)", async () => {
 		const service = makeSut();
 		const media = await uploadHello(service);
 

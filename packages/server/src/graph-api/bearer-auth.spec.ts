@@ -41,7 +41,7 @@ describe("bearer auth", () => {
 		return readJson<TokenListBody>(await fixture.app.request("/api/tokens"));
 	}
 
-	describe("permissive mode: WHALOC_TOKENS unset (the default)", () => {
+	describe("permissive mode: MOCKWA_TOKENS unset (the default)", () => {
 		beforeEach(async () => {
 			fixture = await createTestApp();
 		});
@@ -76,10 +76,10 @@ describe("bearer auth", () => {
 		});
 	});
 
-	describe("strict mode: WHALOC_TOKENS set", () => {
+	describe("strict mode: MOCKWA_TOKENS set", () => {
 		beforeEach(async () => {
 			// The trailing comma and the padding are deliberate: a compose file writes lists that way.
-			fixture = await createTestApp({ WHALOC_TOKENS: `${REGISTERED}, ${SECOND},` });
+			fixture = await createTestApp({ MOCKWA_TOKENS: `${REGISTERED}, ${SECOND},` });
 		});
 
 		it("accepts every registered token", async () => {

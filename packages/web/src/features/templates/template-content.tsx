@@ -1,4 +1,4 @@
-import type { JsonObject, UploadDescriptor } from "@whaloc/shared";
+import type { JsonObject, UploadDescriptor } from "@mockwa/shared";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { api } from "../../api/endpoints.ts";
 import type { TemplateButtonChoice } from "../chats/composer-payload.ts";

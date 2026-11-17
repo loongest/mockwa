@@ -1,12 +1,12 @@
-import type { Hono } from "hono";
+import { Hono } from "hono";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pino } from "pino";
 import type { AppEnv } from "../app-env.ts";
-import { createApp } from "../app.ts";
+import { createApps } from "../app.ts";
 import { createServices, type AppServices } from "../composition.ts";
-import { appConfigSchema, type AppConfig } from "../config/index.ts";
+import { canonicalEnvKey, parseConfig, type AppConfig } from "../config/index.ts";
 import type { Scheduler } from "../domain/index.ts";
 
 /**
@@ -17,7 +17,16 @@ import type { Scheduler } from "../domain/index.ts";
  * `app.request()` — so the assertions are about the bytes on the wire, envelopes included.
  */
 export interface TestApp {
+	/**
+	 * Both listeners behind one `request()`: each request is handed, untouched, to the listener
+	 * that owns its path in production — `/v<major>.<minor>/…` to the Graph app, everything
+	 * else to the console app. Specs that test which port answers what use the two apps below.
+	 */
 	app: Hono<AppEnv>;
+	/** The port-8888 app on its own (SPEC §8). */
+	graphApp: Hono<AppEnv>;
+	/** The port-8025 app on its own (SPEC §8). */
+	consoleApp: Hono<AppEnv>;
 	services: AppServices;
 	config: AppConfig;
 	/** Ids from the built-in seed, which is what the tests address. */
@@ -42,22 +51,58 @@ export interface CreateTestAppOptions {
 	scheduler?: Scheduler;
 }
 
+const GRAPH_PATH = /^\/v\d+\.\d+(?:\/|$)/;
+
+function dispatchByPath(graph: Hono<AppEnv>, console: Hono<AppEnv>): Hono<AppEnv> {
+	const app = new Hono<AppEnv>();
+
+	app.all("*", c => (GRAPH_PATH.test(c.req.path) ? graph : console).fetch(c.req.raw, c.env));
+
+	return app;
+}
+
+/**
+ * The fixture's defaults are spelled `MOCKWA_*`, and a `MOCKWA_*` name beats its alias, so a
+ * spec overriding one through its `WHALOC_*` spelling also gets the `MOCKWA_*` copy that wins.
+ */
+function withCanonicalNames(env: Record<string, string>): Record<string, string> {
+	const overrides: Record<string, string> = { ...env };
+
+	for (const [key, value] of Object.entries(env)) {
+		const canonical = canonicalEnvKey(key);
+
+		if (canonical !== undefined && !Object.hasOwn(env, canonical)) {
+			overrides[canonical] = value;
+		}
+	}
+
+	return overrides;
+}
+
 export async function createTestApp(
 	env: Record<string, string> = {},
 	options: CreateTestAppOptions = {},
 ): Promise<TestApp> {
 	const mediaDir = await mkdtemp(path.join(tmpdir(), "whaloc-test-media-"));
-	const config = appConfigSchema.parse({
-		WHALOC_DB_PATH: ":memory:",
-		WHALOC_MEDIA_DIR: mediaDir,
-		WHALOC_PUBLIC_URL: TEST_PUBLIC_URL,
-		WHALOC_LOG_LEVEL: "silent",
+	// Through `parseConfig`, not the bare schema, so a spec may name a variable by either
+	// prefix exactly as an operator would (SPEC §7).
+	const parsed = parseConfig({
+		MOCKWA_DB_PATH: ":memory:",
+		MOCKWA_MEDIA_DIR: mediaDir,
+		MOCKWA_PUBLIC_URL: TEST_PUBLIC_URL,
+		MOCKWA_LOG_LEVEL: "silent",
 		// A directory that does not exist: the API surfaces are tested without the static UI
 		// in front of them, so an unrouted path is a 404 and not the SPA fallback. The web UI
 		// spec points this at a fixture instead.
-		WHALOC_WEB_DIR: path.join(mediaDir, "no-web-bundle"),
-		...env,
+		MOCKWA_WEB_DIR: path.join(mediaDir, "no-web-bundle"),
+		...withCanonicalNames(env),
 	});
+
+	if (!parsed.success) {
+		throw new Error(`invalid test configuration:\n${parsed.errors.join("\n")}`);
+	}
+
+	const { config } = parsed;
 	const logger = pino({ enabled: false });
 	const services = await createServices({
 		config,
@@ -66,8 +111,12 @@ export async function createTestApp(
 	});
 	const waba = services.seed.wabas[0]!;
 
+	const apps = createApps({ logger, config, services: services.domain });
+
 	return {
-		app: createApp({ logger, config, services: services.domain }),
+		app: dispatchByPath(apps.graph, apps.console),
+		graphApp: apps.graph,
+		consoleApp: apps.console,
 		services,
 		config,
 		wabaId: waba.id,

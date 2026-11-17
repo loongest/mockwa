@@ -1,9 +1,9 @@
-import type { ImportSummary, StateResponse } from "@whaloc/shared";
+import type { ImportSummary, StateResponse } from "@mockwa/shared";
 import { buffer } from "node:stream/consumers";
 import type { Repositories } from "../db/index.ts";
 import type { Logger } from "../logging/index.ts";
 import { MediaObjectNotFoundError, type MediaStorage } from "../storage/index.ts";
-import { WHALOC_VERSION } from "../version.ts";
+import { MOCKWA_VERSION } from "../version.ts";
 import { controlBadRequest, ControlPlaneError } from "./control-plane-error.ts";
 import { noopEventPublisher, type EventPublisher } from "./event-bus.ts";
 import { deleteStoredMedia } from "./media-cleanup.ts";
@@ -33,7 +33,7 @@ import type { TypingService } from "./typing-service.ts";
  * 2. **The bytes go through the storage adapter**, never near a filesystem, so a snapshot taken
  *    from a local-backed whaloc imports into an S3-backed one and back (SPEC §6).
  * 3. **The seed does not run afterwards.** An import is not a reset: the snapshot *is* the
- *    state, seeded ids included. `POST /api/reset` is still the way back to `WHALOC_SEED`.
+ *    state, seeded ids included. `POST /api/reset` is still the way back to `MOCKWA_SEED`.
  */
 export interface SnapshotServiceOptions {
 	repositories: Repositories;
@@ -156,7 +156,7 @@ export class SnapshotService {
 
 		return {
 			schemaVersion: SNAPSHOT_SCHEMA_VERSION,
-			whalocVersion: WHALOC_VERSION,
+			whalocVersion: MOCKWA_VERSION,
 			exportedAt: this.#scheduler.now().toISOString(),
 			tables,
 			mediaObjects,

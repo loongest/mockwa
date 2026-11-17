@@ -1,4 +1,4 @@
-import type { MessageErrorCode } from "@whaloc/shared";
+import type { MessageErrorCode } from "@mockwa/shared";
 import type { StatusDelays } from "../config/index.ts";
 import type { JsonObject, MessageRecord, MessageStatus, Repositories } from "../db/index.ts";
 import type { Logger } from "../logging/index.ts";
@@ -22,7 +22,7 @@ import {
 /**
  * The deterministic status ladder (SPEC §4).
  *
- * An accepted send walks `sent` → `delivered` on the delays in `WHALOC_STATUS_DELAYS`, and
+ * An accepted send walks `sent` → `delivered` on the delays in `MOCKWA_STATUS_DELAYS`, and
  * stops there: `read` only happens when `read:<ms>` is configured or a user presses the
  * button, and `failed` is always manual. Nothing here is random — that is the golden rule of
  * the project, and what makes a whaloc-backed test suite reproducible.
@@ -103,7 +103,7 @@ export class StatusLadder implements OutboundMessageEvents {
 		if (status === "sent") {
 			this.#schedule(messageId, "delivered", this.#delays.delivered);
 		} else if (status === "delivered" && this.#delays.read !== null) {
-			// `read` climbs on its own only when `WHALOC_STATUS_DELAYS` says so (SPEC §4).
+			// `read` climbs on its own only when `MOCKWA_STATUS_DELAYS` says so (SPEC §4).
 			this.#schedule(messageId, "read", this.#delays.read);
 		}
 	}

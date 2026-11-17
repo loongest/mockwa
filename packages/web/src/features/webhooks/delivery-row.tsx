@@ -1,4 +1,4 @@
-import type { WebhookDelivery } from "@whaloc/shared";
+import type { WebhookDelivery } from "@mockwa/shared";
 import clsx from "clsx";
 import { useState } from "react";
 import { api } from "../../api/endpoints.ts";

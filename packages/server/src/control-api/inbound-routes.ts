@@ -1,4 +1,4 @@
-import { inboundMediaResponseSchema, inboundRequestSchema, inboundResponseSchema, metaIdSchema } from "@whaloc/shared";
+import { inboundMediaResponseSchema, inboundRequestSchema, inboundResponseSchema, metaIdSchema } from "@mockwa/shared";
 import { Hono } from "hono";
 import { ControlPlaneError, toMessageDto, type InboundService, type MediaService } from "../domain/index.ts";
 import { parseOrThrow, readBody, type ControlEnv } from "./control-env.ts";

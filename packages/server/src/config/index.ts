@@ -1,5 +1,7 @@
 export {
 	appConfigSchema,
+	DEFAULT_CONSOLE_PORT,
+	DEFAULT_GRAPH_PORT,
 	DEFAULT_STATUS_DELAYS,
 	DEFAULT_WEB_DIR,
 	LOG_LEVELS,
@@ -11,6 +13,7 @@ export {
 	type StatusDelays,
 } from "./app-config.ts";
 export {
+	canonicalEnvKey,
 	collectConfigWarnings,
 	describeConfig,
 	parseConfig,

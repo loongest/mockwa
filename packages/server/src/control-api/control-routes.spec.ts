@@ -19,7 +19,7 @@ import {
 	webhookDeliveryListResponseSchema,
 	type ControlError,
 	type InboundRequest,
-} from "@whaloc/shared";
+} from "@mockwa/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { output, ZodType } from "zod";
 import { startCaptureServer, type CaptureServer } from "../testing/capture-server.ts";
@@ -29,7 +29,7 @@ import { createTestApp, TEST_AUTH_HEADERS, type TestApp } from "../testing/test-
 /**
  * The control plane through `app.request()` (SPEC §5).
  *
- * The fixture is the real composed app on an in-memory database, with `WHALOC_WEBHOOK_URL`
+ * The fixture is the real composed app on an in-memory database, with `MOCKWA_WEBHOOK_URL`
  * pointing at a throwaway capture server — so a route that is supposed to emit a webhook is
  * asserted on the request the app under test would have received, not on a mock.
  */
@@ -42,12 +42,12 @@ describe("control-plane API", () => {
 	beforeEach(async () => {
 		capture = await startCaptureServer(request => ({ status: 200, body: request.query.get("hub.challenge") ?? "ok" }));
 		fixture = await createTestApp({
-			WHALOC_WEBHOOK_URL: capture.url,
-			WHALOC_APP_SECRET: APP_SECRET,
-			WHALOC_WEBHOOK_VERIFY_TOKEN: "dev-verify-token",
+			MOCKWA_WEBHOOK_URL: capture.url,
+			MOCKWA_APP_SECRET: APP_SECRET,
+			MOCKWA_WEBHOOK_VERIFY_TOKEN: "dev-verify-token",
 			// Reviews and read receipts are triggered by the tests themselves.
-			WHALOC_TEMPLATE_AUTO_APPROVE: "off",
-			WHALOC_STATUS_DELAYS: "sent:0,delivered:800",
+			MOCKWA_TEMPLATE_AUTO_APPROVE: "off",
+			MOCKWA_STATUS_DELAYS: "sent:0,delivered:800",
 		});
 	});
 

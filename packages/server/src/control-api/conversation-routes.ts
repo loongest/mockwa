@@ -4,7 +4,7 @@ import {
 	listConversationsQuerySchema,
 	listMessagesQuerySchema,
 	parseConversationId,
-} from "@whaloc/shared";
+} from "@mockwa/shared";
 import { Hono } from "hono";
 import { toMessageDto, type ConversationService } from "../domain/index.ts";
 import { controlError, parseOrThrow, type ControlEnv } from "./control-env.ts";

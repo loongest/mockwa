@@ -1,4 +1,4 @@
-import { conversationId, parseConversationId, type Message } from "@whaloc/shared";
+import { conversationId, parseConversationId, type Message } from "@mockwa/shared";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { api } from "../../api/endpoints.ts";
@@ -30,7 +30,7 @@ function NoPhoneNumber(props: { wabaId: string | null }) {
 			</p>
 			{props.wabaId === null ? (
 				<p className="faint">
-					Add one under <code>Settings</code>, or check <code>WHALOC_SEED</code>.
+					Add one under <code>Settings</code>, or check <code>MOCKWA_SEED</code>.
 				</p>
 			) : (
 				<button
