@@ -34,7 +34,10 @@ export function createBearerAuth(options: BearerAuthOptions): MiddlewareHandler<
 			throw missingAccessTokenError();
 		}
 
-		await options.tokens.authenticate(bearer[1]!.trim());
+		const token = bearer[1]!.trim();
+
+		await options.tokens.authenticate(token);
+		c.set("accessToken", token);
 
 		await next();
 	};

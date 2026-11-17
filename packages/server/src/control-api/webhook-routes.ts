@@ -27,11 +27,13 @@ function attempts(records: readonly WebhookDeliveryRecord[]) {
  * The delivery log and the three actions around it (SPEC §5).
  *
  * - `GET /api/webhook-deliveries` — newest first, `before` pages backwards through history.
- * - `POST /api/webhook-deliveries/:id/redeliver` — replays a stored body, re-signed, as new
- *   attempt rows.
+ * - `POST /api/webhook-deliveries/:id/redeliver` — replays a stored body, re-signed, as a new
+ *   chain of attempts.
+ * - `POST /api/webhook-deliveries/:id/cancel-retry` — stops the chain's pending retry (SPEC §3).
  * - `POST /api/webhook/handshake` — runs the `hub.challenge` round trip and reports it.
  * - `POST /api/webhook/raw` — the escape hatch: any JSON object, signed and delivered like a
  *   real event, which is how a receiver can be pointed at a payload whaloc does not model.
+ *   Routed by its own `entry`, or to one app with `?appKey=`.
  * - `POST /api/webhook/account-update` and `…/business-capability-update` — the two
  *   account-level notices (SPEC §3). They live here rather than under `/api/wabas/:id` because
  *   they are **emissions and nothing else**: no whaloc state changes when one goes out, and the
@@ -67,6 +69,17 @@ export function createWebhookRoutes(options: WebhookRoutesOptions): Hono<Control
 		return c.json(attempts(records), 201);
 	});
 
+	routes.post("/webhook-deliveries/:id/cancel-retry", async c => {
+		const id = c.req.param("id");
+		const record = await options.webhooks.cancelRetry(id);
+
+		if (record === null) {
+			return controlError(c, 404, `no webhook delivery with ID ${id}`, "unknown_delivery");
+		}
+
+		return c.json(attempts([record]));
+	});
+
 	routes.post("/webhook/handshake", async c =>
 		c.json(handshakeResponseSchema.parse({ data: await options.webhooks.handshake() })),
 	);
@@ -74,7 +87,9 @@ export function createWebhookRoutes(options: WebhookRoutesOptions): Hono<Control
 	routes.post("/webhook/raw", async c => {
 		const payload = await readBody(c, rawWebhookRequestSchema);
 
-		return c.json(attempts(await options.webhooks.emitRaw(payload)), 201);
+		const records = await options.webhooks.emitRaw(payload, c.req.query("appKey"));
+
+		return c.json(attempts(records), 201);
 	});
 
 	routes.post("/webhook/account-update", async c => {

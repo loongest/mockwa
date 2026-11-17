@@ -12,6 +12,12 @@
 //                        any other text → "echo: <text>"
 //   GET  /deliveries   what was received, for tests to assert on
 //   DELETE /deliveries forget it
+//   PUT  /fail         make deliveries fail on purpose, to watch mockwa retry them:
+//                      {"status": 500, "count": 2} answers the next 2 with a 500; without
+//                      "count" every delivery fails until DELETE /fail. Any status but 200
+//                      counts as a failure for Meta, a 204 included.
+//   GET  /fail         the failure mode in force, `{"status": null}` when there is none
+//   DELETE /fail       answer normally again
 //   GET  /health       liveness
 //
 // Environment: PORT (3001), APP_SECRET, VERIFY_TOKEN, GRAPH_API_BASE_URL (with its version
@@ -30,8 +36,69 @@ const accessToken = process.env.ACCESS_TOKEN ?? "echo-app-token";
 const templateName = process.env.TEMPLATE_NAME ?? "appointment_confirmation";
 const templateLanguage = process.env.TEMPLATE_LANGUAGE ?? "en";
 
-/** @type {Array<{receivedAt: string, signature: string | null, signatureValid: boolean, rawBody: string, body: unknown, reply: unknown}>} */
+/** @type {Array<{receivedAt: string, url: string, signature: string | null, signatureValid: boolean, answeredStatus: number, rawBody: string, body: unknown, reply: unknown}>} */
 const deliveries = [];
+
+/** The failure mode `PUT /fail` sets: `remaining` is `null` for "until cleared". */
+const failure = { status: null, remaining: null };
+
+function setFailureMode(status, remaining) {
+	failure.status = status;
+	failure.remaining = remaining;
+}
+
+/** The status to fail this delivery with, consuming one from the count; `null` to answer normally. */
+function takeFailure() {
+	if (failure.status === null) {
+		return null;
+	}
+
+	const { status } = failure;
+
+	if (failure.remaining !== null) {
+		failure.remaining -= 1;
+
+		if (failure.remaining <= 0) {
+			setFailureMode(null, null);
+		}
+	}
+
+	return status;
+}
+
+function setFailure(res, rawBody) {
+	const text = rawBody.toString("utf8") || "{}";
+	let request;
+
+	try {
+		request = JSON.parse(text);
+	} catch {
+		sendJson(res, 400, { error: "the body must be JSON" });
+
+		return;
+	}
+
+	const status = Number(request.status ?? 500);
+	const count = request.count === undefined ? null : Number(request.count);
+
+	if (status === 200 || !Number.isSafeInteger(status) || status < 100 || status > 599) {
+		sendJson(res, 400, { error: "status must be an HTTP status other than 200" });
+
+		return;
+	}
+
+	if (count !== null && (!Number.isSafeInteger(count) || count < 1)) {
+		sendJson(res, 400, { error: "count must be a positive integer" });
+
+		return;
+	}
+
+	setFailureMode(status, count);
+	console.log(
+		`[fail] answering ${String(status)} ${count === null ? "until DELETE /fail" : `${String(count)} time(s)`}`,
+	);
+	sendJson(res, 200, failure);
+}
 
 /** HMAC-SHA256 of the exact bytes received, compared in constant time. */
 function isSignatureValid(header, rawBody) {
@@ -139,8 +206,11 @@ async function handleDelivery(req, res, rawBody) {
 	const receivedAt = new Date();
 	const record = {
 		receivedAt: receivedAt.toISOString(),
+		// The path and query it arrived on, so a test can tell an override URL from the app's own.
+		url: req.url ?? "/",
 		signature,
 		signatureValid,
+		answeredStatus: 200,
 		rawBody: rawBody.toString("utf8"),
 		body: null,
 		reply: null,
@@ -151,7 +221,20 @@ async function handleDelivery(req, res, rawBody) {
 	// A real app must not act on a payload it cannot authenticate.
 	if (!signatureValid) {
 		console.log(`[webhook] REJECTED signature=${String(signature)}`);
+		record.answeredStatus = 401;
 		sendJson(res, 401, { error: "invalid signature" });
+
+		return;
+	}
+
+	const failWith = takeFailure();
+
+	// A simulated outage: nothing is acted on, so the retry that follows is what does the work.
+	if (failWith !== null) {
+		console.log(`[webhook] failing on purpose with ${String(failWith)}`);
+		record.answeredStatus = failWith;
+		res.writeHead(failWith, { "content-type": "application/json" });
+		res.end(failWith === 204 ? undefined : JSON.stringify({ error: "failing on purpose" }));
 
 		return;
 	}
@@ -200,6 +283,13 @@ const server = createServer((req, res) => {
 		} else if (url.pathname === "/deliveries" && req.method === "DELETE") {
 			deliveries.length = 0;
 			sendJson(res, 200, { ok: true });
+		} else if (url.pathname === "/fail" && req.method === "PUT") {
+			setFailure(res, rawBody);
+		} else if (url.pathname === "/fail" && req.method === "GET") {
+			sendJson(res, 200, failure);
+		} else if (url.pathname === "/fail" && req.method === "DELETE") {
+			setFailureMode(null, null);
+			sendJson(res, 200, failure);
 		} else if (url.pathname === "/webhook" && req.method === "GET") {
 			const isVerified =
 				url.searchParams.get("hub.mode") === "subscribe" && url.searchParams.get("hub.verify_token") === verifyToken;

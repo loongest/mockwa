@@ -1,5 +1,6 @@
 import type { Kysely } from "kysely";
 import type { Database } from "../schema.ts";
+import { AppRepository } from "./app-repository.ts";
 import { ContactRepository } from "./contact-repository.ts";
 import { ExpiredTokenRepository } from "./expired-token-repository.ts";
 import { InjectionRuleRepository } from "./injection-rule-repository.ts";
@@ -11,7 +12,9 @@ import { TemplateRepository } from "./template-repository.ts";
 import { UploadSessionRepository } from "./upload-session-repository.ts";
 import { WabaRepository } from "./waba-repository.ts";
 import { WebhookDeliveryRepository } from "./webhook-delivery-repository.ts";
+import { WebhookSubscriptionRepository } from "./webhook-subscription-repository.ts";
 
+export { AppRepository, type AppRecord, type InsertAppInput, type UpdateAppInput } from "./app-repository.ts";
 export {
 	ContactRepository,
 	type ContactRecord,
@@ -71,6 +74,13 @@ export {
 	type WebhookDeliveryHeaders,
 	type WebhookDeliveryRecord,
 } from "./webhook-delivery-repository.ts";
+export {
+	WebhookSubscriptionRepository,
+	type PhoneNumberWebhookOverrideRecord,
+	type UpsertPhoneNumberWebhookOverrideInput,
+	type UpsertWebhookSubscriptionInput,
+	type WebhookSubscriptionRecord,
+} from "./webhook-subscription-repository.ts";
 
 /** Every repository, injected as one bundle into the domain services (SPEC §8). */
 export interface Repositories {
@@ -83,6 +93,10 @@ export interface Repositories {
 	/** Resumable Upload API sessions and the handles they mint (SPEC §2.21). */
 	uploadSessions: UploadSessionRepository;
 	webhookDeliveries: WebhookDeliveryRepository;
+	/** Registered apps (SPEC §3, "Apps and routing"); the default app lives in the config. */
+	apps: AppRepository;
+	/** WABA subscriptions and the WABA- and number-level webhook overrides. */
+	webhookSubscriptions: WebhookSubscriptionRepository;
 	/** Error simulation (SPEC §4): armed injection rules, and the tokens marked expired. */
 	injectionRules: InjectionRuleRepository;
 	expiredTokens: ExpiredTokenRepository;
@@ -101,6 +115,9 @@ export async function deleteAllRows(repositories: Repositories): Promise<void> {
 	await repositories.injectionRules.deleteAll();
 	await repositories.expiredTokens.deleteAll();
 	await repositories.webhookDeliveries.deleteAll();
+	// Subscriptions and overrides reference WABAs and numbers; apps are referenced by nothing.
+	await repositories.webhookSubscriptions.deleteAll();
+	await repositories.apps.deleteAll();
 	// Nothing references an upload session either: it is reached by handle, from a template's
 	// components or a business profile, both of which are about to go too (SPEC §2.21).
 	await repositories.uploadSessions.deleteAll();
@@ -122,6 +139,8 @@ export function createRepositories(db: Kysely<Database>): Repositories {
 		media: new MediaRepository(db),
 		uploadSessions: new UploadSessionRepository(db),
 		webhookDeliveries: new WebhookDeliveryRepository(db),
+		apps: new AppRepository(db),
+		webhookSubscriptions: new WebhookSubscriptionRepository(db),
 		injectionRules: new InjectionRuleRepository(db),
 		expiredTokens: new ExpiredTokenRepository(db),
 		snapshots: new SnapshotRepository(db),

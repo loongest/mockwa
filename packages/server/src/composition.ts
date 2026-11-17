@@ -10,6 +10,7 @@ import {
 } from "./db/index.ts";
 import {
 	AccountEventService,
+	AppService,
 	applySeed,
 	BusinessProfileService,
 	combineOutboundMessageEvents,
@@ -65,6 +66,8 @@ export interface DomainServices {
 	/** Business profile and `subscribed_apps` (SPEC §2.19-§2.20). */
 	businessProfiles: BusinessProfileService;
 	subscribedApps: SubscribedAppService;
+	/** The apps webhooks go to, their subscriptions and overrides (SPEC §3). */
+	apps: AppService;
 	/** Webhook engine, status ladder and template review (SPEC §3, §4). */
 	webhooks: WebhookEmitter;
 	statusLadder: StatusLadder;
@@ -132,11 +135,25 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 		},
 	});
 	const scheduler = options.scheduler;
+	// The default app is the environment's; registered apps live in the database (SPEC §3).
+	const apps = new AppService({
+		repositories,
+		defaultApp: {
+			id: config.appId,
+			callbackUrl: config.webhookUrl,
+			appSecret: config.appSecret,
+			verifyToken: config.webhookVerifyToken,
+		},
+		events,
+		...(scheduler !== undefined && { scheduler }),
+	});
 	const webhooks = new WebhookEmitter({
 		repositories,
 		logger,
-		target: { url: config.webhookUrl, appSecret: config.appSecret, verifyToken: config.webhookVerifyToken },
+		apps,
 		events,
+		retryScheduleMs: config.webhookRetryScheduleMs,
+		retryMaxAgeMs: config.webhookRetryMaxAgeMs,
 		...(scheduler !== undefined && { scheduler }),
 	});
 	const statusLadder = new StatusLadder({
@@ -168,13 +185,7 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 		ttlSeconds: config.mediaTtlSeconds,
 		...(scheduler !== undefined && { scheduler }),
 	});
-	const subscribedApps = new SubscribedAppService({
-		repositories,
-		publicUrl: config.publicUrl,
-		events,
-		...(config.appId !== undefined && { appId: config.appId }),
-		...(scheduler !== undefined && { scheduler }),
-	});
+	const subscribedApps = new SubscribedAppService({ apps, publicUrl: config.publicUrl });
 	// The Upload API is scoped to the app `subscribed_apps` reports, so it is built after it
 	// (SPEC §2.21); the templates and the business profile both resolve handles through it.
 	const uploads = new UploadService({
@@ -213,6 +224,7 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 		templates: new TemplateService({ repositories, events: templateLifecycle, uploads }),
 		businessProfiles: new BusinessProfileService({ repositories, media, uploads, events }),
 		subscribedApps,
+		apps,
 		webhooks,
 		statusLadder,
 		templateLifecycle,
@@ -260,6 +272,8 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 			statusLadder,
 			templateLifecycle,
 			typing,
+			apps,
+			webhooks,
 			events,
 		}),
 		// An import replaces everything a reset would wipe, so it cancels the same timers —
@@ -272,6 +286,7 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 			statusLadder,
 			templateLifecycle,
 			typing,
+			webhooks,
 			events,
 			...(scheduler !== undefined && { scheduler }),
 		}),
@@ -308,6 +323,15 @@ async function buildServices(options: CreateServicesOptions, handle: DatabaseHan
 		logger,
 		...(options.scheduler !== undefined && { scheduler: options.scheduler }),
 	});
+	const registeredApps = await domain.apps.applySeed(config.apps);
+
+	if (registeredApps.length > 0) {
+		logger.info({ apps: registeredApps.map(app => ({ id: app.id, name: app.name })) }, "apps registered");
+	}
+
+	// Retries owed before a restart are owed still (SPEC §3): with a file database the queue is
+	// picked up where it was left, overdue ones first.
+	await domain.webhooks.resumeRetries();
 
 	return {
 		db,
@@ -321,6 +345,8 @@ async function buildServices(options: CreateServicesOptions, handle: DatabaseHan
 			domain.statusLadder.cancelAll();
 			domain.templateLifecycle.cancelAll();
 			domain.typing.clearAll();
+			// Pending retries stay in the database for the next boot; only the timer goes.
+			domain.webhooks.stop();
 			await domain.tasks.whenIdle();
 			await handle.close();
 			// An S3 client's keep-alive sockets would otherwise hold the process open until the

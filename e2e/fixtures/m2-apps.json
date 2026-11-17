@@ -1,0 +1,20 @@
+[
+	{
+		"id": "400000000000001",
+		"name": "Sales App",
+		"appSecret": "m2-sales-secret",
+		"verifyToken": "m2-sales-verify",
+		"callbackUrl": "http://host.docker.internal:3003/webhook",
+		"accessToken": "m2-sales-token",
+		"wabas": ["300000000000001"]
+	},
+	{
+		"id": "400000000000002",
+		"name": "Support App",
+		"appSecret": "m2-support-secret",
+		"verifyToken": "m2-support-verify",
+		"callbackUrl": "http://host.docker.internal:3004/webhook",
+		"accessToken": "m2-support-token",
+		"wabas": ["300000000000002"]
+	}
+]

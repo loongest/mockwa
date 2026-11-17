@@ -159,6 +159,37 @@ const webhookDeliveryRowSchema = z.object({
 	attempt: z.int().nonnegative(),
 	duration_ms: nullable(z.int()),
 	created_at: timestamp,
+	// Added with M2's apps and retry queue; an older snapshot's rows were the default app's.
+	app_key: nullable(z.string()).default(null),
+	chain_id: nullable(z.string()).default(null),
+	next_attempt_at: nullable(timestamp).default(null),
+});
+
+const appRowSchema = z.object({
+	id: z.string().regex(/^\d{1,32}$/),
+	name: z.string().min(1),
+	app_secret: nullable(z.string()),
+	verify_token: nullable(z.string()),
+	callback_url: nullable(z.string()),
+	access_token: nullable(z.string()),
+	created_at: timestamp,
+	updated_at: timestamp,
+});
+
+const webhookSubscriptionRowSchema = z.object({
+	waba_id: z.string().min(1),
+	app_key: z.string().min(1),
+	override_callback_uri: nullable(z.string()),
+	override_verify_token: nullable(z.string()),
+	subscribed_at: timestamp,
+});
+
+const phoneNumberWebhookOverrideRowSchema = z.object({
+	phone_number_id: z.string().min(1),
+	app_key: z.string().min(1),
+	callback_uri: z.string().min(1),
+	verify_token: nullable(z.string()),
+	updated_at: timestamp,
 });
 
 const injectionRuleRowSchema = z.object({
@@ -211,6 +242,10 @@ export const snapshotTablesSchema = z.object({
 	webhook_deliveries: z.array(webhookDeliveryRowSchema).default([]),
 	injection_rules: z.array(injectionRuleRowSchema).default([]),
 	expired_tokens: z.array(expiredTokenRowSchema).default([]),
+	// Added with M2: apps, secrets included — a snapshot is a whole mockwa (SPEC §5).
+	apps: z.array(appRowSchema).default([]),
+	webhook_subscriptions: z.array(webhookSubscriptionRowSchema).default([]),
+	phone_number_webhook_overrides: z.array(phoneNumberWebhookOverrideRowSchema).default([]),
 });
 
 export const stateSnapshotSchema = z.object({

@@ -9,6 +9,7 @@ import type {
 	TokenState,
 	TypingIndicator,
 	WebhookDelivery,
+	WebhookRouting,
 	WsEvent,
 } from "@mockwa/shared";
 import type { ConnectionStatus } from "../api/ws-client.ts";
@@ -66,6 +67,8 @@ export interface AppState {
 	injectionRules: InjectionRule[] | null;
 	/** The `MOCKWA_TOKENS` registry; `null` until Settings asks, `[]` when there is none. */
 	tokens: TokenState[] | null;
+	/** Apps, subscriptions and overrides (SPEC §3); `null` until Settings or Webhooks asks. */
+	webhookRouting: WebhookRouting | null;
 	deliveries: WebhookDelivery[] | null;
 	deliveriesBefore: string | null;
 	errorPresets: MessageErrorPreset[];
@@ -93,6 +96,8 @@ export type Action =
 	| { type: "templates/loaded"; templates: Template[] }
 	| { type: "injection-rules/loaded"; rules: InjectionRule[] }
 	| { type: "tokens/loaded"; tokens: TokenState[] }
+	| { type: "webhook-routing/loaded"; routing: WebhookRouting }
+	| { type: "delivery/updated"; delivery: WebhookDelivery }
 	| { type: "deliveries/loaded"; deliveries: WebhookDelivery[]; before: string | null; mode: "latest" | "older" }
 	| { type: "connection/changed"; connection: ConnectionStatus }
 	| { type: "ws/event"; event: WsEvent }

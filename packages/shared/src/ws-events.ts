@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { webhookRoutingSchema } from "./control-plane/apps.ts";
 import { changeEventSchema } from "./control-plane/common.ts";
 import { contactSchema } from "./control-plane/contacts.ts";
 import { injectionRuleSchema } from "./control-plane/injection.ts";
@@ -30,6 +31,7 @@ export const WS_EVENT_TYPES = [
 	"token.changed",
 	"state.reset",
 	"state.imported",
+	"webhook_routing.changed",
 ] as const;
 
 export const wsEventTypeSchema = z.enum(WS_EVENT_TYPES);
@@ -52,6 +54,7 @@ const phoneNumberPayloadSchema = z.object({ phoneNumber: phoneNumberSchema, even
 const injectionPayloadSchema = z.object({ rule: injectionRuleSchema, event: changeEventSchema });
 const tokenPayloadSchema = z.object({ token: tokenStateSchema });
 const resetPayloadSchema = z.object({ state: stateResponseSchema });
+const routingPayloadSchema = z.object({ routing: webhookRoutingSchema });
 
 export const wsEventSchema = z.discriminatedUnion("type", [
 	/** A message was persisted, in either direction. */
@@ -98,6 +101,8 @@ export const wsEventSchema = z.discriminatedUnion("type", [
 	 * because one comes back to `MOCKWA_SEED` and the other to somebody else's world.
 	 */
 	z.object({ type: z.literal("state.imported"), payload: resetPayloadSchema }),
+	/** An app, a subscription or an override changed: where webhooks go (SPEC §3). */
+	z.object({ type: z.literal("webhook_routing.changed"), payload: routingPayloadSchema }),
 ]);
 
 export type WsEvent = z.infer<typeof wsEventSchema>;

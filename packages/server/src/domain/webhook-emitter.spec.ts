@@ -4,7 +4,8 @@ import { startCaptureServer, type CaptureServer } from "../testing/capture-serve
 import { createDomainHarness, createRecordingScheduler, type DomainHarness } from "../testing/domain-harness.ts";
 import type { EventPublisher } from "./event-bus.ts";
 import { isValidMetaSignature, SIGNATURE_HEADER } from "./meta-json.ts";
-import { DEFAULT_RETRY_DELAYS_MS, SKIPPED_DELIVERY_ERROR, WebhookEmitter } from "./webhook-emitter.ts";
+import { AppService } from "./app-service.ts";
+import { SKIPPED_DELIVERY_ERROR, WebhookEmitter } from "./webhook-emitter.ts";
 import { webhookEnvelope, WEBHOOK_FIELDS } from "./webhook-payloads.ts";
 
 /**
@@ -16,6 +17,8 @@ import { webhookEnvelope, WEBHOOK_FIELDS } from "./webhook-payloads.ts";
  */
 const APP_SECRET = "dev-meta-app-secret";
 const VERIFY_TOKEN = "dev-verify-token";
+/** Short and distinct, so each test can tell which step a due time came from. */
+const RETRY_SCHEDULE_MS = [10_000, 30_000] as const;
 
 describe("WebhookEmitter", () => {
 	let harness: DomainHarness;
@@ -37,9 +40,12 @@ describe("WebhookEmitter", () => {
 			appSecret?: string | undefined;
 			verifyToken?: string | undefined;
 			events?: EventPublisher;
+			retryScheduleMs?: readonly number[];
+			retryMaxAgeMs?: number;
+			scheduler?: ReturnType<typeof createRecordingScheduler>;
 		} = {},
 	) {
-		const scheduler = createRecordingScheduler();
+		const scheduler = overrides.scheduler ?? createRecordingScheduler();
 		const emitter = new WebhookEmitter({
 			repositories: harness.repositories,
 			logger: harness.logger,
@@ -49,6 +55,8 @@ describe("WebhookEmitter", () => {
 				verifyToken: "verifyToken" in overrides ? overrides.verifyToken : VERIFY_TOKEN,
 			},
 			scheduler,
+			retryScheduleMs: overrides.retryScheduleMs ?? RETRY_SCHEDULE_MS,
+			...(overrides.retryMaxAgeMs !== undefined && { retryMaxAgeMs: overrides.retryMaxAgeMs }),
 			...(overrides.events !== undefined && { events: overrides.events }),
 		});
 
@@ -140,54 +148,274 @@ describe("WebhookEmitter", () => {
 		});
 	});
 
-	describe("retries", () => {
-		it("retries a 5xx on the documented backoff and stops once it succeeds", async () => {
-			capture.respondWith((_request, attempt) =>
-				attempt < 3 ? { status: 500, body: "boom" } : { status: 200, body: "ok" },
+	describe("retries (SPEC §3)", () => {
+		/** Moves the clock and sends whatever became due, the way the timer would. */
+		async function advance(
+			setup: { emitter: WebhookEmitter; scheduler: ReturnType<typeof createRecordingScheduler> },
+			ms: number,
+		) {
+			setup.scheduler.setNow(new Date(setup.scheduler.now().getTime() + ms));
+			await setup.emitter.runDueRetries();
+		}
+
+		async function chain() {
+			// The log is newest first; every test here starts exactly one chain.
+			const rows = await harness.repositories.webhookDeliveries.list({ limit: 100 });
+
+			return harness.repositories.webhookDeliveries.listChain(rows.at(-1)!.chainId);
+		}
+
+		it("retries anything but a 200 on the schedule, and stops once it gets one", async () => {
+			capture.respondWith((_request, attempt) => {
+				if (attempt === 1) {
+					return { status: 500, body: "boom" };
+				}
+
+				// A 2xx that is not 200 is not Meta's success either.
+				return attempt === 2 ? { status: 204, body: "" } : { status: 200, body: "ok" };
+			});
+
+			const setup = createEmitter();
+			const startedAt = setup.scheduler.now().getTime();
+			const [first] = await setup.emitter.emit(
+				WEBHOOK_FIELDS.messages,
+				envelopeWith({ messaging_product: "whatsapp" }),
 			);
 
-			const { emitter, scheduler } = createEmitter();
-			const records = await emitter.emit(WEBHOOK_FIELDS.messages, envelopeWith({ messaging_product: "whatsapp" }));
+			expect(first).toMatchObject({ attempt: 1, responseStatus: 500 });
+			const firstRetryAt = new Date(startedAt + 10_000);
 
-			expect(capture.requests).toHaveLength(3);
-			expect(records.map(record => record.attempt)).toEqual([1, 2, 3]);
-			expect(records.map(record => record.responseStatus)).toEqual([500, 500, 200]);
-			// The first attempt is immediate; the retries wait 2 s and 10 s (SPEC §3).
-			expect(scheduler.sleeps).toEqual([...DEFAULT_RETRY_DELAYS_MS].slice(1));
+			expect(first!.nextAttemptAt).toBe(firstRetryAt.toISOString());
+
+			await advance(setup, 9999);
+			expect(capture.requests).toHaveLength(1);
+
+			await advance(setup, 1);
+			await advance(setup, 30_000);
+
+			const attempts = await chain();
+
+			expect(attempts.map(row => [row.attempt, row.responseStatus])).toEqual([
+				[1, 500],
+				[2, 204],
+				[3, 200],
+			]);
+			expect(attempts.map(row => row.chainId)).toEqual([first!.id, first!.id, first!.id]);
+			expect(attempts.at(-1)!.nextAttemptAt).toBeNull();
+			// A retry is the same request: same bytes, same signature.
+			const bodies = new Set(capture.requests.map(request => request.body));
+			const signatures = new Set(capture.requests.map(request => request.headers[SIGNATURE_HEADER]));
+
+			expect(bodies.size).toBe(1);
+			expect(signatures.size).toBe(1);
 		});
 
-		it("gives up after three attempts", async () => {
+		it("retries a 4xx as well: Meta only stops on a 200", async () => {
+			capture.respondWith((_request, attempt) =>
+				attempt === 1 ? { status: 403, body: "no" } : { status: 200, body: "ok" },
+			);
+
+			const setup = createEmitter();
+			const [first] = await setup.emitter.emit(WEBHOOK_FIELDS.messages, envelopeWith({ a: 1 }));
+
+			expect(first!.nextAttemptAt).not.toBeNull();
+
+			await advance(setup, 10_000);
+
+			expect(capture.requests).toHaveLength(2);
+		});
+
+		it("repeats the last step, then gives up once the chain would outlive its maximum age", async () => {
 			capture.respondWith(() => ({ status: 503, body: "unavailable" }));
 
-			const { emitter } = createEmitter();
-			const records = await emitter.emit(WEBHOOK_FIELDS.messages, envelopeWith({ messaging_product: "whatsapp" }));
+			const setup = createEmitter({ retryMaxAgeMs: 100_000 });
 
-			expect(records).toHaveLength(DEFAULT_RETRY_DELAYS_MS.length);
-			expect(capture.requests).toHaveLength(DEFAULT_RETRY_DELAYS_MS.length);
-		});
+			await setup.emitter.emit(WEBHOOK_FIELDS.messages, envelopeWith({ a: 1 }));
+			// 0 s, then +10 s, +30 s, +30 s (the last step repeats): 70 s. The next would be 100 s
+			// after the first attempt plus 30 s, past the 100 s limit.
+			for (let step = 0; step < 6; step += 1) {
+				await advance(setup, 30_000);
+			}
 
-		it("does not retry a 4xx: that is the receiver's answer, not a hiccup", async () => {
-			capture.respondWith(() => ({ status: 403, body: "forbidden" }));
+			const attempts = await chain();
 
-			const { emitter, scheduler } = createEmitter();
-			const records = await emitter.emit(WEBHOOK_FIELDS.messages, envelopeWith({ messaging_product: "whatsapp" }));
-
-			expect(records).toHaveLength(1);
-			expect(capture.requests).toHaveLength(1);
-			expect(scheduler.sleeps).toEqual([]);
+			expect(attempts).toHaveLength(4);
+			expect(attempts.at(-1)!.nextAttemptAt).toBeNull();
+			expect(capture.requests).toHaveLength(4);
 		});
 
 		it("retries a network error and logs it on the row", async () => {
 			await capture.close();
 
-			const { emitter } = createEmitter();
-			const records = await emitter.emit(WEBHOOK_FIELDS.messages, envelopeWith({ messaging_product: "whatsapp" }));
+			const setup = createEmitter();
+			const [first] = await setup.emitter.emit(
+				WEBHOOK_FIELDS.messages,
+				envelopeWith({ messaging_product: "whatsapp" }),
+			);
 
-			expect(records).toHaveLength(DEFAULT_RETRY_DELAYS_MS.length);
-			expect(records[0]).toMatchObject({ responseStatus: null });
-			expect(records[0]!.error).toEqual(expect.any(String));
+			expect(first).toMatchObject({ responseStatus: null });
+			expect(first!.error).toEqual(expect.any(String));
+			expect(first!.nextAttemptAt).not.toBeNull();
 
 			capture = await startCaptureServer();
+		});
+
+		it("makes a failure final when retries are off", async () => {
+			capture.respondWith(() => ({ status: 500, body: "boom" }));
+
+			const { emitter } = createEmitter({ retryScheduleMs: [] });
+			const [first] = await emitter.emit(WEBHOOK_FIELDS.messages, envelopeWith({ a: 1 }));
+
+			expect(first!.nextAttemptAt).toBeNull();
+		});
+
+		it("picks the queue up again after a restart", async () => {
+			capture.respondWith((_request, attempt) =>
+				attempt === 1 ? { status: 500, body: "boom" } : { status: 200, body: "ok" },
+			);
+
+			const before = createEmitter();
+
+			await before.emitter.emit(WEBHOOK_FIELDS.messages, envelopeWith({ a: 1 }));
+			before.emitter.stop();
+
+			// A new emitter over the same database is what a reboot with a file database is.
+			const after = createEmitter({ scheduler: before.scheduler });
+
+			before.scheduler.setNow(new Date(before.scheduler.now().getTime() + 60_000));
+			await after.emitter.resumeRetries();
+			await after.emitter.runDueRetries();
+
+			expect(capture.requests).toHaveLength(2);
+			const attempts = await chain();
+
+			expect(attempts.at(-1)).toMatchObject({ attempt: 2, responseStatus: 200, nextAttemptAt: null });
+		});
+
+		it("cancels a chain's pending retry", async () => {
+			capture.respondWith(() => ({ status: 500, body: "boom" }));
+
+			const setup = createEmitter();
+			const [first] = await setup.emitter.emit(WEBHOOK_FIELDS.messages, envelopeWith({ a: 1 }));
+			const cancelled = await setup.emitter.cancelRetry(first!.id);
+
+			await advance(setup, 60_000);
+
+			expect(cancelled?.nextAttemptAt).toBeNull();
+			expect(capture.requests).toHaveLength(1);
+			expect(await setup.emitter.cancelRetry("nope")).toBeNull();
+		});
+	});
+
+	describe("routing to apps (SPEC §3)", () => {
+		let second: CaptureServer;
+
+		beforeEach(async () => {
+			second = await startCaptureServer();
+		});
+
+		afterEach(async () => {
+			await second.close();
+		});
+
+		function routedEmitter() {
+			const scheduler = createRecordingScheduler();
+			const apps = new AppService({
+				repositories: harness.repositories,
+				defaultApp: { callbackUrl: capture.url, appSecret: APP_SECRET, verifyToken: VERIFY_TOKEN },
+				scheduler,
+			});
+			const emitter = new WebhookEmitter({
+				repositories: harness.repositories,
+				logger: harness.logger,
+				apps,
+				scheduler,
+				retryScheduleMs: [],
+			});
+
+			return { apps, emitter };
+		}
+
+		function statusEnvelope() {
+			return webhookEnvelope({
+				wabaId: harness.wabaId,
+				field: WEBHOOK_FIELDS.messages,
+				value: { messaging_product: "whatsapp", metadata: { phone_number_id: harness.phoneNumberId } },
+			});
+		}
+
+		it("sends each subscribed app its own copy, signed with its own secret", async () => {
+			const { apps, emitter } = routedEmitter();
+			const other = await apps.create({ name: "Billing", callbackUrl: second.url, appSecret: "billing-secret" });
+
+			await apps.subscribe(apps.defaultApp, harness.wabaId, null);
+			await apps.subscribe(other, harness.wabaId, null);
+
+			const records = await emitter.emit(WEBHOOK_FIELDS.messages, statusEnvelope());
+
+			expect(records.map(record => record.appKey)).toEqual(["default", other.id]);
+			expect(capture.requests).toHaveLength(1);
+			expect(second.requests).toHaveLength(1);
+			expect(second.requests[0]!.body).toBe(capture.requests[0]!.body);
+			expect(
+				isValidMetaSignature(capture.requests[0]!.headers[SIGNATURE_HEADER]!, APP_SECRET, capture.requests[0]!.body),
+			).toBe(true);
+			expect(
+				isValidMetaSignature(
+					second.requests[0]!.headers[SIGNATURE_HEADER]!,
+					"billing-secret",
+					second.requests[0]!.body,
+				),
+			).toBe(true);
+		});
+
+		it("leaves the unsubscribed default app out once a registered app subscribes", async () => {
+			const { apps, emitter } = routedEmitter();
+			const other = await apps.create({ name: "Billing", callbackUrl: second.url });
+
+			await apps.subscribe(other, harness.wabaId, null);
+			await emitter.emit(WEBHOOK_FIELDS.messages, statusEnvelope());
+
+			expect(capture.requests).toHaveLength(0);
+			expect(second.requests).toHaveLength(1);
+		});
+
+		it("follows Meta's order: the number's override, then the WABA's, then the app's URL", async () => {
+			const { apps, emitter } = routedEmitter();
+			const app = apps.defaultApp;
+
+			await apps.subscribe(app, harness.wabaId, { callbackUri: `${second.url}/waba`, verifyToken: "w" });
+			await emitter.emit(WEBHOOK_FIELDS.messages, statusEnvelope());
+			await apps.setPhoneOverride(app, harness.phoneNumberId, { callbackUri: `${second.url}/phone`, verifyToken: "p" });
+			await emitter.emit(WEBHOOK_FIELDS.messages, statusEnvelope());
+
+			expect(second.requests.map(request => request.path.split("/").at(-1))).toEqual(["waba", "phone"]);
+			expect(capture.requests).toHaveLength(0);
+		});
+
+		it("never overrides a template webhook: it goes to the app's own URL", async () => {
+			const { apps, emitter } = routedEmitter();
+
+			await apps.subscribe(apps.defaultApp, harness.wabaId, { callbackUri: second.url, verifyToken: "w" });
+			await emitter.emit(
+				WEBHOOK_FIELDS.templateStatus,
+				webhookEnvelope({ wabaId: harness.wabaId, field: WEBHOOK_FIELDS.templateStatus, value: { event: "APPROVED" } }),
+			);
+
+			expect(capture.requests).toHaveLength(1);
+			expect(second.requests).toHaveLength(0);
+		});
+
+		it("logs a skipped copy for a registered app without a callback URL", async () => {
+			const { apps, emitter } = routedEmitter();
+			const silent = await apps.create({ name: "Silent" });
+
+			await apps.subscribe(silent, harness.wabaId, null);
+
+			const [record] = await emitter.emit(WEBHOOK_FIELDS.messages, statusEnvelope());
+
+			expect(record).toMatchObject({ url: "", appKey: silent.id });
+			expect(record!.error).toContain("Silent");
 		});
 	});
 
@@ -207,7 +435,7 @@ describe("WebhookEmitter", () => {
 	});
 
 	describe("redeliver", () => {
-		it("replays the stored body as new attempt rows", async () => {
+		it("replays the stored body as a new chain", async () => {
 			const { emitter } = createEmitter();
 			const [original] = await emitter.emit(
 				WEBHOOK_FIELDS.messages,
@@ -318,7 +546,7 @@ describe("WebhookEmitter", () => {
 				target: { url: capture.url },
 				scheduler: createRecordingScheduler(),
 				fetch: failing,
-				retryDelaysMs: [0],
+				retryScheduleMs: [],
 			});
 
 			await expect(broken.emit("raw", { a: 1 })).resolves.toHaveLength(1);

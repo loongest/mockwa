@@ -52,6 +52,10 @@ describe("WebhookDeliveryRepository", () => {
 			attempt: 1,
 			durationMs: 12,
 			createdAt: "2026-01-01T00:00:00.000Z",
+			appKey: null,
+			// A first attempt starts its own chain, and nothing is owed until a retry is scheduled.
+			chainId: "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+			nextAttemptAt: null,
 		});
 	});
 
@@ -94,5 +98,54 @@ describe("WebhookDeliveryRepository", () => {
 		expect(all.map(delivery => delivery.id)).toEqual(["3", "2", "1"]);
 		expect(firstPage.map(delivery => delivery.id)).toEqual(["3", "2"]);
 		expect(older.map(delivery => delivery.id)).toEqual(["1"]);
+	});
+
+	describe("the retry queue (SPEC §3)", () => {
+		async function pending(id: string, nextAttemptAt: string, extra: Partial<InsertWebhookDeliveryInput> = {}) {
+			return insertDefault({ id, responseStatus: 500, nextAttemptAt, ...extra });
+		}
+
+		it("reports the earliest due retry, or null when nothing is owed", async () => {
+			expect(await repository.nextDueAt()).toBeNull();
+
+			await pending("a", "2026-01-01T00:05:00.000Z");
+			await pending("b", "2026-01-01T00:01:00.000Z");
+			await insertDefault({ id: "c" });
+
+			expect(await repository.nextDueAt()).toBe("2026-01-01T00:01:00.000Z");
+		});
+
+		it("lists only the retries due by now, the most overdue first", async () => {
+			await pending("late", "2026-01-01T00:05:00.000Z");
+			await pending("due", "2026-01-01T00:01:00.000Z");
+			await pending("future", "2026-01-02T00:00:00.000Z");
+
+			const due = await repository.listDue("2026-01-01T00:10:00.000Z");
+
+			expect(due.map(row => row.id)).toEqual(["due", "late"]);
+		});
+
+		it("claims a pending retry once, so it can never be sent twice", async () => {
+			await pending("a", "2026-01-01T00:01:00.000Z");
+
+			expect(await repository.claim("a")).toBe(true);
+			expect(await repository.claim("a")).toBe(false);
+			const claimed = await repository.findById("a");
+
+			expect(claimed?.nextAttemptAt).toBeNull();
+		});
+
+		it("lists a chain in attempt order and cancels what it still owes", async () => {
+			await insertDefault({ id: "first", responseStatus: 500, appKey: "123" });
+			await pending("second", "2026-01-01T00:01:00.000Z", { chainId: "first", attempt: 2, appKey: "123" });
+			await pending("other", "2026-01-01T00:01:00.000Z", { appKey: "456" });
+
+			const chain = await repository.listChain("first");
+
+			expect(chain.map(row => row.id)).toEqual(["first", "second"]);
+			expect(await repository.cancelPending({ chainId: "first" })).toBe(1);
+			expect(await repository.cancelPending({ appKey: "456" })).toBe(1);
+			expect(await repository.nextDueAt()).toBeNull();
+		});
 	});
 });

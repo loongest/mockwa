@@ -121,7 +121,25 @@ export function toWebhookDeliveryDto(record: WebhookDeliveryRecord): WebhookDeli
 		durationMs: record.durationMs,
 		skipped: record.url === "",
 		createdAt: record.createdAt,
+		// Rows older than M2 were all the default app's.
+		appKey: record.appKey ?? "default",
+		chainId: record.chainId,
+		nextAttemptAt: record.nextAttemptAt,
+		outcome: deliveryOutcome(record),
 	};
+}
+
+/** Only an HTTP 200 is delivered (SPEC §3); a failure is `retrying` while a retry is owed. */
+function deliveryOutcome(record: WebhookDeliveryRecord): WebhookDelivery["outcome"] {
+	if (record.url === "") {
+		return "skipped";
+	}
+
+	if (record.responseStatus === 200) {
+		return "delivered";
+	}
+
+	return record.nextAttemptAt === null ? "failed" : "retrying";
 }
 
 /**

@@ -6,7 +6,7 @@ import { JsonBlock } from "../../components/json-block.tsx";
 import { copyToClipboard } from "../../lib/clipboard.ts";
 import { formatClockWithSeconds, formatDuration } from "../../lib/format.ts";
 import { prettyJsonText } from "../../lib/json.ts";
-import { useAction, useToasts } from "../../store/store.tsx";
+import { useAction, useAppState, useDispatch, useToasts } from "../../store/store.tsx";
 
 export interface DeliveryOutcome {
 	label: string;
@@ -38,6 +38,18 @@ export function describeOutcome(delivery: WebhookDelivery): DeliveryOutcome {
 	return { label: String(delivery.responseStatus), tone: "badge--ok" };
 }
 
+/**
+ * What became of the chain this attempt belongs to (SPEC §3): Meta keeps retrying anything
+ * but a `200`, so "500" alone does not say whether another attempt is coming.
+ */
+export function describeRetry(delivery: WebhookDelivery): string | null {
+	if (delivery.nextAttemptAt !== null) {
+		return `retry at ${formatClockWithSeconds(delivery.nextAttemptAt)}`;
+	}
+
+	return delivery.outcome === "failed" ? "gave up" : null;
+}
+
 export interface DeliveryRowProps {
 	delivery: WebhookDelivery;
 }
@@ -48,7 +60,11 @@ export function DeliveryRow(props: DeliveryRowProps) {
 	const [open, setOpen] = useState(false);
 	const run = useAction();
 	const toasts = useToasts();
+	const dispatch = useDispatch();
+	const { webhookRouting } = useAppState();
 	const outcome = describeOutcome(delivery);
+	const retry = describeRetry(delivery);
+	const appName = webhookRouting?.apps.find(app => app.key === delivery.appKey)?.name ?? delivery.appKey;
 
 	return (
 		<>
@@ -75,14 +91,18 @@ export function DeliveryRow(props: DeliveryRowProps) {
 				<td>
 					<span className={clsx("badge", outcome.tone)}>{outcome.label}</span>
 				</td>
-				<td className="faint">#{delivery.attempt}</td>
+				<td className="faint">{appName}</td>
+				<td className="faint">
+					#{delivery.attempt}
+					{retry !== null && <span className="delivery__retry"> · {retry}</span>}
+				</td>
 				<td className="faint">{formatDuration(delivery.durationMs)}</td>
 				<td className="faint mono delivery__url">{delivery.url === "" ? "—" : delivery.url}</td>
 			</tr>
 
 			{open && (
 				<tr className="delivery__details">
-					<td colSpan={7}>
+					<td colSpan={8}>
 						<div className="stack">
 							{delivery.error !== null && <p className="composer__error">{delivery.error}</p>}
 
@@ -97,6 +117,20 @@ export function DeliveryRow(props: DeliveryRowProps) {
 								>
 									Redeliver
 								</button>
+								{delivery.nextAttemptAt !== null && (
+									<button
+										type="button"
+										className="button button--sm"
+										onClick={event => {
+											event.stopPropagation();
+											run(async () => {
+												dispatch({ type: "delivery/updated", delivery: await api.cancelWebhookRetry(delivery.id) });
+											});
+										}}
+									>
+										Cancel retry
+									</button>
+								)}
 								<button
 									type="button"
 									className="button button--sm"

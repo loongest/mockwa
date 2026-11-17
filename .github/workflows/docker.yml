@@ -181,12 +181,44 @@ jobs:
           done
           test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m1)" = "healthy"
 
+      # A third instance for the webhook model (M2): two WABAs, two apps with their own echo
+      # apps and secrets, a file database on a volume so a pending retry can survive the
+      # restart the checks perform, and a short retry schedule so retries are due in seconds.
+      - name: Start the M2 image and its two echo apps 🧪
+        run: |
+          set -euo pipefail
+          PORT=3003 APP_SECRET=m2-sales-secret VERIFY_TOKEN=m2-sales-verify \
+            nohup node examples/echo-app/server.mjs > echo-app-m2-sales.log 2>&1 &
+          PORT=3004 APP_SECRET=m2-support-secret VERIFY_TOKEN=m2-support-verify \
+            nohup node examples/echo-app/server.mjs > echo-app-m2-support.log 2>&1 &
+          docker volume create mockwa-ci-m2-data
+          docker run -d --name mockwa-ci-m2 \
+            --add-host=host.docker.internal:host-gateway \
+            -p 127.0.0.1:28888:8888 -p 127.0.0.1:28025:8025 \
+            -v mockwa-ci-m2-data:/data \
+            -v "$PWD/e2e/fixtures/m2-seed.json:/seed/m2-seed.json:ro" \
+            -e MOCKWA_DB_PATH=/data/mockwa.db \
+            -e MOCKWA_SEED_FILE=/seed/m2-seed.json \
+            -e MOCKWA_APPS="$(cat e2e/fixtures/m2-apps.json)" \
+            -e MOCKWA_WEBHOOK_RETRY_SCHEDULE=3s \
+            mockwa:ci
+          for _ in $(seq 1 60); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m2)"
+            [ "$status" = "healthy" ] && break
+            [ "$status" = "unhealthy" ] && break
+            sleep 1
+          done
+          test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m2)" = "healthy"
+
       - name: M0 smoke checks (AC-01, AC-02, signed webhooks) ✅
         run: node e2e/m0-smoke.mjs
         env:
           APP_SECRET: ci-app-secret
 
-      - name: Playwright against the console and the virtual phone 🎭
+      - name: M2 webhook checks (AC-06 routing, AC-07 retries and restart) ✅
+        run: node e2e/m2-webhooks.mjs
+
+      - name: Playwright against the console, the virtual phone and the M2 webhook views 🎭
         run: npx playwright test -c e2e/playwright.config.mjs --trace off
         env:
           M1_APP_SECRET: m1-app-secret
@@ -198,10 +230,15 @@ jobs:
           cat echo-app.log || true
           docker logs mockwa-ci-m1 || true
           cat echo-app-m1.log || true
+          docker logs mockwa-ci-m2 || true
+          cat echo-app-m2-sales.log || true
+          cat echo-app-m2-support.log || true
 
       - name: Stop the image 🧹
         if: always()
-        run: docker rm --force mockwa-ci mockwa-ci-m1 || true
+        run: |
+          docker rm --force mockwa-ci mockwa-ci-m1 mockwa-ci-m2 || true
+          docker volume rm mockwa-ci-m2-data || true
 
       - name: Login to GitHub Container Registry 🔑
         if: env.PUBLISH == 'true'

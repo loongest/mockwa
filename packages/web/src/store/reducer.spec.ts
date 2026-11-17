@@ -12,6 +12,8 @@ import {
 	makeStateResponse,
 	makeTemplate,
 	makeToken,
+	makeWebhookApp,
+	makeWebhookRouting,
 	PHONE_NUMBER_ID,
 	WABA_ID,
 } from "../test/factories.ts";
@@ -207,6 +209,56 @@ describe("reducer, WebSocket events", () => {
 		});
 
 		expect(state.deliveries?.map(delivery => delivery.id)).toEqual(["delivery-2", "delivery-1"]);
+	});
+
+	it("stops promising the earlier attempt's retry once the chain moves on", () => {
+		const withLog = reducer(makeAppState(), {
+			type: "deliveries/loaded",
+			deliveries: [
+				makeDelivery({
+					id: "delivery-1",
+					chainId: "delivery-1",
+					responseStatus: 500,
+					outcome: "retrying",
+					nextAttemptAt: "2026-08-31T12:00:10.000Z",
+				}),
+			],
+			before: null,
+			mode: "latest",
+		});
+		const state = apply(withLog, {
+			type: "webhook.delivery",
+			payload: { delivery: makeDelivery({ id: "delivery-2", chainId: "delivery-1", attempt: 2 }) },
+		});
+
+		expect(state.deliveries?.map(delivery => delivery.nextAttemptAt)).toEqual([null, null]);
+	});
+
+	it("updates a delivery it already holds in place, rather than listing it twice", () => {
+		const withLog = reducer(makeAppState(), {
+			type: "deliveries/loaded",
+			deliveries: [makeDelivery({ id: "delivery-1", outcome: "retrying", nextAttemptAt: "2026-08-31T12:00:10.000Z" })],
+			before: null,
+			mode: "latest",
+		});
+		const state = apply(withLog, {
+			type: "webhook.delivery",
+			payload: { delivery: makeDelivery({ id: "delivery-1", outcome: "failed", nextAttemptAt: null }) },
+		});
+
+		expect(state.deliveries).toHaveLength(1);
+		expect(state.deliveries?.[0]?.outcome).toBe("failed");
+	});
+
+	it("adopts the routing a webhook_routing.changed frame carries, and forgets it on a reset", () => {
+		const routing = makeWebhookRouting({ apps: [makeWebhookApp(), makeWebhookApp({ key: "2", name: "Billing" })] });
+		const state = apply(makeAppState({ webhookRouting: null }), {
+			type: "webhook_routing.changed",
+			payload: { routing },
+		});
+
+		expect(state.webhookRouting).toEqual(routing);
+		expect(apply(state, { type: "state.reset", payload: { state: makeStateResponse() } }).webhookRouting).toBeNull();
 	});
 
 	it("upserts a template in place", () => {

@@ -5,6 +5,7 @@ import { ChangeNumberDialog } from "../../components/change-number-dialog.tsx";
 import { CopyButton } from "../../components/copy-button.tsx";
 import { CreateWabaDialog } from "../../components/create-waba-dialog.tsx";
 import { useAction, useAppState, useDispatch, useToasts } from "../../store/store.tsx";
+import { AppsCard } from "./apps-card.tsx";
 import { DangerZoneCard } from "./danger-zone-card.tsx";
 import { InjectionCard } from "./injection-card.tsx";
 import { TokensCard } from "./tokens-card.tsx";
@@ -428,6 +429,7 @@ export function SettingsPage() {
 	const sections: SectionEntry[] = [
 		{ id: "accounts", label: "Accounts" },
 		{ id: "contacts", label: "Contacts" },
+		{ id: "apps", label: "Apps & webhooks" },
 		...(hasTokens ? [{ id: "tokens", label: "Access tokens" }] : []),
 		{ id: "error-injection", label: "Error injection" },
 		{ id: "behavior", label: "Behavior" },
@@ -449,6 +451,10 @@ export function SettingsPage() {
 
 					<AccountsSection server={server} scopedWabaId={wabaId} />
 					<ContactsSection />
+
+					<Section id="apps" title="Apps & webhooks">
+						<AppsCard wabas={server.wabas} />
+					</Section>
 
 					{hasTokens && (
 						<Section id="tokens" title="Access tokens">
