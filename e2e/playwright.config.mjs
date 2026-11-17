@@ -1,10 +1,14 @@
 import { defineConfig } from "@playwright/test";
 
 /**
- * Browser checks against a running mockwa — in CI, the built Docker image (see
- * .github/workflows/docker.yml). Nothing is started here: the target is whatever
- * CONSOLE_URL / GRAPH_URL point at. PLAYWRIGHT_CHANNEL=chrome runs the locally installed Chrome
- * instead of Playwright's own Chromium.
+ * Browser checks against running mockwa instances — in CI, the built Docker image (see
+ * .github/workflows/docker.yml). Nothing is started here:
+ *
+ * - `m0-console` drives the console of the default-seeded instance at CONSOLE_URL / GRAPH_URL;
+ * - `m1-phone` drives the virtual phone of an instance seeded from e2e/fixtures/m1-seed.json,
+ *   at M1_CONSOLE_URL, with its own echo app at M1_ECHO_URL.
+ *
+ * PLAYWRIGHT_CHANNEL=chrome runs the locally installed Chrome instead of Playwright's Chromium.
  */
 export default defineConfig({
 	testDir: ".",
@@ -12,8 +16,19 @@ export default defineConfig({
 	reporter: process.env.CI === undefined ? "list" : [["list"], ["junit", { outputFile: "results/junit.xml" }]],
 	outputDir: "results/artifacts",
 	use: {
-		baseURL: process.env.CONSOLE_URL ?? "http://127.0.0.1:8025",
 		trace: "off",
 		...(process.env.PLAYWRIGHT_CHANNEL !== undefined && { channel: process.env.PLAYWRIGHT_CHANNEL }),
 	},
+	projects: [
+		{
+			name: "m0-console",
+			testMatch: "console.spec.mjs",
+			use: { baseURL: process.env.CONSOLE_URL ?? "http://127.0.0.1:8025" },
+		},
+		{
+			name: "m1-phone",
+			testMatch: "m1-*.spec.mjs",
+			use: { baseURL: process.env.M1_CONSOLE_URL ?? "http://127.0.0.1:18025" },
+		},
+	],
 });

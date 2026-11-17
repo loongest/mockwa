@@ -325,6 +325,21 @@ export const MIGRATIONS: Record<string, Migration> = {
 			await db.schema.alterTable("messages").addColumn("template_snapshot", "text").execute();
 		},
 	},
+
+	/**
+	 * mockwa: who a virtual phone plays (SPEC §5, "Virtual Phone"). `role` is a free-form label
+	 * (`CUSTOMER`, `TECHNICIAN`, …) and `display_number` the friendly way the phone shows the
+	 * number. Neither reaches the Graph surface or a webhook.
+	 *
+	 * Both nullable with no backfill: a contact without them behaves exactly as before, and the
+	 * phone falls back to the profile name and `+<wa_id>`.
+	 */
+	"0008_contact_role_and_display_number": {
+		up: async (db: Kysely<never>): Promise<void> => {
+			await db.schema.alterTable("contacts").addColumn("role", "text").execute();
+			await db.schema.alterTable("contacts").addColumn("display_number", "text").execute();
+		},
+	},
 };
 
 /** Serves {@link MIGRATIONS} to Kysely's `Migrator`. */

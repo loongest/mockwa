@@ -50,7 +50,7 @@ function cached(
 }
 
 /**
- * Serves the built web UI at `/` (SPEC §5, §8).
+ * Serves the built web UI at `/` (SPEC §5, §8), and the virtual phone at `/phone`.
  *
  * Two handlers: the first answers with the file when one exists, the second answers every
  * other in-app route (`/w/:wabaId/p/:phoneNumberId/chats`, `/settings`, …) with `index.html` so a deep link and a
@@ -67,11 +67,18 @@ export function createWebUiRoutes(options: WebUiRoutesOptions): Hono<AppEnv> {
 		serveStatic<AppEnv>({ root: options.webDir, path: "index.html" }),
 		() => REVALIDATE_CACHE_CONTROL,
 	);
+	const phone = cached(
+		serveStatic<AppEnv>({ root: options.webDir, path: "phone.html" }),
+		() => REVALIDATE_CACHE_CONTROL,
+	);
 
 	const spaFallback: MiddlewareHandler<AppEnv> = async (c, next) =>
 		isReservedPath(c.req.path) ? next() : index(c, next);
 
 	routes.use("*", file);
+	// The virtual phone is a page of its own, not a route of the console's SPA (SPEC §5).
+	routes.get("/phone", phone);
+	routes.get("/phone/*", phone);
 	routes.get("*", spaFallback);
 
 	return routes;

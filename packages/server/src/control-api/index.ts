@@ -17,6 +17,7 @@ export { createInjectionRoutes, type InjectionRoutesOptions } from "./injection-
 export { createMediaRoutes, type MediaRoutesOptions } from "./media-routes.ts";
 export { createMessageRoutes, type MessageRoutesOptions } from "./message-routes.ts";
 export { createPhoneNumberRoutes, type PhoneNumberRoutesOptions } from "./phone-number-routes.ts";
+export { createPhoneRoutes, type PhoneRoutesOptions } from "./phone-routes.ts";
 export { createSnapshotRoutes, snapshotFilename, type SnapshotRoutesOptions } from "./snapshot-routes.ts";
 export { createStateRoutes, type StateRoutesOptions } from "./state-routes.ts";
 export { createTemplateRoutes, type TemplateRoutesOptions } from "./template-routes.ts";
@@ -24,4 +25,4 @@ export { createTokenRoutes, type TokenRoutesOptions } from "./token-routes.ts";
 export { createTypingRoutes, type TypingRoutesOptions } from "./typing-routes.ts";
 export { createWabaRoutes, type WabaRoutesOptions } from "./waba-routes.ts";
 export { createWebhookRoutes, type WebhookRoutesOptions } from "./webhook-routes.ts";
-export { createWsRoutes, type WsRoutesOptions } from "./ws-routes.ts";
+export { createWsRoutes, eventSocket, type WsRoutesOptions } from "./ws-routes.ts";

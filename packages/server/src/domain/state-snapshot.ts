@@ -72,6 +72,9 @@ const contactRowSchema = z.object({
 	wa_id: z.string().min(1),
 	profile_name: z.string(),
 	user_id: nullable(z.string()),
+	// mockwa: a snapshot written before the virtual phone's columns simply has none.
+	role: nullable(z.string()).default(null),
+	display_number: nullable(z.string()).default(null),
 	created_at: timestamp,
 	updated_at: timestamp,
 });

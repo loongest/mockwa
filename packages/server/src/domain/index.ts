@@ -301,3 +301,10 @@ export {
 	type WebhookField,
 	type WebhookStatus,
 } from "./webhook-payloads.ts";
+export { isPhoneEvent } from "./phone-events.ts";
+export {
+	PhoneService,
+	type PhoneMessagesInput,
+	type PhoneMessagesResult,
+	type PhoneServiceOptions,
+} from "./phone-service.ts";

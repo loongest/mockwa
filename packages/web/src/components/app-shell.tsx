@@ -10,12 +10,13 @@ import { CreateWabaDialog } from "./create-waba-dialog.tsx";
 import { InjectionBadge } from "./injection-badge.tsx";
 import { ScopeMenu } from "./scope-menu.tsx";
 import { Toasts } from "./toasts.tsx";
+import { WebhookBadge } from "./webhook-badge.tsx";
 
 /**
  * The top bar, and the whole frame under it.
  *
  * One horizontal bar carries everything that is not a view: the brand, the scope as a
- * breadcrumb, the four view tabs and the two live indicators. The scope reads as a path —
+ * breadcrumb, the four view tabs and the live indicators (error injection, webhook target, connection). The scope reads as a path —
  * *account, then number* — because that is what whaloc's world is now that both are managed at
  * runtime, and because a breadcrumb can be **deeper for some views than for others**: Chats is
  * scoped to a phone number, Templates only to a WABA, Webhooks and Settings to nothing at all.
@@ -189,6 +190,7 @@ export function AppShell() {
 
 				<div className="topbar__status">
 					<InjectionBadge />
+					<WebhookBadge />
 					<ConnectionBadge />
 				</div>
 			</header>

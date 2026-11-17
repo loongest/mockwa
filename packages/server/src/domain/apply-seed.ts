@@ -129,6 +129,8 @@ export async function applySeed(options: ApplySeedOptions): Promise<SeedResult> 
 					waId: seedContact.waId,
 					profileName: seedContact.name,
 					userId: seedContact.userId ?? null,
+					role: seedContact.role ?? null,
+					displayNumber: seedContact.displayNumber ?? null,
 					createdAt,
 				});
 				result.created.contacts += 1;

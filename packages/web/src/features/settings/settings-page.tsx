@@ -175,10 +175,24 @@ function ContactsSection() {
 		});
 	};
 
+	/** The label the virtual phone shows next to the name (SPEC §5); blank clears it. */
+	const editRole = (contact: Contact, value: string): void => {
+		const next = value.trim() === "" ? null : value.trim();
+
+		if (next === contact.role) {
+			return;
+		}
+
+		run(async () => {
+			await api.updateContact(contact.waId, { role: next });
+			await reload();
+		});
+	};
+
 	return (
 		<Section id="contacts" title="Contacts">
 			<div className="card stack">
-				{/* The three columns plus the actions do not fit a narrow window: the table scrolls,
+				{/* The four columns plus the actions do not fit a narrow window: the table scrolls,
 				    the page does not. */}
 				<div className="table-scroll">
 					<table className="table">
@@ -186,6 +200,7 @@ function ContactsSection() {
 							<tr>
 								<th>wa_id</th>
 								<th>Profile name</th>
+								<th>Role</th>
 								<th>BSUID</th>
 								<th aria-label="Actions" />
 							</tr>
@@ -208,6 +223,17 @@ function ContactsSection() {
 														await reload();
 													});
 												}
+											}}
+										/>
+									</td>
+									<td>
+										<input
+											className="input"
+											defaultValue={contact.role ?? ""}
+											placeholder="none"
+											aria-label={`Role of ${contact.waId}`}
+											onBlur={changed => {
+												editRole(contact, changed.target.value);
 											}}
 										/>
 									</td>

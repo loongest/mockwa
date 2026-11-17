@@ -4,13 +4,20 @@
 //
 //   GET  /webhook      Meta's `hub.challenge` handshake, checked against VERIFY_TOKEN
 //   POST /webhook      a webhook delivery: the signature is checked over the raw bytes, the
-//                      delivery is recorded, and an inbound text gets an "echo: …" reply
+//                      delivery is recorded, and an inbound message gets a reply:
+//                        "menu"      → an interactive message with two reply buttons
+//                        "template"  → the TEMPLATE_NAME template (quick-reply buttons)
+//                        a tapped button (interactive reply or template quick reply)
+//                                    → "selected: <title>"
+//                        any other text → "echo: <text>"
 //   GET  /deliveries   what was received, for tests to assert on
 //   DELETE /deliveries forget it
 //   GET  /health       liveness
 //
 // Environment: PORT (3001), APP_SECRET, VERIFY_TOKEN, GRAPH_API_BASE_URL (with its version
-// segment, e.g. http://127.0.0.1:8888/v25.0), ACCESS_TOKEN (any non-empty token by default).
+// segment, e.g. http://127.0.0.1:8888/v25.0), ACCESS_TOKEN (any non-empty token by default),
+// TEMPLATE_NAME / TEMPLATE_LANGUAGE (an approved template whose body takes one parameter, the
+// customer's name; appointment_confirmation / en by default).
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
@@ -20,6 +27,8 @@ const appSecret = process.env.APP_SECRET ?? "";
 const verifyToken = process.env.VERIFY_TOKEN ?? "";
 const graphApiBaseUrl = (process.env.GRAPH_API_BASE_URL ?? "").replace(/\/+$/, "");
 const accessToken = process.env.ACCESS_TOKEN ?? "echo-app-token";
+const templateName = process.env.TEMPLATE_NAME ?? "appointment_confirmation";
+const templateLanguage = process.env.TEMPLATE_LANGUAGE ?? "en";
 
 /** @type {Array<{receivedAt: string, signature: string | null, signatureValid: boolean, rawBody: string, body: unknown, reply: unknown}>} */
 const deliveries = [];
@@ -36,9 +45,66 @@ function isSignatureValid(header, rawBody) {
 	return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
-/** Replies to an inbound text through the Graph API, the way a real bot would. */
+/** The title of a tapped button: an interactive `button_reply`, or a template quick reply. */
+function tappedTitle(message) {
+	if (message.type === "interactive") {
+		return message.interactive?.button_reply?.title ?? message.interactive?.list_reply?.title;
+	}
+
+	return message.type === "button" ? message.button?.text : undefined;
+}
+
+/** What a small booking bot would answer; `null` for a message it ignores. */
+function replyFor(value, message) {
+	const tapped = tappedTitle(message);
+
+	if (tapped !== undefined) {
+		return { type: "text", text: { body: `selected: ${tapped}` } };
+	}
+
+	if (message.type !== "text") {
+		return null;
+	}
+
+	const text = message.text.body.trim().toLowerCase();
+
+	if (text === "menu") {
+		return {
+			type: "interactive",
+			interactive: {
+				type: "button",
+				body: { text: "Your technician visit is tomorrow at 10:00. Does that still work?" },
+				action: {
+					buttons: [
+						{ type: "reply", reply: { id: "visit-confirm", title: "Confirm" } },
+						{ type: "reply", reply: { id: "visit-reschedule", title: "Reschedule" } },
+					],
+				},
+			},
+		};
+	}
+
+	if (text === "template") {
+		const name = value.contacts?.find(contact => contact.wa_id === message.from)?.profile?.name ?? "there";
+
+		return {
+			type: "template",
+			template: {
+				name: templateName,
+				language: { code: templateLanguage },
+				components: [{ type: "body", parameters: [{ type: "text", text: name }] }],
+			},
+		};
+	}
+
+	return { type: "text", text: { body: `echo: ${message.text.body}` } };
+}
+
+/** Replies through the Graph API, the way a real bot would, quoting the message it answers. */
 async function replyTo(value, message) {
-	if (graphApiBaseUrl === "" || message.type !== "text") {
+	const reply = replyFor(value, message);
+
+	if (graphApiBaseUrl === "" || reply === null) {
 		return null;
 	}
 
@@ -48,8 +114,7 @@ async function replyTo(value, message) {
 		body: JSON.stringify({
 			messaging_product: "whatsapp",
 			to: message.from,
-			type: "text",
-			text: { body: `echo: ${message.text.body}` },
+			...reply,
 			context: { message_id: message.id },
 		}),
 	});

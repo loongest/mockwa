@@ -129,6 +129,8 @@ describe("ContactRepository", () => {
 				waId: "16505551234",
 				profileName: "Sheena Nelson",
 				userId: "US.13491208655302741918",
+				role: "CUSTOMER",
+				displayNumber: "+1 650 555 1234",
 				createdAt: "2026-01-01T00:00:00.000Z",
 			});
 			await insertMessage("wamid.one", "16505551234");
@@ -140,6 +142,8 @@ describe("ContactRepository", () => {
 				waId: "12195555358",
 				profileName: "Sheena Nelson",
 				userId: "US.13491208655302741918",
+				role: "CUSTOMER",
+				displayNumber: "+1 650 555 1234",
 				createdAt: "2026-01-01T00:00:00.000Z",
 				updatedAt: "2026-01-02T00:00:00.000Z",
 			});

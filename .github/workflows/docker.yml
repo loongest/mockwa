@@ -151,23 +151,53 @@ jobs:
         env:
           MOCKWA_VERSION: ${{ steps.version.outputs.version }}
 
+      # A second instance for the virtual phone (M1), seeded with its named identities and a
+      # quick-reply template, with an echo app of its own so the two suites never share state.
+      - name: Start the M1 image and its echo app 🧪
+        run: |
+          set -euo pipefail
+          PORT=3002 APP_SECRET=m1-app-secret VERIFY_TOKEN=m1-verify-token \
+            GRAPH_API_BASE_URL=http://127.0.0.1:18888/v25.0 \
+            nohup node examples/echo-app/server.mjs > echo-app-m1.log 2>&1 &
+          docker run -d --name mockwa-ci-m1 \
+            --add-host=host.docker.internal:host-gateway \
+            -p 127.0.0.1:18888:8888 -p 127.0.0.1:18025:8025 \
+            -v "$PWD/e2e/fixtures/m1-seed.json:/seed/m1-seed.json:ro" \
+            -e MOCKWA_SEED_FILE=/seed/m1-seed.json \
+            -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3002/webhook \
+            -e MOCKWA_APP_SECRET=m1-app-secret \
+            -e MOCKWA_WEBHOOK_VERIFY_TOKEN=m1-verify-token \
+            -e MOCKWA_VERIFY_ON_START=true \
+            mockwa:ci
+          for _ in $(seq 1 60); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m1)"
+            [ "$status" = "healthy" ] && break
+            [ "$status" = "unhealthy" ] && break
+            sleep 1
+          done
+          test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m1)" = "healthy"
+
       - name: M0 smoke checks (AC-01, AC-02, signed webhooks) ✅
         run: node e2e/m0-smoke.mjs
         env:
           APP_SECRET: ci-app-secret
 
-      - name: Playwright against the console 🎭
+      - name: Playwright against the console and the virtual phone 🎭
         run: npx playwright test -c e2e/playwright.config.mjs --trace off
+        env:
+          M1_APP_SECRET: m1-app-secret
 
       - name: Logs on failure 📜
         if: failure()
         run: |
           docker logs mockwa-ci || true
           cat echo-app.log || true
+          docker logs mockwa-ci-m1 || true
+          cat echo-app-m1.log || true
 
       - name: Stop the image 🧹
         if: always()
-        run: docker rm --force mockwa-ci || true
+        run: docker rm --force mockwa-ci mockwa-ci-m1 || true
 
       - name: Login to GitHub Container Registry 🔑
         if: github.event_name != 'pull_request'

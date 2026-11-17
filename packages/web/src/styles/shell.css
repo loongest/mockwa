@@ -376,6 +376,45 @@
 	animation: pulse 1.2s ease-in-out infinite;
 }
 
+/*
+ * Where webhooks go (SPEC §5): quiet when a receiver is set, amber when nothing is sent. It looks
+ * like the connection indicator but is a separate element, so `.connection` keeps meaning the
+ * socket.
+ */
+.webhook-badge {
+	display: flex;
+	gap: var(--sp-2);
+	align-items: center;
+	max-width: 280px;
+	padding: 4px var(--sp-2);
+	overflow: hidden;
+	color: var(--text-muted);
+	font-size: var(--fs-xs);
+	text-decoration: none;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.webhook-badge:hover {
+	text-decoration: underline;
+}
+
+.webhook-badge__dot {
+	flex: none;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--info);
+}
+
+.webhook-badge--off {
+	color: var(--warn);
+}
+
+.webhook-badge--off .webhook-badge__dot {
+	background: var(--warn);
+}
+
 @keyframes pulse {
 	50% {
 		opacity: 0.3;

@@ -26,39 +26,46 @@ export interface WsRoutesOptions {
 export function createWsRoutes(options: WsRoutesOptions): Hono<ControlEnv> {
 	const routes = new Hono<ControlEnv>();
 
-	routes.get(
-		"/ws",
-		upgradeWebSocket(() => {
-			let unsubscribe: (() => void) | null = null;
-
-			const stop = (): void => {
-				unsubscribe?.();
-				unsubscribe = null;
-			};
-
-			const send = (ws: WSContext, event: WsEvent): void => {
-				try {
-					ws.send(JSON.stringify(event));
-				} catch (error) {
-					options.logger.debug({ err: error }, "dropping a websocket client that could not be written to");
-					stop();
-				}
-			};
-
-			return {
-				onOpen: (_event, ws) => {
-					unsubscribe = options.events.subscribe(event => {
-						send(ws, event);
-					});
-				},
-				onClose: stop,
-				onError: error => {
-					options.logger.debug({ err: error }, "websocket client errored");
-					stop();
-				},
-			};
-		}),
-	);
+	routes.get("/ws", eventSocket(options));
 
 	return routes;
+}
+
+/**
+ * The upgrade handler behind every event socket: the console's, which takes everything, and
+ * the virtual phone's, which passes `isWanted` to keep each phone to its own conversations.
+ */
+export function eventSocket(options: WsRoutesOptions, isWanted: (event: WsEvent) => boolean = () => true) {
+	return upgradeWebSocket(() => {
+		let unsubscribe: (() => void) | null = null;
+
+		const stop = (): void => {
+			unsubscribe?.();
+			unsubscribe = null;
+		};
+
+		const send = (ws: WSContext, event: WsEvent): void => {
+			try {
+				ws.send(JSON.stringify(event));
+			} catch (error) {
+				options.logger.debug({ err: error }, "dropping a websocket client that could not be written to");
+				stop();
+			}
+		};
+
+		return {
+			onOpen: (_event, ws) => {
+				unsubscribe = options.events.subscribe(event => {
+					if (isWanted(event)) {
+						send(ws, event);
+					}
+				});
+			},
+			onClose: stop,
+			onError: error => {
+				options.logger.debug({ err: error }, "websocket client errored");
+				stop();
+			},
+		};
+	});
 }

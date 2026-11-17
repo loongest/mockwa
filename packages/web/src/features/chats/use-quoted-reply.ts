@@ -1,8 +1,17 @@
-import type { Message } from "@mockwa/shared";
-import { useRef, useState } from "react";
+import type { InboundRequest, Message } from "@mockwa/shared";
+import { createContext, use, useRef, useState } from "react";
 import { api } from "../../api/endpoints.ts";
 import { useToasts } from "../../store/store.tsx";
 import type { BuildResult, ComposerContext } from "./composer-payload.ts";
+
+/**
+ * Where a tapped reply goes. The console posts to `POST /api/inbound`, free to speak for any
+ * contact; the virtual phone swaps in its own route, which only ever sends as the identity the
+ * phone is signed in as.
+ */
+export type InboundSender = (request: InboundRequest) => Promise<unknown>;
+
+export const InboundSenderContext = createContext<InboundSender>(async request => api.sendInbound(request));
 
 /**
  * A reply the user sends by tapping something on an outbound message — a menu choice, a
@@ -22,6 +31,7 @@ export interface QuotedReplier {
  */
 export function useQuotedReply(message: Message): QuotedReplier {
 	const toasts = useToasts();
+	const sendInbound = use(InboundSenderContext);
 	const inFlight = useRef(false);
 	const [pending, setPending] = useState(false);
 
@@ -42,7 +52,7 @@ export function useQuotedReply(message: Message): QuotedReplier {
 		setPending(true);
 		void (async () => {
 			try {
-				await api.sendInbound(built.request);
+				await sendInbound(built.request);
 			} catch (error_) {
 				toasts.error(error_);
 			} finally {

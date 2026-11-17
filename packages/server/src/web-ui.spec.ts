@@ -6,6 +6,7 @@ import { createTestApp, type TestApp } from "./testing/test-app.ts";
 import { isReservedPath } from "./web-ui.ts";
 
 const INDEX_HTML = '<!doctype html><title>whaloc</title><div id="root"></div>';
+const PHONE_HTML = '<!doctype html><title>mockwa phone</title><div id="root"></div>';
 const ASSET_JS = "console.log('whaloc');\n";
 
 describe("the static web UI", () => {
@@ -16,6 +17,7 @@ describe("the static web UI", () => {
 		webDir = await mkdtemp(path.join(tmpdir(), "whaloc-test-web-"));
 		await mkdir(path.join(webDir, "assets"));
 		await writeFile(path.join(webDir, "index.html"), INDEX_HTML);
+		await writeFile(path.join(webDir, "phone.html"), PHONE_HTML);
 		await writeFile(path.join(webDir, "assets", "index-abc123.js"), ASSET_JS);
 		fixture = await createTestApp({ MOCKWA_WEB_DIR: webDir });
 	});
@@ -65,6 +67,18 @@ describe("the static web UI", () => {
 		expect(response.status).toBe(200);
 		expect(await response.text()).toBe(INDEX_HTML);
 	});
+
+	// The virtual phone is its own page; its state is in the query string (SPEC §5).
+	it.each(["/phone", "/phone?as=5571990000001", "/phone?as=5571990000001&chat=1", "/phone/anything"])(
+		"serves phone.html, not the console, at %s",
+		async route => {
+			const response = await fixture.app.request(route);
+
+			expect(response.status).toBe(200);
+			expect(response.headers.get("cache-control")).toBe("no-cache");
+			expect(await response.text()).toBe(PHONE_HTML);
+		},
+	);
 
 	it.each(["/api/nope", "/api/conversations/x/nope", "/v25.0/nope", "/whaloc-media/nope"])(
 		"does not shadow %s with the SPA fallback",
