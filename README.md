@@ -81,7 +81,8 @@ docker run --rm -p 127.0.0.1:8888:8888 -p 127.0.0.1:8025:8025 \
 ```
 
 The publish workflow pushes the image to `ghcr.io/loongest/mockwa` (and to Docker Hub when that
-is configured, see `.github/workflows/docker.yml`). Until a release exists, build it locally:
+is configured, see `.github/workflows/docker.yml`) when a `v*` release tag is pushed — never from
+an ordinary commit. Until a release exists, build it locally:
 `docker build -t mockwa .` and run `mockwa` in place of the image name.
 
 The ports are published to loopback only: the console has no login, so keep it off the network
@@ -124,8 +125,9 @@ docker compose logs -f webhook-echo
 See [docker-compose.yml](docker-compose.yml); it is also the shortest example of the environment
 a real integration needs, and [docs/integrating.md](docs/integrating.md) is the long form —
 pointing your own app at whaloc, which values have to match which, and a smoke test. The image is
-published by [`.github/workflows/docker.yml`](.github/workflows/docker.yml) (`latest` and
-`sha-<short>` from `main`, the semver ladder from a `v*` tag, `linux/amd64` + `linux/arm64`) with
+published by [`.github/workflows/docker.yml`](.github/workflows/docker.yml) **only from a `v*` tag**
+(the semver ladder, `sha-<short>` and `latest`, `linux/amd64` + `linux/arm64`; pull requests and
+pushes to `main` build and test the image but publish nothing) with
 full SLSA provenance and an SBOM attached to the image index, plus GitHub-signed build
 attestations — verifiable with
 `gh attestation verify oci://ghcr.io/loongest/mockwa:latest --owner loongest`.
