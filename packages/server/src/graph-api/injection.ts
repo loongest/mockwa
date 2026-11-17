@@ -1,4 +1,4 @@
-import type { InjectionTarget } from "@whaloc/shared";
+import type { InjectionTarget } from "@mockwa/shared";
 import type { Context, MiddlewareHandler } from "hono";
 import { MEDIA_DOWNLOAD_PATH, type InjectionService } from "../domain/index.ts";
 import type { GraphEnv } from "./graph-env.ts";

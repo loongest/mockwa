@@ -12,6 +12,8 @@ on:
       - "package.json"
       - "package-lock.json"
       - "packages/**"
+      - "examples/**"
+      - "e2e/**"
       - ".github/workflows/docker.yml"
 
 concurrency:
@@ -103,31 +105,69 @@ jobs:
           context: .
           platforms: linux/amd64
           load: true
-          tags: whaloc:ci
-          build-args: WHALOC_VERSION=${{ steps.version.outputs.version }}
+          tags: mockwa:ci
+          build-args: MOCKWA_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Smoke-test the image 🧪
+      # The end-to-end checks drive the image from the outside: the example echo app plays the
+      # app under test (it verifies every signature and replies through 8888), and Playwright
+      # drives the console on 8025. Only their own tooling is installed, never a build.
+      - name: Setup Node.js for the end-to-end checks 📦
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install Playwright 🎭
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Start the image and the echo app 🧪
         run: |
           set -euo pipefail
-          docker run -d --name whaloc-ci -p 8080:8080 whaloc:ci
+          PORT=3001 APP_SECRET=ci-app-secret VERIFY_TOKEN=ci-verify-token \
+            GRAPH_API_BASE_URL=http://127.0.0.1:8888/v25.0 \
+            nohup node examples/echo-app/server.mjs > echo-app.log 2>&1 &
+          docker run -d --name mockwa-ci \
+            --add-host=host.docker.internal:host-gateway \
+            -p 127.0.0.1:8888:8888 -p 127.0.0.1:8025:8025 \
+            -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3001/webhook \
+            -e MOCKWA_APP_SECRET=ci-app-secret \
+            -e MOCKWA_WEBHOOK_VERIFY_TOKEN=ci-verify-token \
+            -e MOCKWA_VERIFY_ON_START=true \
+            mockwa:ci
           for _ in $(seq 1 60); do
-            status="$(docker inspect --format '{{.State.Health.Status}}' whaloc-ci)"
+            status="$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci)"
             [ "$status" = "healthy" ] && break
             [ "$status" = "unhealthy" ] && break
             sleep 1
           done
-          docker logs whaloc-ci
-          test "$(docker inspect --format '{{.State.Health.Status}}' whaloc-ci)" = "healthy"
-          test "$(docker exec whaloc-ci whoami)" = "node"
-          curl --fail --silent --show-error http://localhost:8080/health
-          curl --fail --silent --show-error http://localhost:8080/ | grep -q "<div id=\"root\">"
-          reported="$(curl --fail --silent --show-error http://localhost:8080/api/export | jq -r .whalocVersion)"
-          test "$reported" = "$WHALOC_VERSION" || { echo "image reports $reported, expected $WHALOC_VERSION"; exit 1; }
-          docker rm --force whaloc-ci
+          test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci)" = "healthy"
+          test "$(docker exec mockwa-ci whoami)" = "node"
+          reported="$(curl --fail --silent --show-error http://localhost:8025/api/export | jq -r .whalocVersion)"
+          test "$reported" = "$MOCKWA_VERSION" || { echo "image reports $reported, expected $MOCKWA_VERSION"; exit 1; }
         env:
-          WHALOC_VERSION: ${{ steps.version.outputs.version }}
+          MOCKWA_VERSION: ${{ steps.version.outputs.version }}
+
+      - name: M0 smoke checks (AC-01, AC-02, signed webhooks) ✅
+        run: node e2e/m0-smoke.mjs
+        env:
+          APP_SECRET: ci-app-secret
+
+      - name: Playwright against the console 🎭
+        run: npx playwright test -c e2e/playwright.config.mjs --trace off
+
+      - name: Logs on failure 📜
+        if: failure()
+        run: |
+          docker logs mockwa-ci || true
+          cat echo-app.log || true
+
+      - name: Stop the image 🧹
+        if: always()
+        run: docker rm --force mockwa-ci || true
 
       - name: Login to GitHub Container Registry 🔑
         if: github.event_name != 'pull_request'
@@ -152,7 +192,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
-          build-args: WHALOC_VERSION=${{ steps.version.outputs.version }}
+          build-args: MOCKWA_VERSION=${{ steps.version.outputs.version }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
           cache-from: type=gha

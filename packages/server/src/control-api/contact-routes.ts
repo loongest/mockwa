@@ -4,7 +4,7 @@ import {
 	contactNumberChangeRequestSchema,
 	contactResponseSchema,
 	contactUpdateRequestSchema,
-} from "@whaloc/shared";
+} from "@mockwa/shared";
 import { Hono } from "hono";
 import { toContactDto, type ContactService } from "../domain/index.ts";
 import { controlError, readBody, type ControlEnv } from "./control-env.ts";

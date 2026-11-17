@@ -1,4 +1,4 @@
-import { MESSAGE_STATUSES } from "@whaloc/shared";
+import { MESSAGE_STATUSES } from "@mockwa/shared";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { describeMessageError, StatusTicks } from "./status-ticks.tsx";

@@ -1,4 +1,4 @@
-import type { JsonObject } from "@whaloc/shared";
+import type { JsonObject } from "@mockwa/shared";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { jsonResponse, stubFetch } from "../../test/factories.ts";

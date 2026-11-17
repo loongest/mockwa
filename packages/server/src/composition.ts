@@ -292,7 +292,7 @@ async function buildServices(options: CreateServicesOptions, handle: DatabaseHan
 	// created (SPEC §7).
 	logger.info({ wabas: seed.wabas, created: seed.created }, "seed applied");
 
-	// A directory or an S3 bucket, decided by `WHALOC_MEDIA_BACKEND` (SPEC §6); everything
+	// A directory or an S3 bucket, decided by `MOCKWA_MEDIA_BACKEND` (SPEC §6); everything
 	// downstream only ever sees the interface.
 	const mediaStorage = createMediaStorage({ config });
 

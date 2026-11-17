@@ -38,7 +38,7 @@ export const UNKNOWN_ERROR_CODE = 1;
  * Missing or empty `Authorization` on a Graph route (SPEC §1.9).
  *
  * In whaloc's default (permissive) mode this is the only authentication failure it can produce;
- * with `WHALOC_TOKENS` set, an unregistered token joins it — see {@link invalidAccessTokenError},
+ * with `MOCKWA_TOKENS` set, an unregistered token joins it — see {@link invalidAccessTokenError},
  * whose envelope is deliberately identical.
  */
 export function missingAccessTokenError(): GraphApiError {
@@ -49,7 +49,7 @@ export function missingAccessTokenError(): GraphApiError {
 }
 
 /**
- * A bearer token that is not in `WHALOC_TOKENS` (SPEC §1.9, strict mode).
+ * A bearer token that is not in `MOCKWA_TOKENS` (SPEC §1.9, strict mode).
  *
  * **The same envelope as a missing token, on purpose**: Meta does not tell a caller whether it
  * sent no token or the wrong one, and neither does whaloc. Two factories rather than one call

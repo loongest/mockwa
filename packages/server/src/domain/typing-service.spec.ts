@@ -1,4 +1,4 @@
-import type { WsEvent, WsEventOf } from "@whaloc/shared";
+import type { WsEvent, WsEventOf } from "@mockwa/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MessageRecord } from "../db/index.ts";
 import { TYPING_INDICATOR_TTL_MS, TypingService } from "./typing-service.ts";

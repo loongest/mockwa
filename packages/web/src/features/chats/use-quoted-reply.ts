@@ -1,4 +1,4 @@
-import type { Message } from "@whaloc/shared";
+import type { Message } from "@mockwa/shared";
 import { useRef, useState } from "react";
 import { api } from "../../api/endpoints.ts";
 import { useToasts } from "../../store/store.tsx";

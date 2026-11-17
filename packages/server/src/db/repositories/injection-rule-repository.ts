@@ -4,7 +4,7 @@ import {
 	type InjectionPreset,
 	type InjectionTarget,
 	type InjectionTrigger,
-} from "@whaloc/shared";
+} from "@mockwa/shared";
 import type { Kysely } from "kysely";
 import { nowIso } from "../../timestamps.ts";
 import { decodeNullableJsonColumn, encodeJsonColumn } from "../json-column.ts";

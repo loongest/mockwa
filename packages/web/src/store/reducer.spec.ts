@@ -1,4 +1,4 @@
-import { conversationId, type Message, type WsEvent } from "@whaloc/shared";
+import { conversationId, type Message, type WsEvent } from "@mockwa/shared";
 import { describe, expect, it } from "vitest";
 import {
 	CONTACT_WA_ID,

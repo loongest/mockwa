@@ -1,4 +1,4 @@
-import type { InboundRequest, WsEvent } from "@whaloc/shared";
+import type { InboundRequest, WsEvent } from "@mockwa/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDomainHarness, HARNESS_PUBLIC_URL, type DomainHarness } from "../testing/domain-harness.ts";
 import { stringMatching } from "../testing/expectations.ts";

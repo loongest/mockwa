@@ -1,4 +1,4 @@
-import { type Contact, type Conversation } from "@whaloc/shared";
+import { type Contact, type Conversation } from "@mockwa/shared";
 import clsx from "clsx";
 import { useState } from "react";
 import { useNavigate } from "react-router";

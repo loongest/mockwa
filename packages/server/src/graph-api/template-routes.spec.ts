@@ -35,7 +35,7 @@ describe("message templates (SPEC §2.7-§2.10)", () => {
 	let fixture: TestApp;
 
 	beforeEach(async () => {
-		fixture = await createTestApp({ WHALOC_SEED: SEED_WITHOUT_TEMPLATES });
+		fixture = await createTestApp({ MOCKWA_SEED: SEED_WITHOUT_TEMPLATES });
 	});
 
 	afterEach(async () => {

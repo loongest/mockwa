@@ -1,4 +1,4 @@
-import { listTypingIndicatorsQuerySchema, typingIndicatorListResponseSchema } from "@whaloc/shared";
+import { listTypingIndicatorsQuerySchema, typingIndicatorListResponseSchema } from "@mockwa/shared";
 import { Hono } from "hono";
 import type { TypingService } from "../domain/index.ts";
 import { parseOrThrow, type ControlEnv } from "./control-env.ts";

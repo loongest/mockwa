@@ -1,4 +1,4 @@
-import type { Message } from "@whaloc/shared";
+import type { Message } from "@mockwa/shared";
 import clsx from "clsx";
 import { formatClock } from "../../lib/format.ts";
 import { readString } from "../../lib/json.ts";

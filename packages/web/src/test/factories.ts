@@ -7,7 +7,7 @@ import type {
 	Template,
 	TokenState,
 	WebhookDelivery,
-} from "@whaloc/shared";
+} from "@mockwa/shared";
 import { vi, type Mock } from "vitest";
 import { initialState } from "../store/reducer.ts";
 import type { AppState } from "../store/types.ts";

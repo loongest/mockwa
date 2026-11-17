@@ -1,4 +1,4 @@
-import { typingIndicatorListResponseSchema, type TypingIndicator } from "@whaloc/shared";
+import { typingIndicatorListResponseSchema, type TypingIndicator } from "@mockwa/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readJson } from "../testing/expectations.ts";
 import { createTestApp, TEST_AUTH_HEADERS, type TestApp } from "../testing/test-app.ts";

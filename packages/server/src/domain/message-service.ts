@@ -1,4 +1,4 @@
-import { BSUID_PATTERN } from "@whaloc/shared";
+import { BSUID_PATTERN } from "@mockwa/shared";
 import type { MessageRecord, Repositories, TemplateSnapshotRecord } from "../db/index.ts";
 import type { OutboundMessageEvents } from "./domain-events.ts";
 import { createWamid, defaultRandomBytes, type RandomBytes } from "./ids.ts";

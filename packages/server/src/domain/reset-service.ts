@@ -1,4 +1,4 @@
-import type { StateResponse } from "@whaloc/shared";
+import type { StateResponse } from "@mockwa/shared";
 import type { AppConfig } from "../config/index.ts";
 import { deleteAllRows, type Repositories } from "../db/index.ts";
 import type { Logger } from "../logging/index.ts";
@@ -19,7 +19,7 @@ import type { TypingService } from "./typing-service.ts";
  * 1. **Pending timers are cancelled.** A status ladder or a template approval left running
  *    would otherwise fire against rows that no longer exist.
  * 2. **Media bytes are deleted, then every table is wiped.** The stored files go too: their
- *    `media` rows are about to disappear, and leaving orphans behind in `WHALOC_MEDIA_DIR`
+ *    `media` rows are about to disappear, and leaving orphans behind in `MOCKWA_MEDIA_DIR`
  *    would make a "reset" quietly untrue. A reset is a clean slate, bytes included.
  * 3. **The seed is applied again**, so the WABA and phone number ids a caller has in its
  *    configuration keep working (they are derived deterministically, SPEC §7).

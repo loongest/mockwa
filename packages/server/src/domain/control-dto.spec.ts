@@ -11,7 +11,7 @@ import {
 	TEMPLATE_STATUSES as SHARED_TEMPLATE_STATUSES,
 	THROUGHPUT_LEVELS as SHARED_THROUGHPUT_LEVELS,
 	VERIFICATION_CODE_METHODS as SHARED_VERIFICATION_CODE_METHODS,
-} from "@whaloc/shared";
+} from "@mockwa/shared";
 import { describe, expect, it } from "vitest";
 import {
 	QUALITY_RATINGS,
@@ -35,7 +35,7 @@ import {
  * web package cannot import from the server (SPEC §5, §8). Nothing enforces that at compile
  * time — the DTO mappers would happily widen a type — so it is enforced here instead.
  */
-describe("@whaloc/shared and the server agree on the vocabulary", () => {
+describe("@mockwa/shared and the server agree on the vocabulary", () => {
 	it.each([
 		["message directions", MESSAGE_DIRECTIONS, SHARED_MESSAGE_DIRECTIONS],
 		["message statuses", MESSAGE_STATUSES, SHARED_MESSAGE_STATUSES],

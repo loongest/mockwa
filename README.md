@@ -1,8 +1,15 @@
-# whaloc
+# mockwa
 
-[![CI](https://github.com/dgadelha/whaloc/actions/workflows/ci.yml/badge.svg)](https://github.com/dgadelha/whaloc/actions/workflows/ci.yml)
-[![Docker](https://github.com/dgadelha/whaloc/actions/workflows/docker.yml/badge.svg)](https://github.com/dgadelha/whaloc/actions/workflows/docker.yml)
+[![CI](https://github.com/loongest/mockwa/actions/workflows/ci.yml/badge.svg)](https://github.com/loongest/mockwa/actions/workflows/ci.yml)
+[![Docker](https://github.com/loongest/mockwa/actions/workflows/docker.yml/badge.svg)](https://github.com/loongest/mockwa/actions/workflows/docker.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+> **mockwa is a fork of [whaloc](https://github.com/dgadelha/whaloc)** (MIT, © Douglas Gadêlha — see
+> [LICENSE](LICENSE)). It keeps whaloc's engine and adds what a WhatsApp Cloud API _simulator_
+> needs. So far (milestone M0): two ports — **8888** for the Graph API, **8025** for the console —
+> and `MOCKWA_*` configuration, with every `MOCKWA_*` variable still accepted as an alias. The
+> rest of this README describes whaloc's behavior, which mockwa keeps; "whaloc" below means the
+> engine mockwa inherited.
 
 whaloc is a local emulator of the **Meta WhatsApp Cloud API (Graph API v25.0)** in a single
 Docker image. It plays Meta's whole side of a WhatsApp integration — accepting sends, minting
@@ -39,13 +46,16 @@ What is in the box:
 - Configured **entirely through environment variables**, seeded deterministically: the same IDs
   on every machine, every run.
 
-Three surfaces share **one port**:
+Three surfaces on **two ports** — one engine, one process:
 
-| Surface                       | Mount                                | Purpose                                                                 |
-| ----------------------------- | ------------------------------------ | ----------------------------------------------------------------------- |
-| Graph API mock                | `/v25.0/…` (any `/v<major>.<minor>`) | The endpoints the app under test calls                                  |
-| Control-plane API + WebSocket | `/api/…`, `/api/ws`                  | Inspect state and simulate the user side, from the UI or tests          |
-| Web UI                        | `/` (static React bundle)            | Chat-style UI: be the WhatsApp user, moderate templates, watch webhooks |
+| Port   | Surface                       | Mount                                | Purpose                                                                 |
+| ------ | ----------------------------- | ------------------------------------ | ----------------------------------------------------------------------- |
+| `8888` | Graph API mock                | `/v25.0/…` (any `/v<major>.<minor>`) | The endpoints the app under test calls                                  |
+| `8025` | Control-plane API + WebSocket | `/api/…`, `/api/ws`                  | Inspect state and simulate the user side, from the UI or tests          |
+| `8025` | Web UI                        | `/` (static React bundle)            | Chat-style UI: be the WhatsApp user, moderate templates, watch webhooks |
+
+Each port answers `404` for the other's routes, so the app under test only ever sees a
+Meta-shaped surface. Both answer `/health`.
 
 Full behavioral contract: [docs/SPEC.md](docs/SPEC.md). Wiring it into your own compose stack:
 [docs/integrating.md](docs/integrating.md).
@@ -59,21 +69,22 @@ Full behavioral contract: [docs/SPEC.md](docs/SPEC.md). Wiring it into your own 
 ## Quickstart
 
 ```sh
-docker run --rm -p 8080:8080 \
-  -e WHALOC_WEBHOOK_URL=http://host.docker.internal:3001/meta-webhooks \
-  -e WHALOC_APP_SECRET=dev-app-secret \
-  -e WHALOC_WEBHOOK_VERIFY_TOKEN=dev-verify-token \
-  -e WHALOC_VERIFY_ON_START=true \
-  ghcr.io/dgadelha/whaloc:latest
+docker run --rm -p 127.0.0.1:8888:8888 -p 127.0.0.1:8025:8025 \
+  -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3001/meta-webhooks \
+  -e MOCKWA_APP_SECRET=dev-app-secret \
+  -e MOCKWA_WEBHOOK_VERIFY_TOKEN=dev-verify-token \
+  -e MOCKWA_VERIFY_ON_START=true \
+  ghcr.io/loongest/mockwa:latest
 ```
 
-The image is published to both registries — `ghcr.io/dgadelha/whaloc` and
-[`dgadelha/whaloc` on Docker Hub](https://hub.docker.com/r/dgadelha/whaloc) — use whichever
-your environment pulls faster.
+The publish workflow pushes the image to `ghcr.io/loongest/mockwa` (and to Docker Hub when that
+is configured, see `.github/workflows/docker.yml`). Until a release exists, build it locally:
+`docker build -t mockwa .` and run `mockwa` in place of the image name.
 
-Open <http://localhost:8080> for the UI and point the app under test at
-`GRAPH_API_BASE_URL=http://localhost:8080/v25.0` (from another container on the same compose
-network: `http://whaloc:8080/v25.0`). Seeded IDs are **derived deterministically** — the same on
+The ports are published to loopback only: the console has no login, so keep it off the network
+unless you trust it. Open <http://localhost:8025> for the UI and point the app under test at
+`GRAPH_API_BASE_URL=http://localhost:8888/v25.0` (from another container on the same compose
+network: `http://mockwa:8888/v25.0`). Seeded IDs are **derived deterministically** — the same on
 every machine, every run, and treated as a stable contract — so the commands below work verbatim
 against a fresh whaloc; they are also logged at boot (`seed applied`) and shown, with copy
 buttons, in the UI's **Settings** view.
@@ -81,7 +92,7 @@ buttons, in the UI's **Settings** view.
 Sending a message needs nothing but a bearer token — any non-empty one is accepted:
 
 ```sh
-curl -X POST http://localhost:8080/v25.0/573542517421694/messages \
+curl -X POST http://localhost:8888/v25.0/573542517421694/messages \
   -H 'Authorization: Bearer dev-token' -H 'Content-Type: application/json' \
   -d '{"messaging_product":"whatsapp","to":"5571990000001","type":"text","text":{"body":"olá"}}'
 ```
@@ -90,12 +101,12 @@ The seed also ships one **approved, zero-parameter template**, `hello_whaloc`, s
 `type: "template"` send works on a cold whaloc too — nothing to create, nothing to approve:
 
 ```sh
-curl -X POST http://localhost:8080/v25.0/573542517421694/messages \
+curl -X POST http://localhost:8888/v25.0/573542517421694/messages \
   -H 'Authorization: Bearer dev-token' -H 'Content-Type: application/json' \
   -d '{"messaging_product":"whatsapp","to":"5571990000001","type":"template","template":{"name":"hello_whaloc","language":{"code":"en"}}}'
 ```
 
-`WHALOC_SEED` can carry as many templates as you like (`templates: [{name, language?, category?,
+`MOCKWA_SEED` can carry as many templates as you like (`templates: [{name, language?, category?,
 parameterFormat?, components?}]` per WABA, see [SPEC §7](docs/SPEC.md)); every one of them is
 `APPROVED` from the first instant, because a seed describes templates that exist already.
 
@@ -103,7 +114,7 @@ The repository ships a **standalone demo** — whaloc plus a webhook receiver th
 `X-Hub-Signature-256` and logs every delivery:
 
 ```sh
-docker compose up            # UI on :8080
+docker compose up            # UI on :8025, Graph API on :8888
 docker compose logs -f webhook-echo
 ```
 
@@ -114,17 +125,17 @@ published by [`.github/workflows/docker.yml`](.github/workflows/docker.yml) (`la
 `sha-<short>` from `main`, the semver ladder from a `v*` tag, `linux/amd64` + `linux/arm64`) with
 full SLSA provenance and an SBOM attached to the image index, plus GitHub-signed build
 attestations — verifiable with
-`gh attestation verify oci://ghcr.io/dgadelha/whaloc:latest --owner dgadelha`.
+`gh attestation verify oci://ghcr.io/loongest/mockwa:latest --owner loongest`.
 
 ### State and the `/data` volume
 
 The default database is `:memory:` — every restart starts from the seed. Mount a volume and set
-`WHALOC_DB_PATH` to keep WABAs, conversations, templates and media across restarts:
+`MOCKWA_DB_PATH` to keep WABAs, conversations, templates and media across restarts:
 
 ```sh
-docker run -d --name whaloc -p 8080:8080 \
-  -v whaloc-data:/data -e WHALOC_DB_PATH=/data/whaloc.db \
-  ghcr.io/dgadelha/whaloc:latest
+docker run -d --name mockwa -p 127.0.0.1:8888:8888 -p 127.0.0.1:8025:8025 \
+  -v mockwa-data:/data -e MOCKWA_DB_PATH=/data/mockwa.db \
+  ghcr.io/loongest/mockwa:latest
 ```
 
 `/data` is a declared volume and media bytes live in `/data/media` either way. The container runs
@@ -133,8 +144,8 @@ keeps the host's ownership, so `chown 1000:1000` the host directory (or accept r
 
 ### Media storage: a directory, or S3
 
-By default the bytes behind every uploaded image, video and document go to `WHALOC_MEDIA_DIR`.
-Set `WHALOC_MEDIA_BACKEND=s3` and they go to an **S3-compatible bucket** instead — RustFS, R2,
+By default the bytes behind every uploaded image, video and document go to `MOCKWA_MEDIA_DIR`.
+Set `MOCKWA_MEDIA_BACKEND=s3` and they go to an **S3-compatible bucket** instead — RustFS, R2,
 Ceph or AWS itself — which is what you want when whaloc runs more than once against the same
 state, or when a container that may be recreated must not take the media with it.
 
@@ -164,18 +175,18 @@ services:
       AWS_DEFAULT_REGION: us-east-1
     command: --endpoint-url http://rustfs:9000 s3 mb s3://whaloc-media
 
-  whaloc:
-    image: ghcr.io/dgadelha/whaloc:latest
+  mockwa:
+    image: ghcr.io/loongest/mockwa:latest
     depends_on:
       rustfs-bucket: { condition: service_completed_successfully }
-    ports: ["8080:8080"]
+    ports: ["127.0.0.1:8888:8888", "127.0.0.1:8025:8025"]
     environment:
-      WHALOC_MEDIA_BACKEND: s3
-      WHALOC_S3_ENDPOINT: http://rustfs:9000
-      WHALOC_S3_BUCKET: whaloc-media
-      WHALOC_S3_REGION: us-east-1
-      WHALOC_S3_ACCESS_KEY_ID: whaloc
-      WHALOC_S3_SECRET_ACCESS_KEY: whaloc-secret
+      MOCKWA_MEDIA_BACKEND: s3
+      MOCKWA_S3_ENDPOINT: http://rustfs:9000
+      MOCKWA_S3_BUCKET: whaloc-media
+      MOCKWA_S3_REGION: us-east-1
+      MOCKWA_S3_ACCESS_KEY_ID: whaloc
+      MOCKWA_S3_SECRET_ACCESS_KEY: whaloc-secret
 
 volumes:
   rustfs-data:
@@ -187,12 +198,12 @@ Notes worth knowing:
 - Leave both key variables unset and the AWS SDK's **default credential chain** applies (a
   profile, an instance role, `AWS_*` variables) — setting only one of them is an error, not a
   request for the chain.
-- `WHALOC_S3_FORCE_PATH_STYLE` defaults to `true` as soon as an endpoint is configured, because
+- `MOCKWA_S3_FORCE_PATH_STYLE` defaults to `true` as soon as an endpoint is configured, because
   that is how RustFS and friends address a bucket; AWS itself gets virtual-host style.
 - Object keys are the same flat, opaque names the local backend uses as filenames, so the two
   backends are interchangeable — including through an **export/import** (see below).
 - Everything else is unchanged: the two-hop download, `Range` requests, the ~100 MiB cap and
-  `WHALOC_MEDIA_TTL_SECONDS` all behave identically. Only where the bytes rest differs.
+  `MOCKWA_MEDIA_TTL_SECONDS` all behave identically. Only where the bytes rest differs.
 
 ### State snapshots: export and import
 
@@ -202,9 +213,9 @@ the media bytes themselves**, base64-inlined. Send the file to a colleague and t
 lands in is the one it left, which is what makes a reproduction shareable.
 
 ```sh
-curl -sOJ http://localhost:8080/api/export                        # whaloc-snapshot-<ts>.json
-curl -s 'http://localhost:8080/api/export?include=deliveries' -o snapshot.json
-curl -sX POST http://localhost:8080/api/import \
+curl -sOJ http://localhost:8025/api/export                        # whaloc-snapshot-<ts>.json
+curl -s 'http://localhost:8025/api/export?include=deliveries' -o snapshot.json
+curl -sX POST http://localhost:8025/api/import \
   -F file=@snapshot.json                                          # or: -H 'Content-Type: application/json' --data-binary @snapshot.json
 ```
 
@@ -212,7 +223,7 @@ Both are in **Settings → Danger zone** too: an Export button (the browser save
 Import picker behind a confirmation.
 
 - **An import replaces everything**, and the seed is **not** re-applied afterwards: the snapshot
-  _is_ the state, IDs and all. `POST /api/reset` is still the way back to `WHALOC_SEED`.
+  _is_ the state, IDs and all. `POST /api/reset` is still the way back to `MOCKWA_SEED`.
 - It is **validated before anything is deleted**, and refuses a snapshot written by a newer
   whaloc (there is a schema version in the envelope) rather than half-loading it. The database
   swap itself is one transaction.
@@ -229,36 +240,39 @@ Import picker behind a confirmation.
 ## Configuration
 
 Environment variables only, parsed once at boot: an invalid environment prints **every** problem
-and exits. Blank values count as unset (an empty `WHALOC_WEBHOOK_URL=` in a compose file disables
+and exits. Every variable is spelled `MOCKWA_*`; the whaloc spelling `WHALOC_*` still works as an
+alias (`MOCKWA_PORT` means `MOCKWA_GRAPH_PORT`). If both are set, `MOCKWA_*` wins and the boot log
+warns when the two values differ. Blank values count as unset (an empty `MOCKWA_WEBHOOK_URL=` in a compose file disables
 webhooks rather than failing), and values are trimmed.
 
 | Var                            | Default                                              | Purpose                                                                                             |
 | ------------------------------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `WHALOC_PORT`                  | `8080`                                               | Listen port (the `HEALTHCHECK` follows it)                                                          |
-| `WHALOC_HOST`                  | `0.0.0.0`                                            | Bind address                                                                                        |
-| `WHALOC_PUBLIC_URL`            | `http://localhost:8080`                              | Base for generated media URLs and `paging.next` — must be reachable **by whoever downloads media**  |
-| `WHALOC_WEBHOOK_URL`           | _unset → webhooks disabled (warns)_                  | Target for webhook POSTs, e.g. `http://meta-webhook-receiver:3001/meta-webhooks`                    |
-| `WHALOC_APP_SECRET`            | _unset → deliveries unsigned (warns)_                | HMAC key for `X-Hub-Signature-256`                                                                  |
-| `WHALOC_WEBHOOK_VERIFY_TOKEN`  | _unset_                                              | Token echoed in the `hub.challenge` handshake                                                       |
-| `WHALOC_VERIFY_ON_START`       | `false`                                              | Run that handshake at boot                                                                          |
-| `WHALOC_APP_ID`                | _derived from the name, stable across restarts_      | The app ID `subscribed_apps` reports — set it to the app's `META_APP_ID` when that matters          |
-| `WHALOC_SEED`                  | 1 WABA + 1 phone number + 2 contacts + 1 template    | JSON array of WABAs (see [SPEC §7](docs/SPEC.md)); omitted IDs are derived deterministically        |
-| `WHALOC_SEED_FILE`             | _unset_                                              | Path to a file with the `WHALOC_SEED` JSON, for long seeds; setting both is refused                 |
-| `WHALOC_STATUS_DELAYS`         | `sent:0,delivered:800`                               | Status ladder timing in ms; add `read:<ms>` to automate read receipts                               |
-| `WHALOC_TEMPLATE_AUTO_APPROVE` | `2000`                                               | ms until a new template is approved; `off` leaves it `PENDING` for the UI                           |
-| `WHALOC_TOKENS`                | _unset → any non-empty bearer token is accepted_     | Comma-separated bearer-token registry; set it and only these tokens pass (see **Error simulation**) |
-| `WHALOC_MEDIA_TTL_SECONDS`     | _unset → media never expires_                        | Seconds after which an uploaded media object is gone from the Graph surface                         |
-| `WHALOC_DB_PATH`               | `:memory:`                                           | SQLite file for persistence, e.g. `/data/whaloc.db`                                                 |
-| `WHALOC_MEDIA_BACKEND`         | `local`                                              | `local` (a directory) or `s3` (an S3-compatible bucket, see **Media storage**)                      |
-| `WHALOC_MEDIA_DIR`             | `/data/media` in the image, `./data/media` otherwise | Media storage root, for the `local` backend                                                         |
-| `WHALOC_S3_BUCKET`             | _required when the backend is `s3`_                  | Bucket the media objects live in — whaloc never creates it                                          |
-| `WHALOC_S3_REGION`             | _required when the backend is `s3`_                  | Region; anything satisfies RustFS, but the SDK insists on having one                                |
-| `WHALOC_S3_ENDPOINT`           | _unset → AWS S3_                                     | Endpoint of an S3-compatible server (RustFS, R2, Ceph…)                                             |
-| `WHALOC_S3_ACCESS_KEY_ID`      | _unset → the SDK's default credential chain_         | Access key; all-or-nothing with the secret below                                                    |
-| `WHALOC_S3_SECRET_ACCESS_KEY`  | _unset → the SDK's default credential chain_         | Secret key                                                                                          |
-| `WHALOC_S3_FORCE_PATH_STYLE`   | `true` whenever an endpoint is set                   | Path-style addressing (`<endpoint>/<bucket>/<key>`), which is what RustFS serves                    |
-| `WHALOC_WEB_DIR`               | `packages/web/dist`, beside the server               | Built UI served at `/`; an absent directory just leaves `/` unrouted                                |
-| `WHALOC_LOG_LEVEL`             | `info`                                               | pino level (`fatal`…`trace`, `silent`)                                                              |
+| `MOCKWA_GRAPH_PORT`            | `8888`                                               | Graph API port (legacy alias: `MOCKWA_PORT`); the `HEALTHCHECK` follows it                          |
+| `MOCKWA_CONSOLE_PORT`          | `8025`                                               | Console port: UI, `/api`, `/api/ws`; must differ from the Graph port                                |
+| `MOCKWA_HOST`                  | `0.0.0.0`                                            | Bind address                                                                                        |
+| `MOCKWA_PUBLIC_URL`            | `http://localhost:8888`                              | Base for generated media URLs and `paging.next` — must be reachable **by whoever downloads media**  |
+| `MOCKWA_WEBHOOK_URL`           | _unset → webhooks disabled (warns)_                  | Target for webhook POSTs, e.g. `http://meta-webhook-receiver:3001/meta-webhooks`                    |
+| `MOCKWA_APP_SECRET`            | _unset → deliveries unsigned (warns)_                | HMAC key for `X-Hub-Signature-256`                                                                  |
+| `MOCKWA_WEBHOOK_VERIFY_TOKEN`  | _unset_                                              | Token echoed in the `hub.challenge` handshake                                                       |
+| `MOCKWA_VERIFY_ON_START`       | `false`                                              | Run that handshake at boot                                                                          |
+| `MOCKWA_APP_ID`                | _derived from the name, stable across restarts_      | The app ID `subscribed_apps` reports — set it to the app's `META_APP_ID` when that matters          |
+| `MOCKWA_SEED`                  | 1 WABA + 1 phone number + 2 contacts + 1 template    | JSON array of WABAs (see [SPEC §7](docs/SPEC.md)); omitted IDs are derived deterministically        |
+| `MOCKWA_SEED_FILE`             | _unset_                                              | Path to a file with the `MOCKWA_SEED` JSON, for long seeds; setting both is refused                 |
+| `MOCKWA_STATUS_DELAYS`         | `sent:0,delivered:800`                               | Status ladder timing in ms; add `read:<ms>` to automate read receipts                               |
+| `MOCKWA_TEMPLATE_AUTO_APPROVE` | `2000`                                               | ms until a new template is approved; `off` leaves it `PENDING` for the UI                           |
+| `MOCKWA_TOKENS`                | _unset → any non-empty bearer token is accepted_     | Comma-separated bearer-token registry; set it and only these tokens pass (see **Error simulation**) |
+| `MOCKWA_MEDIA_TTL_SECONDS`     | _unset → media never expires_                        | Seconds after which an uploaded media object is gone from the Graph surface                         |
+| `MOCKWA_DB_PATH`               | `:memory:`                                           | SQLite file for persistence, e.g. `/data/whaloc.db`                                                 |
+| `MOCKWA_MEDIA_BACKEND`         | `local`                                              | `local` (a directory) or `s3` (an S3-compatible bucket, see **Media storage**)                      |
+| `MOCKWA_MEDIA_DIR`             | `/data/media` in the image, `./data/media` otherwise | Media storage root, for the `local` backend                                                         |
+| `MOCKWA_S3_BUCKET`             | _required when the backend is `s3`_                  | Bucket the media objects live in — whaloc never creates it                                          |
+| `MOCKWA_S3_REGION`             | _required when the backend is `s3`_                  | Region; anything satisfies RustFS, but the SDK insists on having one                                |
+| `MOCKWA_S3_ENDPOINT`           | _unset → AWS S3_                                     | Endpoint of an S3-compatible server (RustFS, R2, Ceph…)                                             |
+| `MOCKWA_S3_ACCESS_KEY_ID`      | _unset → the SDK's default credential chain_         | Access key; all-or-nothing with the secret below                                                    |
+| `MOCKWA_S3_SECRET_ACCESS_KEY`  | _unset → the SDK's default credential chain_         | Secret key                                                                                          |
+| `MOCKWA_S3_FORCE_PATH_STYLE`   | `true` whenever an endpoint is set                   | Path-style addressing (`<endpoint>/<bucket>/<key>`), which is what RustFS serves                    |
+| `MOCKWA_WEB_DIR`               | `packages/web/dist`, beside the server               | Built UI served at `/`; an absent directory just leaves `/` unrouted                                |
+| `MOCKWA_LOG_LEVEL`             | `info`                                               | pino level (`fatal`…`trace`, `silent`)                                                              |
 
 ## Graph API coverage
 
@@ -305,9 +319,9 @@ not echo it there either.
 Meta's Upload API is where a real `header_handle` comes from, and whaloc runs the same three calls:
 
 ```sh
-BASE=http://localhost:8080/v25.0
+BASE=http://localhost:8888/v25.0
 AUTH="Authorization: Bearer dev-token"
-APP=$(curl -s http://localhost:8080/api/state | jq -r .app.id)
+APP=$(curl -s http://localhost:8025/api/state | jq -r .app.id)
 
 SESSION=$(curl -s -X POST -H "$AUTH" \
   "$BASE/$APP/uploads?file_length=$(wc -c < logo.png)&file_type=image/png&file_name=logo.png" | jq -r .id)
@@ -361,7 +375,7 @@ A contact is a phone number, and may **also** be a business-scoped user ID (BSUI
 Each of them rides **alongside** `wa_id` / `from` / `recipient_id`, and each is absent for a
 contact without a BSUID. A BSUID is unique across contacts. The default seed ships one on each
 contact — `BR.ENT.AnaSouza01` and `BR.BrunoLima01`, one of each shape the pattern allows — and a
-`WHALOC_SEED` contact can set its own via `userId`.
+`MOCKWA_SEED` contact can set its own via `userId`.
 
 A send addressed by `recipient` is **resolved** to the contact that owns that BSUID, and the
 answer echoes what was asked with the number behind it:
@@ -410,7 +424,7 @@ armed rule puts a pulsing badge in the top bar.
 
 ### Strict tokens
 
-Set `WHALOC_TOKENS` to a comma-separated list and the Graph surface accepts **only** those
+Set `MOCKWA_TOKENS` to a comma-separated list and the Graph surface accepts **only** those
 bearer tokens; anything else is `401` with the same `code: 190` envelope a missing token gets
 (Meta does not tell a caller which mistake it made, and neither does whaloc). Leave it unset —
 the default — and any non-empty token works, exactly as before.
@@ -418,13 +432,13 @@ the default — and any non-empty token works, exactly as before.
 Each registered token can then be **expired** from Settings, or from the control plane:
 
 ```sh
-curl -s http://localhost:8080/api/tokens                      # masked: {"strict":true,"data":[…]}
-curl -sX POST http://localhost:8080/api/tokens/<id>/expire    # → 401 / 190 / subcode 463
-curl -sX POST http://localhost:8080/api/tokens/<id>/restore
+curl -s http://localhost:8025/api/tokens                      # masked: {"strict":true,"data":[…]}
+curl -sX POST http://localhost:8025/api/tokens/<id>/expire    # → 401 / 190 / subcode 463
+curl -sX POST http://localhost:8025/api/tokens/<id>/restore
 ```
 
 The expired-session envelope is Meta's `error_subcode: 463`, which is what a consumer keys
-"refresh my token" on. Expiry survives a restart with `WHALOC_DB_PATH`; `POST /api/reset` brings
+"refresh my token" on. Expiry survives a restart with `MOCKWA_DB_PATH`; `POST /api/reset` brings
 every token back. The token values never leave the process — the API serves them masked, and
 what is stored is a truncated SHA-256, so a `whaloc.db` on a volume holds no credential.
 
@@ -440,7 +454,7 @@ are managed from Settings or `POST /api/injection-rules`, and are cleared by `PO
 | Preset  | `rate_limit_429` · `throughput_131056` · `spam_rate_4` · `server_error_500` · `custom`                                                                |
 
 ```sh
-curl -sX POST http://localhost:8080/api/injection-rules -H 'Content-Type: application/json' \
+curl -sX POST http://localhost:8025/api/injection-rules -H 'Content-Type: application/json' \
   -d '{"target":"messages.send","trigger":{"kind":"next","count":3},
        "preset":"rate_limit_429","retryAfterSeconds":42,"regainAccessMinutes":7}'
 ```
@@ -479,7 +493,7 @@ countdown untouched. Every injection is logged at `info` with the rule that caus
 
 ### Media expiry
 
-`WHALOC_MEDIA_TTL_SECONDS=5` makes an uploaded object disappear from the Graph surface five
+`MOCKWA_MEDIA_TTL_SECONDS=5` makes an uploaded object disappear from the Graph surface five
 seconds later — the boundary is inclusive. The descriptor hop answers the missing-object envelope
 (`400`, `code: 100`, `error_subcode: 33`), which is exactly what consumers key expired-media
 detection on, and the byte endpoint answers the plain `404` it gives an unknown token, because
@@ -516,7 +530,7 @@ port to a network you do not trust. Request and response schemas live in
 | `POST /api/phone-numbers/{id}/quality`                                 | Set quality/throughput, optionally emitting `phone_number_quality_update`                                                                                                                                                                          |
 | `POST /api/phone-numbers/{id}/business-profile`                        | The business profile, as Settings edits it (camelCase; a blank field clears it)                                                                                                                                                                    |
 | `GET/POST /api/injection-rules`, `DELETE /api/injection-rules/{id}`    | Deterministic error injection: target, trigger, preset (see **Error simulation**)                                                                                                                                                                  |
-| `GET /api/tokens`, `POST /api/tokens/{id}/expire\|restore`             | The `WHALOC_TOKENS` registry, masked; expire one to get `401` / `190` / subcode `463`                                                                                                                                                              |
+| `GET /api/tokens`, `POST /api/tokens/{id}/expire\|restore`             | The `MOCKWA_TOKENS` registry, masked; expire one to get `401` / `190` / subcode `463`                                                                                                                                                              |
 | `GET/POST /api/wabas`, `PATCH\|DELETE /api/wabas/{id}`                 | WABAs at runtime; `POST` takes an optional `id` so the account can match a production one; a delete cascades to phone numbers, messages, media and templates                                                                                       |
 | `GET/POST /api/phone-numbers`, `PATCH\|DELETE /api/phone-numbers/{id}` | Numbers under a WABA — created here they are `CONNECTED` and can send immediately; `POST` takes an optional `id` too                                                                                                                               |
 | `GET /api/webhook-deliveries?limit=&before=`                           | The delivery log, newest first                                                                                                                                                                                                                     |
@@ -528,8 +542,8 @@ port to a network you do not trust. Request and response schemas live in
 
 ## Webhooks
 
-whaloc delivers webhooks to `WHALOC_WEBHOOK_URL` with `Content-Type: application/json`,
-`User-Agent: facebookexternalua` and — when `WHALOC_APP_SECRET` is set — `X-Hub-Signature-256`.
+whaloc delivers webhooks to `MOCKWA_WEBHOOK_URL` with `Content-Type: application/json`,
+`User-Agent: facebookexternalua` and — when `MOCKWA_APP_SECRET` is set — `X-Hub-Signature-256`.
 The body is serialized once with Meta's `\uXXXX` escaping and **those exact bytes are what is
 signed and sent**, so a receiver that verifies the signature the way Meta documents it accepts
 whaloc's payloads unchanged. `docs/fixtures/webhooks/` holds the captured Meta samples the
@@ -551,14 +565,14 @@ Four behaviors are worth knowing about:
 
 - **Every attempt is logged**, browsable through `GET /api/webhook-deliveries`. Retries are
   separate rows: 3 attempts at 0 s / 2 s / 10 s, on a 5xx or a network error only.
-- **With `WHALOC_WEBHOOK_URL` unset, deliveries are skipped but still logged** — the row carries
+- **With `MOCKWA_WEBHOOK_URL` unset, deliveries are skipped but still logged** — the row carries
   the payload and headers that would have gone out (`skipped: true`, empty `url`), so the UI is
   useful before an integration exists. `POST /api/webhook-deliveries/:id/redeliver` replays a
   stored body, re-signed with the secret configured at that moment.
 - **Timers live in memory.** A pending status ladder or template approval is dropped on restart
   (SPEC §4); nothing is replayed at boot.
 - **`POST /api/reset` is a full wipe**: every table is emptied _and the stored media files are
-  deleted_, then `WHALOC_SEED` is applied again. Seeded IDs are derived deterministically, so
+  deleted_, then `MOCKWA_SEED` is applied again. Seeded IDs are derived deterministically, so
   they survive the reset and a configured `GRAPH_API_BASE_URL` keeps working. `POST /api/import`
   is the same wipe **without** the re-seed — see **State snapshots**.
 
@@ -623,7 +637,7 @@ deletion arriving over the WebSocket moves the URL the same way.
   (`account_update` with its five events and `restriction_info`, `business_capability_update` with
   its two limits) — both emissions only. Plus quality/throughput editing, contacts, the
   behavior the environment configured, **error injection** (arm a rule, watch its countdown, delete
-  it), the **access tokens** section when `WHALOC_TOKENS` is set, and a danger zone holding the
+  it), the **access tokens** section when `MOCKWA_TOKENS` is set, and a danger zone holding the
   **state snapshot** controls (export the whole world to a file, import one back) next to the
   reset. Contacts are edited in place — profile name and business-scoped user ID — and each one
   can change number.
@@ -638,11 +652,11 @@ Requires **Node 24**.
 
 ```sh
 npm install       # or `npm ci`, to install exactly what package-lock.json pins
-npm run dev       # server on :8080 (native TypeScript, watch mode) + Vite on :5173
+npm run dev       # server on :8888 + :8025 (native TypeScript, watch mode) + Vite on :5173
 ```
 
 With `npm run dev` the UI is served by Vite on <http://localhost:5173>, which proxies `/api`,
-`/api/ws`, `/whaloc-media` and `/v*.*` to the server; the server's own `/` stays unrouted until
+`/api/ws` and `/whaloc-media` to the console port and `/v*.*` to the Graph port; the server's own `/` stays unrouted until
 `npm run build` produces a bundle for it.
 
 | Script              | What it does                                           |
@@ -656,7 +670,7 @@ With `npm run dev` the UI is served by Vite on <http://localhost:5173>, which pr
 | `npm start`         | Runs the built server (`npm run build` first)          |
 
 Anything can also be run for one package with `--workspace`, e.g.
-`npm run test:watch --workspace @whaloc/web`. Order matters in exactly one place: `shared` has to
+`npm run test:watch --workspace @mockwa/web`. Order matters in exactly one place: `shared` has to
 be built before `server` and `web`, because a build resolves it to `dist/` — the root `build`
 script therefore names the three in order rather than leaving it to npm, which runs workspace
 scripts in manifest order and not topologically.
@@ -669,7 +683,7 @@ container; locally it takes one command:
 ```sh
 docker run -d --name whaloc-rustfs -p 9000:9000 \
   -e RUSTFS_ACCESS_KEY=whaloc -e RUSTFS_SECRET_KEY=whaloc-secret rustfs/rustfs:1.0.0
-WHALOC_TEST_S3_ENDPOINT=http://127.0.0.1:9000 npm test --workspace @whaloc/server
+WHALOC_TEST_S3_ENDPOINT=http://127.0.0.1:9000 npm test --workspace @mockwa/server
 ```
 
 The bucket (`whaloc-test`) is created by the spec itself. RustFS's image serves `/data` from its
@@ -717,6 +731,10 @@ measured against them:
 route-level through `app.request()`, webhook payloads asserted against fixtures.
 
 ## Acknowledgments
+
+mockwa is a fork of [**dgadelha/whaloc**](https://github.com/dgadelha/whaloc), MIT-licensed:
+the engine, the Meta fixtures, the signing and the console are whaloc's work, and its copyright
+notice stays in [LICENSE](LICENSE). The acknowledgment below is whaloc's own.
 
 whaloc owes its shape to [**fdarian/whap**](https://github.com/fdarian/whap), an MIT-licensed
 WhatsApp Cloud API mock that got there first: the split between a control plane and a UI that is

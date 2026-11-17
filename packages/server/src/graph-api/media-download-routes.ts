@@ -40,7 +40,7 @@ interface ServedObject {
  * - **No `Authorization` required.** The unguessable token in the path *is* the credential,
  *   which also lets the web UI render media straight from an `<img>` tag. Unknown tokens are a
  *   plain 404 — this route is outside the Graph surface, so it carries no Meta envelope. Media
- *   past `WHALOC_MEDIA_TTL_SECONDS` answers the same way, which is what Meta's CDN does with an
+ *   past `MOCKWA_MEDIA_TTL_SECONDS` answers the same way, which is what Meta's CDN does with an
  *   expired object: the descriptor hop is where an expiry is *explained* (SPEC §4).
  *
  * It carries the Graph request context and error handler all the same, because it is a target of

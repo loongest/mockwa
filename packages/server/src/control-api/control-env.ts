@@ -1,4 +1,4 @@
-import type { ControlError } from "@whaloc/shared";
+import type { ControlError } from "@mockwa/shared";
 import type { Context, ErrorHandler } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { output, ZodError, ZodType } from "zod";
@@ -11,7 +11,7 @@ import { ControlPlaneError, isControlPlaneError, isGraphApiError } from "../doma
  * It is whaloc's own API, not Meta's: errors are a plain `{error:{message,code?}}`, there is
  * **no bearer authentication** (it is a local dev tool, and the UI is a pure browser client),
  * and every request body is validated with the same zod schemas the UI imports from
- * `@whaloc/shared` — so a shape the UI can send is a shape the server accepts, by construction.
+ * `@mockwa/shared` — so a shape the UI can send is a shape the server accepts, by construction.
  */
 export type ControlEnv = AppEnv;
 

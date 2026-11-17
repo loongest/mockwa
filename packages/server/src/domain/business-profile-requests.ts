@@ -1,4 +1,4 @@
-import { BUSINESS_PROFILE_LIMITS, BUSINESS_VERTICALS, type BusinessProfile } from "@whaloc/shared";
+import { BUSINESS_PROFILE_LIMITS, BUSINESS_VERTICALS, type BusinessProfile } from "@mockwa/shared";
 import { z } from "zod";
 
 /**

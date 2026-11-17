@@ -17,7 +17,7 @@ describe("the static web UI", () => {
 		await mkdir(path.join(webDir, "assets"));
 		await writeFile(path.join(webDir, "index.html"), INDEX_HTML);
 		await writeFile(path.join(webDir, "assets", "index-abc123.js"), ASSET_JS);
-		fixture = await createTestApp({ WHALOC_WEB_DIR: webDir });
+		fixture = await createTestApp({ MOCKWA_WEB_DIR: webDir });
 	});
 
 	afterEach(async () => {

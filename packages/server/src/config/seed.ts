@@ -1,4 +1,4 @@
-import { userIdSchema } from "@whaloc/shared";
+import { userIdSchema } from "@mockwa/shared";
 import { z } from "zod";
 
 /** Meta ids are numeric strings; ids omitted from the seed are generated deterministically. */
@@ -9,7 +9,7 @@ export const THROUGHPUT_LEVELS = ["STANDARD", "HIGH"] as const;
 
 /**
  * The template vocabulary a seed can set. It lives here, next to the other enums seeding
- * chooses from, because `WHALOC_SEED` is parsed before anything else exists; `db/schema.ts`
+ * chooses from, because `MOCKWA_SEED` is parsed before anything else exists; `db/schema.ts`
  * takes the types from here the way it already does for quality ratings.
  *
  * `TEMPLATE_STATUSES` is deliberately not one of them: a seeded template is `APPROVED` by
@@ -31,7 +31,7 @@ export const TEMPLATE_LANGUAGE_PATTERN = /^[a-z]{2,3}(_[A-Za-z\d]{2,4})?$/;
 
 /**
  * A template's components: an array of objects whaloc stores and echoes verbatim (SPEC §2.7).
- * Both `POST /{wabaId}/message_templates` (`domain/template-requests.ts`) and a `WHALOC_SEED`
+ * Both `POST /{wabaId}/message_templates` (`domain/template-requests.ts`) and a `MOCKWA_SEED`
  * template validate against this one shape, so a template that can be seeded is a template
  * that could have been created through the Graph API.
  */
@@ -81,7 +81,7 @@ export const seedWabaSchema = z.object({
 	templates: z.array(seedTemplateSchema).default([]),
 });
 
-/** Shape of `WHALOC_SEED` (SPEC §7). */
+/** Shape of `MOCKWA_SEED` (SPEC §7). */
 export const seedSchema = z.array(seedWabaSchema).min(1);
 
 export type Seed = z.infer<typeof seedSchema>;

@@ -6,7 +6,7 @@ import {
 	webhookDeliveryListResponseSchema,
 	type ControlError,
 	type WsEvent,
-} from "@whaloc/shared";
+} from "@mockwa/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { output, ZodType } from "zod";
 import { SNAPSHOT_SCHEMA_VERSION, type StateSnapshot } from "../domain/index.ts";
@@ -28,8 +28,8 @@ describe("state export/import", () => {
 
 	beforeEach(async () => {
 		fixture = await createTestApp({
-			WHALOC_TEMPLATE_AUTO_APPROVE: "off",
-			WHALOC_STATUS_DELAYS: "sent:0,delivered:800",
+			MOCKWA_TEMPLATE_AUTO_APPROVE: "off",
+			MOCKWA_STATUS_DELAYS: "sent:0,delivered:800",
 		});
 	});
 
@@ -176,7 +176,7 @@ describe("state export/import", () => {
 	describe("POST /api/import", () => {
 		/**
 		 * A state that is deliberately *not* the seed: the seeded WABA is gone and another one
-		 * has taken its place, so an import that re-applied `WHALOC_SEED` would be obvious.
+		 * has taken its place, so an import that re-applied `MOCKWA_SEED` would be obvious.
 		 */
 		async function captureNonSeededSnapshot(): Promise<{ snapshot: StateSnapshot; wabaId: string }> {
 			await simulateInbound("before the export");

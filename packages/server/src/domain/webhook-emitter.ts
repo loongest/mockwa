@@ -1,4 +1,4 @@
-import type { HandshakeResult } from "@whaloc/shared";
+import type { HandshakeResult } from "@mockwa/shared";
 import type { JsonObject, Repositories, WebhookDeliveryHeaders, WebhookDeliveryRecord } from "../db/index.ts";
 import type { Logger } from "../logging/index.ts";
 import { toWebhookDeliveryDto } from "./control-dto.ts";
@@ -61,7 +61,7 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 /** The `url` a skipped delivery is stored with; `toWebhookDeliveryDto` reads it as `skipped`. */
 export const SKIPPED_DELIVERY_URL = "";
 
-export const SKIPPED_DELIVERY_ERROR = "WHALOC_WEBHOOK_URL is not set: nothing was sent, the payload is logged only";
+export const SKIPPED_DELIVERY_ERROR = "MOCKWA_WEBHOOK_URL is not set: nothing was sent, the payload is logged only";
 
 /** Event type of a `POST /api/webhook/raw` escape-hatch delivery (SPEC §5). */
 export const RAW_EVENT_TYPE = "raw";
@@ -200,7 +200,7 @@ export class WebhookEmitter {
 		if (url === undefined) {
 			// Deliveries are still logged so the UI shows what the app under test would have
 			// received (SPEC §3) — the payload is exactly the one that would have gone out.
-			this.#logger.debug({ eventType }, "webhook delivery skipped, no WHALOC_WEBHOOK_URL configured");
+			this.#logger.debug({ eventType }, "webhook delivery skipped, no MOCKWA_WEBHOOK_URL configured");
 
 			return [
 				await this.#record({
@@ -329,7 +329,7 @@ export class WebhookEmitter {
 
 	/**
 	 * Re-sends a stored delivery's body as new attempt rows (SPEC §5). The body is replayed
-	 * byte for byte and **re-signed**, so a delivery captured before `WHALOC_APP_SECRET` was
+	 * byte for byte and **re-signed**, so a delivery captured before `MOCKWA_APP_SECRET` was
 	 * set goes out signed the second time.
 	 */
 	async redeliver(deliveryId: string): Promise<WebhookDeliveryRecord[] | null> {
@@ -350,18 +350,18 @@ export class WebhookEmitter {
 	 * The `hub.challenge` handshake, initiated by whaloc (SPEC §1.13): `GET <webhookUrl>` with
 	 * `hub.mode=subscribe`, the configured verify token and a random challenge, which the
 	 * receiver must echo back verbatim. Run on demand from the control plane, and at boot when
-	 * `WHALOC_VERIFY_ON_START` is set.
+	 * `MOCKWA_VERIFY_ON_START` is set.
 	 */
 	async handshake(): Promise<HandshakeResult> {
 		const challenge = createWebhookChallenge(this.#random);
 		const url = this.#target.url;
 
 		if (url === undefined) {
-			return this.#handshakeFailure("", challenge, "WHALOC_WEBHOOK_URL is not set");
+			return this.#handshakeFailure("", challenge, "MOCKWA_WEBHOOK_URL is not set");
 		}
 
 		if (this.#target.verifyToken === undefined) {
-			return this.#handshakeFailure(url, challenge, "WHALOC_WEBHOOK_VERIFY_TOKEN is not set");
+			return this.#handshakeFailure(url, challenge, "MOCKWA_WEBHOOK_VERIFY_TOKEN is not set");
 		}
 
 		let result: HandshakeResult;

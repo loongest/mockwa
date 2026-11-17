@@ -1,4 +1,4 @@
-import type { WsEvent } from "@whaloc/shared";
+import type { WsEvent } from "@mockwa/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TemplateRecord } from "../db/index.ts";
 import { createDomainHarness, type DomainHarness } from "../testing/domain-harness.ts";

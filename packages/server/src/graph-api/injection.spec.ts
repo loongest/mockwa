@@ -1,4 +1,4 @@
-import type { InjectionRuleCreateRequest } from "@whaloc/shared";
+import type { InjectionRuleCreateRequest } from "@mockwa/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FBTRACE_ID_PATTERN } from "../domain/index.ts";
 import { pathOf, readJson, statusOf, stringMatching } from "../testing/expectations.ts";

@@ -59,6 +59,21 @@ export default defineConfig(
 		},
 	},
 	{
+		// The example app and the end-to-end scripts are plain, dependency-free Node ESM — the
+		// point is that they share nothing with the packages they exercise — so they sit outside
+		// every tsconfig and get the untyped rule set.
+		files: ["examples/**/*.mjs", "e2e/**/*.mjs"],
+		extends: [tseslint.configs.disableTypeChecked],
+		languageOptions: {
+			globals: Object.fromEntries(
+				["Buffer", "URL", "console", "fetch", "performance", "process", "setTimeout"].map(name => [name, "readonly"]),
+			),
+		},
+		rules: {
+			"unicorn/no-process-exit": "off",
+		},
+	},
+	{
 		// The entrypoint and the shutdown handler are the only places allowed to end the process:
 		// a bad configuration or a stuck connection must surface as a non-zero exit code.
 		files: ["packages/server/src/main.ts", "packages/server/src/graceful-shutdown.ts"],

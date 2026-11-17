@@ -1,4 +1,4 @@
-import type { StateResponse, WabaState } from "@whaloc/shared";
+import type { StateResponse, WabaState } from "@mockwa/shared";
 import type { AppConfig } from "../config/index.ts";
 import type { Repositories } from "../db/index.ts";
 import { toPhoneNumberDto } from "./control-dto.ts";
@@ -10,7 +10,7 @@ import type { WebhookEmitter } from "./webhook-emitter.ts";
  * knobs that decide what happens next, and whether the webhook target is usable.
  *
  * Secrets are reported as configured or not, never served — the UI has no reason to know
- * `WHALOC_APP_SECRET`, and the state endpoint has no authentication in front of it.
+ * `MOCKWA_APP_SECRET`, and the state endpoint has no authentication in front of it.
  */
 export interface StateServiceOptions {
 	repositories: Repositories;

@@ -7,7 +7,7 @@ import {
 	wsEventSchema,
 	type ControlError,
 	type WsEvent,
-} from "@whaloc/shared";
+} from "@mockwa/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { output, ZodType } from "zod";
 import { readJson } from "../testing/expectations.ts";

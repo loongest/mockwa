@@ -10,7 +10,7 @@ import type {
 	TypingIndicator,
 	WebhookDelivery,
 	WsEvent,
-} from "@whaloc/shared";
+} from "@mockwa/shared";
 import type { ConnectionStatus } from "../api/ws-client.ts";
 
 export interface Toast {
@@ -64,7 +64,7 @@ export interface AppState {
 	 * forgotten rule whether or not anyone opens Settings.
 	 */
 	injectionRules: InjectionRule[] | null;
-	/** The `WHALOC_TOKENS` registry; `null` until Settings asks, `[]` when there is none. */
+	/** The `MOCKWA_TOKENS` registry; `null` until Settings asks, `[]` when there is none. */
 	tokens: TokenState[] | null;
 	deliveries: WebhookDelivery[] | null;
 	deliveriesBefore: string | null;

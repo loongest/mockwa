@@ -1,5 +1,5 @@
 {
-	"name": "@whaloc/web",
+	"name": "@mockwa/web",
 	"version": "0.0.0",
 	"private": true,
 	"type": "module",
@@ -14,7 +14,7 @@
 		"typecheck": "tsc"
 	},
 	"dependencies": {
-		"@whaloc/shared": "*",
+		"@mockwa/shared": "*",
 		"clsx": "^2.1.1",
 		"react": "^19.2.8",
 		"react-dom": "^19.2.8",

@@ -1,4 +1,4 @@
-import type { AccountUpdateRequest, BusinessCapabilityUpdateRequest } from "@whaloc/shared";
+import type { AccountUpdateRequest, BusinessCapabilityUpdateRequest } from "@mockwa/shared";
 import type { PhoneNumberRecord, Repositories, WebhookDeliveryRecord } from "../db/index.ts";
 import { controlBadRequest, controlNotFound } from "./control-plane-error.ts";
 import { createSystemScheduler, type Scheduler } from "./scheduler.ts";

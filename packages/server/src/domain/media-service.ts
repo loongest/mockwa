@@ -13,7 +13,7 @@ const MILLISECONDS_PER_SECOND = 1000;
 /** What Meta hands back when a media id is resolved, before it is written out in snake_case. */
 export interface MediaDescriptor {
 	id: string;
-	/** Points at whaloc's own byte endpoint, built from `WHALOC_PUBLIC_URL` (SPEC §1.7). */
+	/** Points at whaloc's own byte endpoint, built from `MOCKWA_PUBLIC_URL` (SPEC §1.7). */
 	url: string;
 	mimeType: string;
 	sha256: string;
@@ -23,11 +23,11 @@ export interface MediaDescriptor {
 export interface MediaServiceOptions {
 	repositories: Repositories;
 	storage: MediaStorage;
-	/** `WHALOC_PUBLIC_URL`, already stripped of any trailing slash by the config parser. */
+	/** `MOCKWA_PUBLIC_URL`, already stripped of any trailing slash by the config parser. */
 	publicUrl: string;
 	maxBytes?: number;
 	random?: RandomBytes;
-	/** `WHALOC_MEDIA_TTL_SECONDS`; `undefined` — the default — means media never expires. */
+	/** `MOCKWA_MEDIA_TTL_SECONDS`; `undefined` — the default — means media never expires. */
 	ttlSeconds?: number | undefined;
 	/** The clock the TTL is measured against; injected so expiry is deterministic in tests. */
 	scheduler?: Scheduler;
@@ -48,7 +48,7 @@ export const MEDIA_DOWNLOAD_PATH = "/whaloc-media";
  * The bytes go through the injected {@link MediaStorage} and the metadata through the
  * repository; nothing here knows where the files actually live.
  *
- * With `WHALOC_MEDIA_TTL_SECONDS` set, an object older than the TTL behaves like one Meta has
+ * With `MOCKWA_MEDIA_TTL_SECONDS` set, an object older than the TTL behaves like one Meta has
  * dropped (SPEC §4): the descriptor hop answers the missing-object envelope and the byte
  * endpoint 404s. The row and the bytes stay — a reset is what deletes those — so an expired id
  * keeps answering the same way instead of turning into "never existed" at some later point.
@@ -144,7 +144,7 @@ export class MediaService {
 	 * The two-hop download's first hop (SPEC §1.7): metadata plus a URL the consumer can fetch
 	 * from another container. `phoneNumberId` is what the consumer passes as `?phone_number_id=`;
 	 * media belonging to a different number is reported as missing, exactly like Meta does — and
-	 * so is media past `WHALOC_MEDIA_TTL_SECONDS`, which is the **400 / code 100 / subcode 33**
+	 * so is media past `MOCKWA_MEDIA_TTL_SECONDS`, which is the **400 / code 100 / subcode 33**
 	 * envelope consumers key expired-media detection on (SPEC §1.4).
 	 */
 	describe(media: MediaRecord, phoneNumberId?: string): MediaDescriptor {
@@ -168,7 +168,7 @@ export class MediaService {
 	 * `DELETE /{mediaId}` (SPEC §2.6b) — the object is gone, bytes included.
 	 *
 	 * Scoped exactly like the descriptor hop: another number's media is reported missing, and so
-	 * is an object past `WHALOC_MEDIA_TTL_SECONDS` — a caller cannot delete what the Graph surface
+	 * is an object past `MOCKWA_MEDIA_TTL_SECONDS` — a caller cannot delete what the Graph surface
 	 * has already told it does not exist. Afterwards every hop answers the same missing-object
 	 * envelope (400 / 100 / 33) and the byte URL 404s, because the row and the token went with it.
 	 *

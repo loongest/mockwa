@@ -1,4 +1,4 @@
-import { DEFAULT_UNSUPPORTED_MESSAGE_TYPE, type InboundMediaType, type InboundRequest } from "@whaloc/shared";
+import { DEFAULT_UNSUPPORTED_MESSAGE_TYPE, type InboundMediaType, type InboundRequest } from "@mockwa/shared";
 import type { ContactRecord, JsonObject, MessageRecord, Repositories } from "../db/index.ts";
 import type { BackgroundTasks } from "./background-tasks.ts";
 import { toContactDto, toMessageDto } from "./control-dto.ts";
@@ -194,7 +194,7 @@ export class InboundService {
 			}
 			default: {
 				// Unreachable while the shared schema and this switch agree; a new inbound type
-				// added to `@whaloc/shared` lands here instead of being stored half-built.
+				// added to `@mockwa/shared` lands here instead of being stored half-built.
 				throw controlBadRequest("unsupported inbound message type", "unsupported_type");
 			}
 		}

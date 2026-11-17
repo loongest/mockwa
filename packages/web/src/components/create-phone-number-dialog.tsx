@@ -1,4 +1,4 @@
-import type { PhoneNumber } from "@whaloc/shared";
+import type { PhoneNumber } from "@mockwa/shared";
 import { useState } from "react";
 import { describeError } from "../api/client.ts";
 import { api } from "../api/endpoints.ts";

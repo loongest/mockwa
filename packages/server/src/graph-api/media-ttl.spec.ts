@@ -59,13 +59,13 @@ describe("media TTL", () => {
 		await fixture.close();
 	});
 
-	describe("with WHALOC_MEDIA_TTL_SECONDS set", () => {
+	describe("with MOCKWA_MEDIA_TTL_SECONDS set", () => {
 		let mediaId: string;
 		let bytePath: string;
 
 		beforeEach(async () => {
 			scheduler = createRecordingScheduler();
-			fixture = await createTestApp({ WHALOC_MEDIA_TTL_SECONDS: String(TTL_SECONDS) }, { scheduler });
+			fixture = await createTestApp({ MOCKWA_MEDIA_TTL_SECONDS: String(TTL_SECONDS) }, { scheduler });
 			mediaId = await upload();
 
 			// The row is stamped by the real clock; the service reads the injected one, so the
@@ -148,7 +148,7 @@ describe("media TTL", () => {
 		});
 	});
 
-	describe("with WHALOC_MEDIA_TTL_SECONDS unset (the default)", () => {
+	describe("with MOCKWA_MEDIA_TTL_SECONDS unset (the default)", () => {
 		beforeEach(async () => {
 			scheduler = createRecordingScheduler();
 			fixture = await createTestApp({}, { scheduler });

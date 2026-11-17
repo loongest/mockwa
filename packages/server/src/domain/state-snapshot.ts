@@ -6,7 +6,7 @@ import {
 	templateCategorySchema,
 	templateParameterFormatSchema,
 	throughputLevelSchema,
-} from "@whaloc/shared";
+} from "@mockwa/shared";
 import { z } from "zod";
 import {
 	CODE_VERIFICATION_STATUSES,

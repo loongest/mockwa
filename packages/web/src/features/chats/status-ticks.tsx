@@ -1,4 +1,4 @@
-import type { JsonObject, MessageStatus } from "@whaloc/shared";
+import type { JsonObject, MessageStatus } from "@mockwa/shared";
 import clsx from "clsx";
 import { asNumber, asString } from "../../lib/json.ts";
 

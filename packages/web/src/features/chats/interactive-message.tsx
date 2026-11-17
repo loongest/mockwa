@@ -1,4 +1,4 @@
-import type { JsonObject, Message } from "@whaloc/shared";
+import type { JsonObject, Message } from "@mockwa/shared";
 import { useState } from "react";
 import { Dialog } from "../../components/dialog.tsx";
 import { asArray, asRecord, asString, readString } from "../../lib/json.ts";

@@ -18,7 +18,7 @@ import {
 } from "./media-storage.ts";
 
 export interface LocalDirStorageOptions {
-	/** `WHALOC_MEDIA_DIR`; created on demand, on the first upload. */
+	/** `MOCKWA_MEDIA_DIR`; created on demand, on the first upload. */
 	rootDir: string;
 	/** Key factory, injectable so tests get predictable filenames. */
 	createKey?: () => string;

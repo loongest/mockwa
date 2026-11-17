@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * The bearer tokens `WHALOC_TOKENS` registers, as the control plane reports them (SPEC §1.9).
+ * The bearer tokens `MOCKWA_TOKENS` registers, as the control plane reports them (SPEC §1.9).
  *
  * **The token itself is never served.** A token is addressed by an `id` derived from it (a
  * truncated SHA-256), and shown as `masked` — everything but the last four characters replaced —
@@ -23,7 +23,7 @@ export const tokenStateSchema = z.object({
 export type TokenState = z.infer<typeof tokenStateSchema>;
 
 /**
- * `GET /api/tokens`. `strict` is `false` — and `data` empty — when `WHALOC_TOKENS` is unset,
+ * `GET /api/tokens`. `strict` is `false` — and `data` empty — when `MOCKWA_TOKENS` is unset,
  * which is whaloc's default: any non-empty bearer token is accepted and there is no registry.
  */
 export const tokenListResponseSchema = z.object({

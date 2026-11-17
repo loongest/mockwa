@@ -6,3 +6,6 @@ data/
 *.tsbuildinfo
 .DS_Store
 .env
+
+# Playwright output (e2e/playwright.config.mjs).
+e2e/results/

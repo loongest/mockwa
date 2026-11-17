@@ -1,4 +1,4 @@
-import type { HandshakeResult, JsonObject } from "@whaloc/shared";
+import type { HandshakeResult, JsonObject } from "@mockwa/shared";
 import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { api } from "../../api/endpoints.ts";
@@ -34,7 +34,7 @@ function WebhookTarget(props: { onSendRaw: () => void }) {
 	return (
 		<div className="target">
 			{webhook?.url == null ? (
-				<span className="badge badge--warn badge--wrap">no WHALOC_WEBHOOK_URL — deliveries are logged, not sent</span>
+				<span className="badge badge--warn badge--wrap">no MOCKWA_WEBHOOK_URL — deliveries are logged, not sent</span>
 			) : (
 				<div className="target__url">
 					<span className="mono">{webhook.url}</span>
