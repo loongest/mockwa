@@ -88,6 +88,10 @@ export async function readBody<Schema extends ZodType>(
 export function createControlErrorHandler(): ErrorHandler<ControlEnv> {
 	return (error, c) => {
 		if (isControlPlaneError(error)) {
+			if (error.retryAfterSeconds !== undefined) {
+				c.header("Retry-After", String(error.retryAfterSeconds));
+			}
+
 			return controlError(c, error.status as ContentfulStatusCode, error.message, error.code);
 		}
 

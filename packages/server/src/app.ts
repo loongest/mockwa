@@ -3,6 +3,10 @@ import type { AppEnv } from "./app-env.ts";
 import type { DomainServices } from "./composition.ts";
 import type { AppConfig } from "./config/index.ts";
 import { createControlRoutes, createHealthRoutes } from "./control-api/index.ts";
+import { AdminSessions, createAccessGate } from "./control-api/access.ts";
+import { createAdminRoutes } from "./control-api/admin-routes.ts";
+import { createVisitorMediaGuard } from "./control-api/visitor-routes.ts";
+import { MEDIA_DOWNLOAD_PATH } from "./domain/index.ts";
 import {
 	createGraphRequestLogger,
 	createGraphRoutes,
@@ -10,7 +14,7 @@ import {
 	GRAPH_VERSION_PATH,
 } from "./graph-api/index.ts";
 import { createRequestLogger, type Logger } from "./logging/index.ts";
-import { createWebUiRoutes, hasWebUiBundle } from "./web-ui.ts";
+import { createWebUiRoutes, hasWebUiBundle, phoneAssetsOf } from "./web-ui.ts";
 
 export interface CreateAppOptions {
 	logger: Logger;
@@ -89,18 +93,42 @@ export function createGraphApp(options: CreateAppOptions): Hono<AppEnv> {
 	return app;
 }
 
-/** Port 8025: the control plane (REST + WebSocket), media previews and the static web UI. */
+/**
+ * Port 8025: the control plane (REST + WebSocket), media previews and the static web UI.
+ *
+ * In public mode, or in dev mode with `MOCKWA_ADMIN_TOKEN` set, an access gate stands in front
+ * of everything (SPEC §7, "Access modes"; the route inventory is docs/access.md): visitors reach
+ * the phone and its API, the admin reaches the rest. With neither, nothing is mounted in front
+ * and the console is as open as it always was.
+ */
 export function createConsoleApp(options: CreateAppOptions): Hono<AppEnv> {
 	const app = createListenerApp(options.logger);
+	const { access } = options.config;
+	const isPublic = access.mode === "public";
 
-	app.route("/api", createControlRoutes({ services: options.services, logger: options.logger }));
+	if (isPublic || access.adminToken !== undefined) {
+		const admins = new AdminSessions({ token: access.adminToken, now: () => new Date() });
+		const phoneAssets = isPublic ? phoneAssetsOf(options.config.webDir) : new Set<string>();
+
+		app.use(createAccessGate({ access, admins, isPhoneAsset: assetPath => phoneAssets.has(assetPath) }));
+		app.route("/", createAdminRoutes({ access, admins }));
+	}
+
+	if (isPublic) {
+		app.use(
+			`${MEDIA_DOWNLOAD_PATH}/*`,
+			createVisitorMediaGuard({ sessions: options.services.visitors, media: options.services.media }),
+		);
+	}
+
+	app.route("/api", createControlRoutes({ services: options.services, logger: options.logger, access }));
 	mountMediaDownloads(app, options.services);
 
 	// Last, so every surface above keeps its paths: the UI's SPA fallback only answers what
 	// nothing else claimed (SPEC §8). Without a built bundle — `npm run dev`, where Vite serves
 	// the UI and proxies back here — `/` simply stays unrouted.
 	if (hasWebUiBundle(options.config.webDir)) {
-		app.route("/", createWebUiRoutes({ webDir: options.config.webDir }));
+		app.route("/", createWebUiRoutes({ webDir: options.config.webDir, isPublic }));
 	} else {
 		options.logger.warn(
 			{ webDir: options.config.webDir },

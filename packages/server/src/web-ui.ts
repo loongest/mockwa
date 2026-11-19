@@ -1,12 +1,100 @@
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono, type MiddlewareHandler } from "hono";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { AppEnv } from "./app-env.ts";
 
 export interface WebUiRoutesOptions {
 	/** Absolute path to the built Vite bundle (`packages/web/dist`). */
 	webDir: string;
+	/**
+	 * Public demo mode (SPEC §7): the phone page carries a strict Content-Security-Policy, and
+	 * the bundle's build metadata is not served. Which files a visitor may load is the access
+	 * gate's call (`control-api/access.ts`), made with {@link phoneAssetsOf}.
+	 */
+	isPublic?: boolean;
+}
+
+/**
+ * The phone page's policy in public mode: everything from this origin only, no inline script,
+ * no plugins, no framing. Inline styles stay allowed because React sets `style` attributes.
+ * `connect-src 'self'` covers the page's own WebSocket in current browsers.
+ */
+export const PHONE_CONTENT_SECURITY_POLICY = [
+	"default-src 'self'",
+	"script-src 'self'",
+	"style-src 'self' 'unsafe-inline'",
+	"img-src 'self' data: blob:",
+	"media-src 'self' blob:",
+	"connect-src 'self'",
+	"font-src 'self'",
+	"object-src 'none'",
+	"frame-ancestors 'none'",
+	"base-uri 'none'",
+	"form-action 'self'",
+].join("; ");
+
+/** Vite's build manifest (`build.manifest`): each chunk, the chunks it imports, its CSS and assets. */
+interface ManifestChunk {
+	file: string;
+	imports?: string[];
+	css?: string[];
+	assets?: string[];
+}
+
+/**
+ * The files the phone page loads (SPEC §7, "Access modes"): its entry chunk and, transitively,
+ * every chunk it imports with their CSS and assets — read from Vite's manifest, so a visitor in
+ * public mode can load the phone and nothing of the console's bundle. The top-level files of
+ * `public/` (the favicon) are shared and allowed too. An empty set when there is no manifest:
+ * then no static file is a visitor's, which fails closed.
+ */
+export function phoneAssetsOf(webDir: string): ReadonlySet<string> {
+	const allowed = new Set<string>();
+	let manifest: Record<string, ManifestChunk>;
+
+	try {
+		manifest = JSON.parse(readFileSync(path.join(webDir, ".vite", "manifest.json"), "utf8")) as Record<
+			string,
+			ManifestChunk
+		>;
+	} catch {
+		return allowed;
+	}
+
+	const visit = (key: string): void => {
+		const chunk = manifest[key];
+
+		if (chunk === undefined || allowed.has(`/${chunk.file}`)) {
+			return;
+		}
+
+		allowed.add(`/${chunk.file}`);
+
+		const files = [chunk.css, chunk.assets].flat().filter(file => file !== undefined);
+
+		for (const file of files) {
+			allowed.add(`/${file}`);
+		}
+
+		if (chunk.imports != null) {
+			for (const imported of chunk.imports) {
+				visit(imported);
+			}
+		}
+	};
+
+	visit("phone.html");
+
+	const entries = readdirSync(webDir, { withFileTypes: true });
+
+	for (const entry of entries) {
+		if (entry.isFile() && !entry.name.endsWith(".html")) {
+			allowed.add(`/${entry.name}`);
+		}
+	}
+
+	return allowed;
 }
 
 /**
@@ -67,13 +155,32 @@ export function createWebUiRoutes(options: WebUiRoutesOptions): Hono<AppEnv> {
 		serveStatic<AppEnv>({ root: options.webDir, path: "index.html" }),
 		() => REVALIDATE_CACHE_CONTROL,
 	);
-	const phone = cached(
+	const phoneFile = cached(
 		serveStatic<AppEnv>({ root: options.webDir, path: "phone.html" }),
 		() => REVALIDATE_CACHE_CONTROL,
 	);
+	const phone: MiddlewareHandler<AppEnv> =
+		options.isPublic === true
+			? async (c, next) => {
+					const response = await phoneFile(c, next);
+
+					if (response instanceof Response) {
+						response.headers.set("Content-Security-Policy", PHONE_CONTENT_SECURITY_POLICY);
+						response.headers.set("X-Content-Type-Options", "nosniff");
+						response.headers.set("Referrer-Policy", "no-referrer");
+					}
+
+					return response;
+				}
+			: phoneFile;
 
 	const spaFallback: MiddlewareHandler<AppEnv> = async (c, next) =>
 		isReservedPath(c.req.path) ? next() : index(c, next);
+
+	if (options.isPublic === true) {
+		// Build metadata names every file of both bundles; nobody's browser needs it.
+		routes.get("/.vite/*", c => c.text("Not Found", 404));
+	}
 
 	routes.use("*", file);
 	// The virtual phone is a page of its own, not a route of the console's SPA (SPEC §5).

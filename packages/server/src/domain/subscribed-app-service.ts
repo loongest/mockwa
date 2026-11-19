@@ -1,5 +1,6 @@
 import type { AppIdentity } from "@mockwa/shared";
 import { AppService, overrideUrlProblem, type OverrideInput, type WebhookApp } from "./app-service.ts";
+import type { GraphApiError } from "./graph-api-error.ts";
 import { invalidParameterError, unknownObjectError } from "./meta-errors.ts";
 
 /**
@@ -42,6 +43,17 @@ export interface SubscribedAppServiceOptions {
 	apps: AppService;
 	/** `MOCKWA_PUBLIC_URL`, reported as every app's `link`. */
 	publicUrl: string;
+	/**
+	 * Public demo mode (SPEC §5): webhook destinations come only from the server's configuration,
+	 * so an override URL is refused; clearing one is still allowed.
+	 */
+	destinationsLocked?: boolean;
+}
+
+function lockedDestinationError(): GraphApiError {
+	return invalidParameterError(
+		"override_callback_uri is not accepted on this instance: webhook destinations come from its configuration",
+	);
 }
 
 /** Both or neither: Meta marks the URL and its verify token as required together. */
@@ -66,10 +78,12 @@ export function parseOverride(uri: unknown, verifyToken: unknown, parameter: str
 export class SubscribedAppService {
 	readonly #apps: AppService;
 	readonly #publicUrl: string;
+	readonly #destinationsLocked: boolean;
 
 	constructor(options: SubscribedAppServiceOptions) {
 		this.#apps = options.apps;
 		this.#publicUrl = options.publicUrl;
+		this.#destinationsLocked = options.destinationsLocked ?? false;
 	}
 
 	/** A known WABA always has at least the default app routed to it, so none means unknown. */
@@ -93,6 +107,10 @@ export class SubscribedAppService {
 	 * the WABA override; without them it clears it, as Meta's reference describes.
 	 */
 	async subscribe(wabaId: string, accessToken: string | undefined, override: OverrideInput | null): Promise<void> {
+		if (override !== null && this.#destinationsLocked) {
+			throw lockedDestinationError();
+		}
+
 		const app = await this.#apps.forAccessToken(accessToken);
 
 		if (!(await this.#apps.subscribe(app, wabaId, override))) {
@@ -141,6 +159,10 @@ export class SubscribedAppService {
 
 		if (override === null && configuration.override_callback_uri !== "") {
 			throw invalidParameterError("webhook_configuration needs override_callback_uri");
+		}
+
+		if (override !== null && this.#destinationsLocked) {
+			throw lockedDestinationError();
 		}
 
 		if (!(await this.#apps.setPhoneOverride(app, phoneNumberId, override))) {

@@ -24,6 +24,20 @@ export async function statusOf(response: Response | Promise<Response>): Promise<
 	return settled.status;
 }
 
+/** The JSON body of a response, in one expression, for a schema to parse. */
+export async function jsonOf(response: Response | Promise<Response>): Promise<unknown> {
+	const settled = await response;
+
+	return settled.json();
+}
+
+/** The text body of a response, in one expression. */
+export async function textOf(response: Response | Promise<Response>): Promise<string> {
+	const settled = await response;
+
+	return settled.text();
+}
+
 /** The path of an absolute URL, which is what `app.request()` takes. */
 export function pathOf(url: string): string {
 	const parsed = new URL(url);

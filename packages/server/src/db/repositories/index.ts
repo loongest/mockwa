@@ -10,6 +10,7 @@ import { InjectionRuleRepository } from "./injection-rule-repository.ts";
 import { MediaRepository } from "./media-repository.ts";
 import { MessageRepository } from "./message-repository.ts";
 import { PhoneNumberRepository } from "./phone-number-repository.ts";
+import { PublicSessionRepository } from "./public-session-repository.ts";
 import { ServiceWindowExpiryRepository } from "./service-window-expiry-repository.ts";
 import { SnapshotRepository } from "./snapshot-repository.ts";
 import { TemplateRepository } from "./template-repository.ts";
@@ -56,6 +57,14 @@ export {
 	type PhoneNumberRecord,
 	type UpdatePhoneNumberInput,
 } from "./phone-number-repository.ts";
+export {
+	PublicSessionRepository,
+	WaIdTakenError,
+	type CreatePublicSessionInput,
+	type DeletedPublicSession,
+	type NewVisitorIdentity,
+	type PublicSessionRecord,
+} from "./public-session-repository.ts";
 export {
 	SnapshotRepository,
 	SNAPSHOT_TABLES,
@@ -119,6 +128,8 @@ export interface Repositories {
 	serviceWindowExpiries: ServiceWindowExpiryRepository;
 	/** The Graph request log (SPEC §5); diagnostics, not part of a snapshot. */
 	graphRequests: GraphRequestRepository;
+	/** Public demo mode's visitor sessions and what they own (SPEC §5); not part of a snapshot. */
+	publicSessions: PublicSessionRepository;
 }
 
 /**
@@ -127,6 +138,9 @@ export interface Repositories {
  * that adding a table means updating one list.
  */
 export async function deleteAllRows(repositories: Repositories): Promise<void> {
+	// Visitor sessions own contacts and media rows, so they end first. The record of numbers
+	// already handed out survives: a number is never handed out twice (SPEC §5).
+	await repositories.publicSessions.deleteAllSessions();
 	// Neither of these references anything else, so they go first and the order below is
 	// unchanged: a reset disarms every injection rule and revives every expired token (SPEC §4).
 	await repositories.injectionRules.deleteAll();
@@ -166,5 +180,6 @@ export function createRepositories(db: Kysely<Database>, clock: Clock = systemCl
 		clockState: new ClockStateRepository(db),
 		serviceWindowExpiries: new ServiceWindowExpiryRepository(db),
 		graphRequests: new GraphRequestRepository(db),
+		publicSessions: new PublicSessionRepository(db),
 	};
 }

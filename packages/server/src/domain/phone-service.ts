@@ -112,6 +112,21 @@ export class PhoneService {
 	}
 
 	/**
+	 * A message of this conversation, for a reply or a reaction that points at it: one from
+	 * another conversation is the same 404 as one that does not exist, so a phone can never
+	 * quote or react to a message it cannot see.
+	 */
+	async conversationMessage(waId: string, phoneNumberId: string, messageId: string): Promise<MessageRecord> {
+		const message = await this.#repositories.messages.findById(messageId);
+
+		if (message?.contactWaId !== waId || message.phoneNumberId !== phoneNumberId) {
+			throw controlNotFound(`no message with ID ${messageId} in this chat`, "unknown_message");
+		}
+
+		return message;
+	}
+
+	/**
 	 * The identity opened the chat: every delivered business message moves to `read`, each with
 	 * its own status webhook, as WhatsApp sends them. A message still on its way (`accepted`,
 	 * `sent`) is left alone — it has not reached the phone, so it cannot have been read.

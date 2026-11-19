@@ -1,15 +1,13 @@
 import { inboundMediaResponseSchema, inboundRequestSchema, inboundResponseSchema, metaIdSchema } from "@mockwa/shared";
 import { Hono } from "hono";
-import { ControlPlaneError, toMessageDto, type InboundService, type MediaService } from "../domain/index.ts";
+import { toMessageDto, type InboundService, type MediaService } from "../domain/index.ts";
 import { parseOrThrow, readBody, type ControlEnv } from "./control-env.ts";
+import { readUploadForm } from "./upload-form.ts";
 
 export interface InboundRoutesOptions {
 	inbound: InboundService;
 	media: MediaService;
 }
-
-/** What an upload is recorded as when neither the `type` part nor the file itself says. */
-const FALLBACK_MIME_TYPE = "application/octet-stream";
 
 /**
  * Simulating the user side (SPEC §5).
@@ -32,33 +30,9 @@ export function createInboundRoutes(options: InboundRoutesOptions): Hono<Control
 	});
 
 	routes.post("/inbound-media", async c => {
-		let form: FormData;
-
-		try {
-			form = await c.req.formData();
-		} catch (error) {
-			throw new ControlPlaneError("expected a multipart/form-data body", {
-				status: 400,
-				code: "invalid_upload",
-				cause: error,
-			});
-		}
-
-		const file = form.get("file");
-
-		if (!(file instanceof File)) {
-			throw new ControlPlaneError("the file part is required", { status: 400, code: "invalid_upload" });
-		}
-
-		const phoneNumberId = parseOrThrow(metaIdSchema, form.get("phoneNumberId"));
-		const declaredType = form.get("type");
-		const mimeType =
-			(typeof declaredType === "string" ? declaredType.trim() : "") || file.type.trim() || FALLBACK_MIME_TYPE;
-		const media = await options.media.upload({
-			phoneNumberId,
-			bytes: new Uint8Array(await file.arrayBuffer()),
-			mimeType,
-		});
+		const upload = await readUploadForm(c);
+		const phoneNumberId = parseOrThrow(metaIdSchema, upload.form.get("phoneNumberId"));
+		const media = await options.media.upload({ phoneNumberId, bytes: upload.bytes, mimeType: upload.mimeType });
 
 		return c.json(
 			inboundMediaResponseSchema.parse({

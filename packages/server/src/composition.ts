@@ -46,6 +46,7 @@ import {
 	createRandomIdStream,
 	createSeededIdStream,
 	VirtualClock,
+	VisitorSessionService,
 	type BackgroundTasks,
 	type IdStream,
 	type EventBus,
@@ -119,6 +120,11 @@ export interface DomainServices {
 	scenarios: ScenarioRunner;
 	/** What the app under test sent to the Graph listener, and what it got back (SPEC §5). */
 	graphRequests: GraphRequestLog;
+	/**
+	 * Public demo mode's anonymous visitors (SPEC §5): built in every mode so the wiring is one
+	 * shape, but only public mode mounts its routes and starts its cleanup job.
+	 */
+	visitors: VisitorSessionService;
 }
 
 /** Everything with a lifetime, built once at boot and injected from here on (SPEC §8). */
@@ -232,7 +238,11 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 		ttlSeconds: config.mediaTtlSeconds,
 		...(scheduler !== undefined && { scheduler }),
 	});
-	const subscribedApps = new SubscribedAppService({ apps, publicUrl: config.publicUrl });
+	const subscribedApps = new SubscribedAppService({
+		apps,
+		publicUrl: config.publicUrl,
+		destinationsLocked: config.access.mode === "public",
+	});
 	// The Upload API is scoped to the app `subscribed_apps` reports, so it is built after it
 	// (SPEC §2.21); the templates and the business profile both resolve handles through it.
 	const uploads = new UploadService({
@@ -401,6 +411,15 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 			logger,
 			...(scheduler !== undefined && { scheduler }),
 		}),
+		visitors: new VisitorSessionService({
+			config: config.access.visitors,
+			repositories,
+			mediaStorage,
+			events,
+			logger,
+			scheduler: scheduler ?? createSystemScheduler(),
+			random,
+		}),
 		scenarios: new ScenarioRunner({
 			config,
 			repositories,
@@ -465,6 +484,13 @@ async function buildServices(options: CreateServicesOptions, handle: DatabaseHan
 	// picked up where it was left, overdue ones first.
 	await domain.webhooks.resumeRetries();
 
+	// Visitors idle past the TTL while the instance was down are cleaned up now, then on a timer
+	// (SPEC §5, "Public demo mode"). Their sockets died with the old process.
+	if (config.access.mode === "public") {
+		await domain.visitors.sweep();
+		domain.visitors.start();
+	}
+
 	return {
 		db,
 		repositories,
@@ -477,6 +503,7 @@ async function buildServices(options: CreateServicesOptions, handle: DatabaseHan
 			domain.statusLadder.cancelAll();
 			domain.templateLifecycle.cancelAll();
 			domain.typing.clearAll();
+			domain.visitors.stop();
 			// Pending retries stay in the database for the next boot; only the timer goes.
 			domain.webhooks.stop();
 			await domain.tasks.whenIdle();

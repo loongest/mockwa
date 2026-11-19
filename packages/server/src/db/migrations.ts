@@ -479,6 +479,54 @@ export const MIGRATIONS: Record<string, Migration> = {
 				.execute();
 		},
 	},
+	"0014_public_sessions": {
+		// mockwa M6, public demo mode (SPEC §5, "Public demo mode"). A visitor's session owns the
+		// identities and the uploads it created; deleting the session or the identity removes the
+		// ownership row, and the cleanup job removes what it owned. `public_wa_ids` records every
+		// number ever handed to a visitor and is never emptied — not by a reset, not by an import —
+		// so a number is never handed out twice and a late reply to an expired visitor can never
+		// reach a new one. Not snapshot tables: sessions belong to the running instance.
+		up: async (db: Kysely<never>): Promise<void> => {
+			await db.schema
+				.createTable("public_sessions")
+				.addColumn("id", "text", column => column.primaryKey())
+				.addColumn("csrf_token", "text", column => column.notNull())
+				.addColumn("client_ip", "text", column => column.notNull())
+				.addColumn("created_at", "text", column => column.notNull())
+				.addColumn("last_seen_at", "text", column => column.notNull())
+				.execute();
+			await db.schema
+				.createTable("public_session_identities")
+				.addColumn("wa_id", "text", column => column.primaryKey().references("contacts.wa_id").onDelete("cascade"))
+				.addColumn("session_id", "text", column =>
+					column.notNull().references("public_sessions.id").onDelete("cascade"),
+				)
+				.addColumn("position", "integer", column => column.notNull())
+				.execute();
+			await db.schema
+				.createIndex("public_session_identities_session_id")
+				.on("public_session_identities")
+				.column("session_id")
+				.execute();
+			await db.schema
+				.createTable("public_session_media")
+				.addColumn("media_id", "text", column => column.primaryKey().references("media.id").onDelete("cascade"))
+				.addColumn("session_id", "text", column =>
+					column.notNull().references("public_sessions.id").onDelete("cascade"),
+				)
+				.execute();
+			await db.schema
+				.createIndex("public_session_media_session_id")
+				.on("public_session_media")
+				.column("session_id")
+				.execute();
+			await db.schema
+				.createTable("public_wa_ids")
+				.addColumn("wa_id", "text", column => column.primaryKey())
+				.addColumn("allocated_at", "text", column => column.notNull())
+				.execute();
+		},
+	},
 };
 
 /** Serves {@link MIGRATIONS} to Kysely's `Migrator`. */

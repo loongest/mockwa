@@ -36,3 +36,44 @@ export type PhoneChatListResponse = z.infer<typeof phoneChatListResponseSchema>;
 export const phoneReadResponseSchema = z.object({ data: z.object({ read: z.number().int().nonnegative() }) });
 
 export type PhoneReadResponse = z.infer<typeof phoneReadResponseSchema>;
+
+/**
+ * `GET /api/phone/config` (SPEC §5): which phone the page has to be. `dev` is the identity
+ * picker; `public` is a visitor's own identities behind a session cookie.
+ */
+export const phoneModeSchema = z.enum(["dev", "public"]);
+
+export type PhoneMode = z.infer<typeof phoneModeSchema>;
+
+export const phoneConfigResponseSchema = z.object({ data: z.object({ mode: phoneModeSchema }) });
+
+export type PhoneConfigResponse = z.infer<typeof phoneConfigResponseSchema>;
+
+/** The limits a visitor works within, so the phone can say them before they bite. */
+export const visitorLimitsSchema = z.object({
+	sessionTtlSeconds: z.number().int().positive(),
+	messagesPerMinute: z.number().int().positive(),
+	mediaMaxBytes: z.number().int().positive(),
+	mediaPerSession: z.number().int().positive(),
+	mediaTypes: z.array(z.string()),
+});
+
+export type VisitorLimits = z.infer<typeof visitorLimitsSchema>;
+
+/**
+ * `GET`/`POST /api/public/session` (SPEC §5, "Public demo mode"): the visitor's own identities,
+ * the CSRF token every write sends back in `X-CSRF-Token`, and when the session ends if it is
+ * not used again. The session itself rides in an HttpOnly cookie the page never sees.
+ */
+export const visitorSessionSchema = z.object({
+	identities: z.array(contactSchema),
+	csrfToken: z.string().min(1),
+	expiresAt: z.iso.datetime(),
+	limits: visitorLimitsSchema,
+});
+
+export type VisitorSession = z.infer<typeof visitorSessionSchema>;
+
+export const visitorSessionResponseSchema = z.object({ data: visitorSessionSchema });
+
+export type VisitorSessionResponse = z.infer<typeof visitorSessionResponseSchema>;

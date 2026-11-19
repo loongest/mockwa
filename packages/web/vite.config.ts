@@ -36,6 +36,9 @@ export default defineConfig({
 	build: {
 		outDir: "dist",
 		emptyOutDir: true,
+		// Public demo mode serves a visitor only the phone's files (SPEC §7); the server reads
+		// which ones they are from this manifest.
+		manifest: true,
 		rollupOptions: {
 			input: {
 				console: fileURLToPath(new URL("index.html", import.meta.url)),

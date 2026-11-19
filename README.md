@@ -330,43 +330,58 @@ alias (`MOCKWA_PORT` means `MOCKWA_GRAPH_PORT`). If both are set, `MOCKWA_*` win
 warns when the two values differ. Blank values count as unset (an empty `MOCKWA_WEBHOOK_URL=` in a compose file disables
 webhooks rather than failing), and values are trimmed.
 
-| Var                             | Default                                              | Purpose                                                                                             |
-| ------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `MOCKWA_GRAPH_PORT`             | `8888`                                               | Graph API port (legacy alias: `MOCKWA_PORT`); the `HEALTHCHECK` follows it                          |
-| `MOCKWA_CONSOLE_PORT`           | `8025`                                               | Console port: UI, `/api`, `/api/ws`; must differ from the Graph port                                |
-| `MOCKWA_HOST`                   | `0.0.0.0`                                            | Bind address                                                                                        |
-| `MOCKWA_PUBLIC_URL`             | `http://localhost:8888`                              | Base for generated media URLs and `paging.next` — must be reachable **by whoever downloads media**  |
-| `MOCKWA_WEBHOOK_URL`            | _unset → webhooks disabled (warns)_                  | Target for webhook POSTs, e.g. `http://meta-webhook-receiver:3001/meta-webhooks`                    |
-| `MOCKWA_APP_SECRET`             | _unset → deliveries unsigned (warns)_                | HMAC key for `X-Hub-Signature-256`                                                                  |
-| `MOCKWA_WEBHOOK_VERIFY_TOKEN`   | _unset_                                              | Token echoed in the `hub.challenge` handshake                                                       |
-| `MOCKWA_VERIFY_ON_START`        | `false`                                              | Run that handshake at boot                                                                          |
-| `MOCKWA_APP_ID`                 | _derived from the name, stable across restarts_      | The app ID `subscribed_apps` reports — set it to the app's `META_APP_ID` when that matters          |
-| `MOCKWA_APPS`                   | _unset → only the default app_                       | JSON list of extra apps with their own URL, secret, verify token and WABAs (see **Webhooks**)       |
-| `MOCKWA_WEBHOOK_RETRY_SCHEDULE` | `10s,30s,1m,5m,15m,1h,3h,6h,12h,24h`                 | Delay before each retry of a non-`200` delivery, the last repeating; `off` disables retries         |
-| `MOCKWA_WEBHOOK_RETRY_MAX_AGE`  | `7d`                                                 | How long a delivery keeps being retried, as on Meta                                                 |
-| `MOCKWA_SEED`                   | 1 WABA + 1 phone number + 2 contacts + 1 template    | JSON array of WABAs (see [SPEC §7](docs/SPEC.md)); omitted IDs are derived deterministically        |
-| `MOCKWA_SEED_FILE`              | _unset_                                              | Path to a file with the `MOCKWA_SEED` JSON, for long seeds; setting both is refused                 |
-| `MOCKWA_CLOCK`                  | `real`                                               | `real` or `virtual`: one clock you move through `/api/clock` (see **Virtual clock and scenarios**)  |
-| `MOCKWA_CLOCK_START`            | `2026-01-01T00:00:00.000Z`                           | Where the virtual clock starts, and where a reset puts it                                           |
-| `MOCKWA_STATUS_DELAYS`          | `sent:0,delivered:800`                               | Status ladder timing in ms; add `read:<ms>` to automate read receipts                               |
-| `MOCKWA_TEMPLATE_AUTO_APPROVE`  | `2000`                                               | ms until a new template is approved; `off` leaves it `PENDING` for the UI                           |
-| `MOCKWA_TOKENS`                 | _unset → any non-empty bearer token is accepted_     | Comma-separated bearer-token registry; set it and only these tokens pass (see **Error simulation**) |
-| `MOCKWA_MEDIA_TTL_SECONDS`      | _unset → media never expires_                        | Seconds after which an uploaded media object is gone from the Graph surface                         |
-| `MOCKWA_SERVICE_WINDOW`         | `24h`                                                | Customer service window; a duration or `off` (see **Messaging rules**)                              |
-| `MOCKWA_THROUGHPUT`             | `off`                                                | Messages per second per number: `off`, `meta` (80 or 1,000 by `throughput.level`) or a number       |
-| `MOCKWA_PAIR_RATE_LIMIT`        | `off`                                                | Sends to one contact: `off`, `meta` (`6s/45`) or `<interval>/<burst>`                               |
-| `MOCKWA_MESSAGING_LIMIT`        | `off`                                                | Unique contacts per WABA reached by business-initiated templates in 24 hours, or `off`              |
-| `MOCKWA_DB_PATH`                | `:memory:`                                           | SQLite file for persistence, e.g. `/data/whaloc.db`                                                 |
-| `MOCKWA_MEDIA_BACKEND`          | `local`                                              | `local` (a directory) or `s3` (an S3-compatible bucket, see **Media storage**)                      |
-| `MOCKWA_MEDIA_DIR`              | `/data/media` in the image, `./data/media` otherwise | Media storage root, for the `local` backend                                                         |
-| `MOCKWA_S3_BUCKET`              | _required when the backend is `s3`_                  | Bucket the media objects live in — whaloc never creates it                                          |
-| `MOCKWA_S3_REGION`              | _required when the backend is `s3`_                  | Region; anything satisfies RustFS, but the SDK insists on having one                                |
-| `MOCKWA_S3_ENDPOINT`            | _unset → AWS S3_                                     | Endpoint of an S3-compatible server (RustFS, R2, Ceph…)                                             |
-| `MOCKWA_S3_ACCESS_KEY_ID`       | _unset → the SDK's default credential chain_         | Access key; all-or-nothing with the secret below                                                    |
-| `MOCKWA_S3_SECRET_ACCESS_KEY`   | _unset → the SDK's default credential chain_         | Secret key                                                                                          |
-| `MOCKWA_S3_FORCE_PATH_STYLE`    | `true` whenever an endpoint is set                   | Path-style addressing (`<endpoint>/<bucket>/<key>`), which is what RustFS serves                    |
-| `MOCKWA_WEB_DIR`                | `packages/web/dist`, beside the server               | Built UI served at `/`; an absent directory just leaves `/` unrouted                                |
-| `MOCKWA_LOG_LEVEL`              | `info`                                               | pino level (`fatal`…`trace`, `silent`)                                                              |
+| Var                                        | Default                                              | Purpose                                                                                             |
+| ------------------------------------------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `MOCKWA_GRAPH_PORT`                        | `8888`                                               | Graph API port (legacy alias: `MOCKWA_PORT`); the `HEALTHCHECK` follows it                          |
+| `MOCKWA_CONSOLE_PORT`                      | `8025`                                               | Console port: UI, `/api`, `/api/ws`; must differ from the Graph port                                |
+| `MOCKWA_HOST`                              | `0.0.0.0`                                            | Bind address                                                                                        |
+| `MOCKWA_PUBLIC_URL`                        | `http://localhost:8888`                              | Base for generated media URLs and `paging.next` — must be reachable **by whoever downloads media**  |
+| `MOCKWA_WEBHOOK_URL`                       | _unset → webhooks disabled (warns)_                  | Target for webhook POSTs, e.g. `http://meta-webhook-receiver:3001/meta-webhooks`                    |
+| `MOCKWA_APP_SECRET`                        | _unset → deliveries unsigned (warns)_                | HMAC key for `X-Hub-Signature-256`                                                                  |
+| `MOCKWA_WEBHOOK_VERIFY_TOKEN`              | _unset_                                              | Token echoed in the `hub.challenge` handshake                                                       |
+| `MOCKWA_VERIFY_ON_START`                   | `false`                                              | Run that handshake at boot                                                                          |
+| `MOCKWA_APP_ID`                            | _derived from the name, stable across restarts_      | The app ID `subscribed_apps` reports — set it to the app's `META_APP_ID` when that matters          |
+| `MOCKWA_APPS`                              | _unset → only the default app_                       | JSON list of extra apps with their own URL, secret, verify token and WABAs (see **Webhooks**)       |
+| `MOCKWA_WEBHOOK_RETRY_SCHEDULE`            | `10s,30s,1m,5m,15m,1h,3h,6h,12h,24h`                 | Delay before each retry of a non-`200` delivery, the last repeating; `off` disables retries         |
+| `MOCKWA_WEBHOOK_RETRY_MAX_AGE`             | `7d`                                                 | How long a delivery keeps being retried, as on Meta                                                 |
+| `MOCKWA_SEED`                              | 1 WABA + 1 phone number + 2 contacts + 1 template    | JSON array of WABAs (see [SPEC §7](docs/SPEC.md)); omitted IDs are derived deterministically        |
+| `MOCKWA_SEED_FILE`                         | _unset_                                              | Path to a file with the `MOCKWA_SEED` JSON, for long seeds; setting both is refused                 |
+| `MOCKWA_CLOCK`                             | `real`                                               | `real` or `virtual`: one clock you move through `/api/clock` (see **Virtual clock and scenarios**)  |
+| `MOCKWA_CLOCK_START`                       | `2026-01-01T00:00:00.000Z`                           | Where the virtual clock starts, and where a reset puts it                                           |
+| `MOCKWA_STATUS_DELAYS`                     | `sent:0,delivered:800`                               | Status ladder timing in ms; add `read:<ms>` to automate read receipts                               |
+| `MOCKWA_TEMPLATE_AUTO_APPROVE`             | `2000`                                               | ms until a new template is approved; `off` leaves it `PENDING` for the UI                           |
+| `MOCKWA_TOKENS`                            | _unset → any non-empty bearer token is accepted_     | Comma-separated bearer-token registry; set it and only these tokens pass (see **Error simulation**) |
+| `MOCKWA_MEDIA_TTL_SECONDS`                 | _unset → media never expires_                        | Seconds after which an uploaded media object is gone from the Graph surface                         |
+| `MOCKWA_SERVICE_WINDOW`                    | `24h`                                                | Customer service window; a duration or `off` (see **Messaging rules**)                              |
+| `MOCKWA_THROUGHPUT`                        | `off`                                                | Messages per second per number: `off`, `meta` (80 or 1,000 by `throughput.level`) or a number       |
+| `MOCKWA_PAIR_RATE_LIMIT`                   | `off`                                                | Sends to one contact: `off`, `meta` (`6s/45`) or `<interval>/<burst>`                               |
+| `MOCKWA_MESSAGING_LIMIT`                   | `off`                                                | Unique contacts per WABA reached by business-initiated templates in 24 hours, or `off`              |
+| `MOCKWA_DB_PATH`                           | `:memory:`                                           | SQLite file for persistence, e.g. `/data/whaloc.db`                                                 |
+| `MOCKWA_MEDIA_BACKEND`                     | `local`                                              | `local` (a directory) or `s3` (an S3-compatible bucket, see **Media storage**)                      |
+| `MOCKWA_MEDIA_DIR`                         | `/data/media` in the image, `./data/media` otherwise | Media storage root, for the `local` backend                                                         |
+| `MOCKWA_S3_BUCKET`                         | _required when the backend is `s3`_                  | Bucket the media objects live in — whaloc never creates it                                          |
+| `MOCKWA_S3_REGION`                         | _required when the backend is `s3`_                  | Region; anything satisfies RustFS, but the SDK insists on having one                                |
+| `MOCKWA_S3_ENDPOINT`                       | _unset → AWS S3_                                     | Endpoint of an S3-compatible server (RustFS, R2, Ceph…)                                             |
+| `MOCKWA_S3_ACCESS_KEY_ID`                  | _unset → the SDK's default credential chain_         | Access key; all-or-nothing with the secret below                                                    |
+| `MOCKWA_S3_SECRET_ACCESS_KEY`              | _unset → the SDK's default credential chain_         | Secret key                                                                                          |
+| `MOCKWA_S3_FORCE_PATH_STYLE`               | `true` whenever an endpoint is set                   | Path-style addressing (`<endpoint>/<bucket>/<key>`), which is what RustFS serves                    |
+| `MOCKWA_WEB_DIR`                           | `packages/web/dist`, beside the server               | Built UI served at `/`; an absent directory just leaves `/` unrouted                                |
+| `MOCKWA_LOG_LEVEL`                         | `info`                                               | pino level (`fatal`…`trace`, `silent`)                                                              |
+| `MOCKWA_MODE`                              | `dev`                                                | `dev` or `public` (anonymous visitors, see **Public demo mode**)                                    |
+| `MOCKWA_ADMIN_TOKEN`                       | _unset_                                              | Admin token (16+ characters). Required in public mode; in dev mode it puts the console behind it    |
+| `MOCKWA_PUBLIC_IDENTITIES`                 | a `CUSTOMER` and a `TECHNICIAN`                      | JSON `[{"role","name"}]` (1–4): the identities each visitor gets                                    |
+| `MOCKWA_PUBLIC_WA_ID_PREFIX`               | `999`                                                | First digits of visitor numbers (15 digits in all)                                                  |
+| `MOCKWA_PUBLIC_SESSION_TTL`                | `30m`                                                | Idle time before a visitor's session and data are removed                                           |
+| `MOCKWA_PUBLIC_MESSAGES_PER_MINUTE`        | `20`                                                 | Messages per minute per visitor session                                                             |
+| `MOCKWA_PUBLIC_IP_MESSAGES_PER_MINUTE`     | `60`                                                 | Messages per minute per client address                                                              |
+| `MOCKWA_PUBLIC_MEDIA_MAX_BYTES`            | `1048576`                                            | Largest visitor upload (JPEG, PNG, WebP or PDF)                                                     |
+| `MOCKWA_PUBLIC_MEDIA_PER_SESSION`          | `10`                                                 | Uploads per visitor session                                                                         |
+| `MOCKWA_PUBLIC_SESSIONS_PER_IP`            | `3`                                                  | Live visitor sessions per client address                                                            |
+| `MOCKWA_PUBLIC_MAX_SESSIONS`               | `500`                                                | Live visitor sessions in total                                                                      |
+| `MOCKWA_PUBLIC_SESSION_CREATES_PER_MINUTE` | `10`                                                 | New visitor sessions per client address per minute                                                  |
+| `MOCKWA_TRUSTED_PROXIES`                   | _unset_                                              | Exact IPs of reverse proxies whose `X-Forwarded-*` headers are believed                             |
+| `MOCKWA_ALLOWED_ORIGINS`                   | _unset → the listener's own origin_                  | Extra origins allowed to write with a visitor or admin cookie                                       |
+| `MOCKWA_COOKIE_SECURE`                     | `auto`                                               | `auto` (Secure over HTTPS), `always` or `never`                                                     |
 
 ## Graph API coverage
 
@@ -1015,6 +1030,58 @@ display-only: no webhook or Graph response carries them.
 While any injection rule can still fire, the top bar carries a pulsing "N rules injecting errors"
 badge that links straight to the rule doing it — a forgotten rule should cost seconds, not an
 afternoon.
+
+### Public demo mode
+
+`MOCKWA_MODE=public` lets anonymous visitors try your app through the Virtual Phone, each in
+their own private corner of one shared instance. Everything stays local unless you put it behind
+a proxy yourself; the full contract is [SPEC §5](docs/SPEC.md#public-demo-mode-m6) and the
+route-by-route inventory is [docs/access.md](docs/access.md).
+
+```sh
+docker run --rm -p 127.0.0.1:8888:8888 -p 127.0.0.1:8025:8025 \
+  -e MOCKWA_MODE=public \
+  -e MOCKWA_ADMIN_TOKEN=change-me-to-something-long \
+  -e MOCKWA_TOKENS=my-app-token \
+  -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3001/webhook \
+  -e MOCKWA_APP_SECRET=my-app-secret \
+  --add-host=host.docker.internal:host-gateway \
+  ghcr.io/loongest/mockwa:latest
+```
+
+[`examples/public-demo`](examples/public-demo/docker-compose.yml) runs the same thing with the
+echo app as the app under test.
+
+What a visitor sees, at `http://127.0.0.1:8025/phone`:
+
+1. **Start demo.** The visitor gets fresh phone numbers of its own (by default a `CUSTOMER` and a
+   `TECHNICIAN`, starting with `999`). Nobody else's numbers or chats are ever shown.
+2. **Chat.** Messages, images and PDFs go to your app as normal signed webhooks; your app's
+   replies (and its buttons) arrive live.
+3. **Limits** are explained in place: too many messages, a file too large or of the wrong kind.
+4. **Expiry.** After 30 minutes without activity (or on "Leave demo") the session ends and its
+   numbers, messages and uploads are deleted. The page says so and offers a new demo.
+
+What changes for the other two audiences:
+
+- **Your app** talks to the Graph API (8888) exactly as before, but only with a token from
+  `MOCKWA_TOKENS` (required in public mode). Webhook URLs come only from the configuration:
+  `override_callback_uri` is refused.
+- **You, the admin**, reach the console at `http://127.0.0.1:8025/admin` (sign in with
+  `MOCKWA_ADMIN_TOKEN`) or call the API with `Authorization: Bearer <token>`. Without it, every
+  console API answers `401` and every console page `404` — visitors cannot reach state, export,
+  logs, settings, apps, templates, rules, the clock, scenarios or reset.
+
+Public mode runs on the real clock (`MOCKWA_CLOCK=virtual` is refused) and still keeps one
+SQLite database for everyone. Visitor sessions survive a restart; rate-limit windows and admin
+sign-ins do not.
+
+**HTTP or HTTPS.** mockwa itself speaks plain HTTP. Cookies are HttpOnly and SameSite=Strict;
+with `MOCKWA_COOKIE_SECURE=auto` they are marked `Secure` only when the request came over HTTPS,
+so a local `http://127.0.0.1` demo works. Behind an HTTPS reverse proxy, list the proxy's address
+in `MOCKWA_TRUSTED_PROXIES` (so its `X-Forwarded-For` and `X-Forwarded-Proto` are believed, and
+per-visitor limits see real client addresses) and, unless it forwards `X-Forwarded-Host`, put the
+public origin in `MOCKWA_ALLOWED_ORIGINS`. Public hosting itself is beyond this release.
 
 ## Development
 

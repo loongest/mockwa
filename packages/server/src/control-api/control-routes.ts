@@ -1,5 +1,7 @@
+import { phoneConfigResponseSchema } from "@mockwa/shared";
 import { Hono } from "hono";
 import type { DomainServices } from "../composition.ts";
+import type { AccessConfig } from "../config/index.ts";
 import type { Logger } from "../logging/index.ts";
 import { createAppRoutes } from "./app-routes.ts";
 import { createClockRoutes } from "./clock-routes.ts";
@@ -24,18 +26,22 @@ import { createTypingRoutes } from "./typing-routes.ts";
 import { createWabaRoutes } from "./waba-routes.ts";
 import { createWebhookRoutes } from "./webhook-routes.ts";
 import { createWsRoutes } from "./ws-routes.ts";
+import { createVisitorPhoneRoutes, createVisitorSessionRoutes } from "./visitor-routes.ts";
 
 export interface ControlRoutesOptions {
 	services: DomainServices;
 	logger: Logger;
+	/** `dev` (the default) or `public` (SPEC §7, "Access modes"); decides which phone API is mounted. */
+	access?: AccessConfig;
 }
 
 /**
  * The whole control plane, as one router mounted at `/api` (SPEC §5).
  *
- * There is no authentication: whaloc is a local dev tool whose UI runs in a browser with no
- * credential to give it, and the Graph surface next door already accepts any bearer token.
- * Do not expose the port to a network you do not trust.
+ * In dev mode there is no authentication: mockwa is a local dev tool whose UI runs in a browser
+ * with no credential to give it. The admin token and public mode guard this router from in front
+ * (`access.ts`, mounted by `app.ts`), so nothing in here checks who is calling — except the
+ * visitor phone API, which is scoped to the session in its cookie (SPEC §5, §7).
  *
  * The error handler is registered here so the plain `{error:{message,code?}}` shape stays a
  * property of *this* surface, while the Graph routes keep answering with Meta's envelope
@@ -65,21 +71,50 @@ export function createControlRoutes(options: ControlRoutesOptions): Hono<Control
 	routes.route("/", createGraphRequestRoutes({ graphRequests: services.graphRequests }));
 	routes.route("/", createTokenRoutes({ tokens: services.tokens }));
 	routes.route("/", createWebhookRoutes({ webhooks: services.webhooks, accountEvents: services.accountEvents }));
-	routes.route("/", createAppRoutes({ apps: services.apps, webhooks: services.webhooks }));
+	routes.route(
+		"/",
+		createAppRoutes({
+			apps: services.apps,
+			webhooks: services.webhooks,
+			destinationsLocked: options.access?.mode === "public",
+		}),
+	);
 	routes.route(
 		"/",
 		createPhoneNumberRoutes({ phoneNumbers: services.phoneNumbers, businessProfiles: services.businessProfiles }),
 	);
 	routes.route("/", createWabaRoutes({ wabas: services.wabas }));
-	routes.route(
-		"/",
-		createPhoneRoutes({
+	const mode = options.access?.mode ?? "dev";
+
+	routes.get("/phone/config", c => c.json(phoneConfigResponseSchema.parse({ data: { mode } })));
+
+	if (options.access?.mode === "public") {
+		const visitorOptions = {
+			access: options.access,
+			sessions: services.visitors,
 			phone: services.phone,
 			inbound: services.inbound,
+			media: services.media,
+			clock: services.clock,
 			events: services.events,
 			logger: options.logger,
-		}),
-	);
+		};
+
+		routes.route("/", createVisitorSessionRoutes(visitorOptions));
+		routes.route("/", createVisitorPhoneRoutes(visitorOptions));
+	} else {
+		routes.route(
+			"/",
+			createPhoneRoutes({
+				phone: services.phone,
+				inbound: services.inbound,
+				events: services.events,
+				media: services.media,
+				clock: services.clock,
+				logger: options.logger,
+			}),
+		);
+	}
 	routes.route("/", createWsRoutes({ events: services.events, logger: options.logger }));
 
 	routes.onError(createControlErrorHandler());

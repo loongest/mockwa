@@ -1,5 +1,6 @@
-import type { Message, PhoneChat } from "@mockwa/shared";
+import type { InboundRequest, Message, PhoneChat } from "@mockwa/shared";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
+import { MediaResolverContext, type MediaResolver } from "../features/chats/media-preview.tsx";
 import { InboundSenderContext, type InboundSender } from "../features/chats/use-quoted-reply.ts";
 import { useToasts } from "../store/store.tsx";
 import { phoneApi } from "./phone-api.ts";
@@ -71,10 +72,45 @@ function BusinessTyping() {
 	);
 }
 
+/** What the attach button offers: the types a public demo accepts (SPEC §5), in either mode. */
+const ATTACHMENT_TYPES = "image/jpeg, image/png, image/webp, application/pdf";
+
+/** The send for an uploaded attachment: a PDF goes as a document (with its name), the rest as an image. */
+function attachmentRequest(
+	chat: { waId: string; phoneNumberId: string },
+	media: { id: string; mimeType: string },
+	filename: string,
+	caption: string,
+): InboundRequest {
+	const base = { phoneNumberId: chat.phoneNumberId, from: chat.waId };
+	const withCaption = caption === "" ? {} : { caption };
+
+	return media.mimeType === "application/pdf"
+		? { ...base, type: "document", media: { id: media.id, filename, ...withCaption } }
+		: { ...base, type: "image", media: { id: media.id, ...withCaption } };
+}
+
 function Composer(props: { waId: string; phoneNumberId: string }) {
 	const toasts = useToasts();
 	const [text, setText] = useState("");
 	const [isSending, setIsSending] = useState(false);
+	const fileInput = useRef<HTMLInputElement>(null);
+
+	const attach = (file: File): void => {
+		setIsSending(true);
+		void (async () => {
+			try {
+				const media = await phoneApi.uploadMedia(props.waId, props.phoneNumberId, file);
+
+				await phoneApi.send(props.waId, attachmentRequest(props, media, file.name, text.trim()));
+				setText("");
+			} catch (error) {
+				toasts.error(error);
+			} finally {
+				setIsSending(false);
+			}
+		})();
+	};
 
 	const submit = (event: SyntheticEvent): void => {
 		event.preventDefault();
@@ -105,6 +141,33 @@ function Composer(props: { waId: string; phoneNumberId: string }) {
 
 	return (
 		<form className="phone-composer" onSubmit={submit}>
+			<input
+				ref={fileInput}
+				type="file"
+				hidden
+				accept={ATTACHMENT_TYPES}
+				data-testid="phone-attach-input"
+				onChange={event => {
+					const file = event.target.files?.[0];
+
+					event.target.value = "";
+
+					if (file !== undefined) {
+						attach(file);
+					}
+				}}
+			/>
+			<button
+				type="button"
+				className="button button--ghost phone-composer__attach"
+				aria-label="Attach an image or PDF"
+				disabled={isSending}
+				onClick={() => {
+					fileInput.current?.click();
+				}}
+			>
+				📎
+			</button>
 			<input
 				className="input phone-composer__input"
 				aria-label="Message"
@@ -161,44 +224,51 @@ export function ChatView(props: ChatViewProps) {
 
 	// A tapped button or quick reply goes out as this phone, through its own route.
 	const sender = useMemo<InboundSender>(() => async request => phoneApi.send(waId, request), [waId]);
+	// Media is looked up through the phone's own route, which only answers for what this phone may see.
+	const resolveMedia = useMemo<MediaResolver>(
+		() => async (mediaId, options) => phoneApi.media(waId, mediaId, options),
+		[waId],
+	);
 
 	return (
-		<InboundSenderContext value={sender}>
-			<section className="phone-chat" aria-label={`Chat with ${businessName}`}>
-				<header className="phone-bar">
-					<button type="button" className="button button--ghost" aria-label="Back to chats" onClick={props.onBack}>
-						←
-					</button>
-					<div className="phone-bar__title">
-						<strong>{businessName}</strong>
-						<span className="phone-bar__subtitle">
-							{props.isTyping ? "typing…" : (props.chat?.displayPhoneNumber ?? "")}
-						</span>
+		<MediaResolverContext value={resolveMedia}>
+			<InboundSenderContext value={sender}>
+				<section className="phone-chat" aria-label={`Chat with ${businessName}`}>
+					<header className="phone-bar">
+						<button type="button" className="button button--ghost" aria-label="Back to chats" onClick={props.onBack}>
+							←
+						</button>
+						<div className="phone-bar__title">
+							<strong>{businessName}</strong>
+							<span className="phone-bar__subtitle">
+								{props.isTyping ? "typing…" : (props.chat?.displayPhoneNumber ?? "")}
+							</span>
+						</div>
+					</header>
+
+					<div
+						ref={thread}
+						className="phone-chat__thread"
+						data-testid="phone-thread"
+						data-state={messages === null ? "loading" : "ready"}
+					>
+						{messages === null && <p className="phone-empty">Loading…</p>}
+						{messages?.length === 0 && <p className="phone-empty">No messages yet. Say hello.</p>}
+						{visible.map(message => (
+							<PhoneBubble
+								key={message.id}
+								message={message}
+								businessName={businessName}
+								reactions={reactionsByTarget.get(message.id) ?? []}
+								repliedTo={message.replyTo === null ? null : (byId.get(message.replyTo) ?? null)}
+							/>
+						))}
+						{props.isTyping && <BusinessTyping />}
 					</div>
-				</header>
 
-				<div
-					ref={thread}
-					className="phone-chat__thread"
-					data-testid="phone-thread"
-					data-state={messages === null ? "loading" : "ready"}
-				>
-					{messages === null && <p className="phone-empty">Loading…</p>}
-					{messages?.length === 0 && <p className="phone-empty">No messages yet. Say hello.</p>}
-					{visible.map(message => (
-						<PhoneBubble
-							key={message.id}
-							message={message}
-							businessName={businessName}
-							reactions={reactionsByTarget.get(message.id) ?? []}
-							repliedTo={message.replyTo === null ? null : (byId.get(message.replyTo) ?? null)}
-						/>
-					))}
-					{props.isTyping && <BusinessTyping />}
-				</div>
-
-				<Composer waId={waId} phoneNumberId={phoneNumberId} />
-			</section>
-		</InboundSenderContext>
+					<Composer waId={waId} phoneNumberId={phoneNumberId} />
+				</section>
+			</InboundSenderContext>
+		</MediaResolverContext>
 	);
 }
