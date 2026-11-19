@@ -1,9 +1,10 @@
 import type { StateResponse } from "@mockwa/shared";
-import type { AppConfig } from "../config/index.ts";
+import type { AppConfig, Seed } from "../config/index.ts";
 import { deleteAllRows, type Repositories } from "../db/index.ts";
 import type { Logger } from "../logging/index.ts";
 import type { MediaStorage } from "../storage/index.ts";
 import type { AppService } from "./app-service.ts";
+import type { ClockService } from "./clock-service.ts";
 import { applySeed, type SeedResult } from "./apply-seed.ts";
 import { noopEventPublisher, type EventPublisher } from "./event-bus.ts";
 import { deleteStoredMedia } from "./media-cleanup.ts";
@@ -46,6 +47,8 @@ export interface ResetServiceOptions {
 	/** Re-armed after the wipe so a cancelled retry queue does not keep a timer. */
 	webhooks?: WebhookEmitter;
 	events?: EventPublisher;
+	/** Under the virtual clock, a reset also puts the clock and the ID stream back at their start. */
+	clock?: ClockService;
 }
 
 export interface ResetResult {
@@ -66,6 +69,7 @@ export class ResetService {
 	readonly #apps: AppService | undefined;
 	readonly #webhooks: WebhookEmitter | undefined;
 	readonly #events: EventPublisher;
+	readonly #clock: ClockService | undefined;
 
 	constructor(options: ResetServiceOptions) {
 		this.#repositories = options.repositories;
@@ -80,6 +84,7 @@ export class ResetService {
 		this.#apps = options.apps;
 		this.#webhooks = options.webhooks;
 		this.#events = options.events ?? noopEventPublisher;
+		this.#clock = options.clock;
 	}
 
 	/**
@@ -102,21 +107,38 @@ export class ResetService {
 		});
 	}
 
-	async reset(): Promise<ResetResult> {
+	/**
+	 * Back to the seed. `options.seed` and `options.clockStart` are how a scenario resets into its
+	 * own world (SPEC §4, "Scenarios") instead of `MOCKWA_SEED`'s; `MOCKWA_APPS` is registered
+	 * either way unless `options.apps` is `false`.
+	 */
+	async reset(
+		options: { seed?: Seed; clockStart?: Date; registerConfiguredApps?: boolean } = {},
+	): Promise<ResetResult> {
 		this.#statusLadder.cancelAll();
 		this.#templateLifecycle.cancelAll();
 		// A typing indicator describes a conversation that is about to stop existing; the
 		// `state.reset` event below is what tells the UI to forget it.
 		this.#typing.clearAll();
 		this.#messagingRules?.reset();
+		// Drops whatever virtual events are left and rewinds the clock and the ID stream, so the
+		// rows below are stamped at the start and get the same IDs as last time.
+		await this.#clock?.restart(options.clockStart);
 
 		await this.#deleteMediaObjects();
 		await deleteAllRows(this.#repositories);
 
-		const seed = await applySeed({ repositories: this.#repositories, seed: this.#config.seed });
+		const seed = await applySeed({
+			repositories: this.#repositories,
+			seed: options.seed ?? this.#config.seed,
+			...(this.#clock !== undefined && { createdAt: this.#clock.now().toISOString() }),
+		});
 
 		// `MOCKWA_APPS` is part of the seed's world; the retry queue went with the delivery log.
-		await this.#apps?.applySeed(this.#config.apps);
+		if (options.registerConfiguredApps !== false) {
+			await this.#apps?.applySeed(this.#config.apps);
+		}
+
 		await this.#webhooks?.resumeRetries();
 		const state = await this.#state.snapshot();
 

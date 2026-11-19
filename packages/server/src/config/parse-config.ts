@@ -263,5 +263,9 @@ export function describeConfig(config: AppConfig): Record<string, unknown> {
 		webhookRetryScheduleMs: config.webhookRetryScheduleMs,
 		webhookRetryMaxAgeMs: config.webhookRetryMaxAgeMs,
 		messaging: config.messaging,
+		clock: {
+			mode: config.clock.mode,
+			start: config.clock.mode === "virtual" ? config.clock.start.toISOString() : null,
+		},
 	};
 }

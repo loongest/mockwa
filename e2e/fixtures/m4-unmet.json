@@ -1,0 +1,14 @@
+{
+	"name": "unmet expectation",
+	"description": "Fails on purpose (AC-12): the echo app answers \"echo: hi\", the scenario expects a greeting.",
+	"clock": { "start": "2026-05-04T09:00:00Z" },
+	"identities": [{ "waId": "60123000009", "name": "Dina", "role": "CUSTOMER" }],
+	"steps": [
+		{ "send": { "as": "Dina", "text": "hi" } },
+		{
+			"name": "the app greets Dina by name",
+			"expect": { "message": { "to": "Dina", "text": "Hello, Dina!" }, "within": "2s" }
+		},
+		{ "advance": "1m" }
+	]
+}

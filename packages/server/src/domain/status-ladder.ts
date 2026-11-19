@@ -82,10 +82,14 @@ export class StatusLadder implements OutboundMessageEvents {
 	#schedule(messageId: string, status: WebhookStatus, delayMs: number): void {
 		this.cancel(messageId);
 
-		const task = this.#scheduler.schedule(delayMs, () => {
-			this.#pending.delete(messageId);
-			this.#tasks.run(() => this.#climb(messageId, status));
-		});
+		const task = this.#scheduler.schedule(
+			delayMs,
+			() => {
+				this.#pending.delete(messageId);
+				this.#tasks.run(() => this.#climb(messageId, status));
+			},
+			`status ${status} ${messageId}`,
+		);
 
 		this.#pending.set(messageId, task);
 	}
@@ -231,10 +235,14 @@ export class StatusLadder implements OutboundMessageEvents {
 
 		this.cancel(message.id);
 
-		const task = this.#scheduler.schedule(this.#delays.sent, () => {
-			this.#pending.delete(message.id);
-			this.#tasks.run(() => this.#fail(message.id, failure));
-		});
+		const task = this.#scheduler.schedule(
+			this.#delays.sent,
+			() => {
+				this.#pending.delete(message.id);
+				this.#tasks.run(() => this.#fail(message.id, failure));
+			},
+			`status failed ${message.id}`,
+		);
 
 		this.#pending.set(message.id, task);
 	}

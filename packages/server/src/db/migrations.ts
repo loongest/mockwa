@@ -424,6 +424,20 @@ export const MIGRATIONS: Record<string, Migration> = {
 			await db.schema.alterTable("injection_rules").addColumn("error_code", "integer").execute();
 		},
 	},
+	"0011_virtual_clock": {
+		// One row at most: where the virtual clock stood and which ID stream was in use, so a
+		// restart with a file database resumes both instead of jumping back to the start
+		// (SPEC §4, "Virtual clock"). Not a snapshot table: the clock belongs to the instance.
+		up: async (db: Kysely<never>): Promise<void> => {
+			await db.schema
+				.createTable("clock_state")
+				.addColumn("id", "integer", column => column.primaryKey())
+				.addColumn("now", "text", column => column.notNull())
+				.addColumn("id_stream", "text", column => column.notNull())
+				.addColumn("updated_at", "text", column => column.notNull())
+				.execute();
+		},
+	},
 };
 
 /** Serves {@link MIGRATIONS} to Kysely's `Migrator`. */

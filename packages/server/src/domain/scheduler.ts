@@ -6,7 +6,12 @@
  *
  * Timers are plain in-process `setTimeout`s and are **not** persisted: a restart drops
  * whatever was pending (SPEC §4). For a dev tool that is the right trade — the alternative is
- * a job table that replays a webhook storm on every boot.
+ * a job table that replays a webhook storm on every boot. (The webhook retry queue is the one
+ * exception, and it persists its due times in SQLite rather than its timers, SPEC §3.)
+ *
+ * Two implementations run the server: {@link createSystemScheduler}, the default, and the
+ * virtual clock (`virtual-clock.ts`, `MOCKWA_CLOCK=virtual`), whose time only moves when the
+ * control plane moves it.
  */
 export interface ScheduledTask {
 	/** Idempotent: cancelling an already-fired or already-cancelled task does nothing. */
@@ -14,8 +19,11 @@ export interface ScheduledTask {
 }
 
 export interface Scheduler {
-	/** Runs `task` after `delayMs` (a delay of 0 still runs on a later tick). */
-	schedule: (delayMs: number, task: () => void) => ScheduledTask;
+	/**
+	 * Runs `task` after `delayMs` (a delay of 0 still runs on a later tick). `label` names the
+	 * event for the virtual clock's pending list (`GET /api/clock`); the real clock ignores it.
+	 */
+	schedule: (delayMs: number, task: () => void, label?: string) => ScheduledTask;
 	/** Waits `delayMs`; how the webhook emitter spaces its retries. */
 	sleep: (delayMs: number) => Promise<void>;
 	/** Now, as a `Date` — services never call the global clock directly. */

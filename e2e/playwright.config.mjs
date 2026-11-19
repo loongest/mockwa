@@ -10,7 +10,9 @@ import { defineConfig } from "@playwright/test";
  * - `m2-webhooks` drives the apps and retries of an instance started with
  *   e2e/fixtures/m2-seed.json and m2-apps.json, at M2_CONSOLE_URL;
  * - `m3-fidelity` drives the messaging-rule views of the instance e2e/m3-fidelity.mjs checks,
- *   at M3_CONSOLE_URL.
+ *   at M3_CONSOLE_URL;
+ * - `m4-clock` drives the virtual phone on the virtual-clock instance e2e/m4-clock-scenarios.mjs
+ *   checks, at M4_CONSOLE_URL (it resets that instance).
  *
  * Every URL is required and has no default (e2e/targets.mjs): each spec file checks its own
  * before any test runs, so a missing one can never reach a developer's own instance.
@@ -46,6 +48,11 @@ export default defineConfig({
 			name: "m3-fidelity",
 			testMatch: "m3-*.spec.mjs",
 			use: { baseURL: process.env.M3_CONSOLE_URL },
+		},
+		{
+			name: "m4-clock",
+			testMatch: "m4-*.spec.mjs",
+			use: { baseURL: process.env.M4_CONSOLE_URL },
 		},
 	],
 });

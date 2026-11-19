@@ -19,6 +19,7 @@ import {
 	PhoneService,
 	createBackgroundTasks,
 	createEventBus,
+	createSystemScheduler,
 	InboundService,
 	InjectionService,
 	MediaService,
@@ -39,18 +40,29 @@ import {
 	UploadService,
 	WabaService,
 	WebhookEmitter,
+	ClockService,
+	ScenarioRunner,
+	createRandomIdStream,
+	createSeededIdStream,
+	VirtualClock,
 	type BackgroundTasks,
+	type IdStream,
 	type EventBus,
 	type Scheduler,
 	type SeedResult,
 } from "./domain/index.ts";
 import type { Logger } from "./logging/index.ts";
+import type { Clock } from "./timestamps.ts";
 import { createMediaStorage, type MediaStorage } from "./storage/index.ts";
 
 export interface CreateServicesOptions {
 	config: AppConfig;
 	logger: Logger;
-	/** Injected by tests that drive time; defaults to real timers inside every service. */
+	/**
+	 * Injected by tests that drive time. Defaults to real timers inside every service, or to a
+	 * {@link VirtualClock} when `MOCKWA_CLOCK=virtual`; a `VirtualClock` passed here is treated
+	 * as the instance's virtual clock (SPEC §4, "Virtual clock").
+	 */
 	scheduler?: Scheduler;
 }
 
@@ -98,6 +110,12 @@ export interface DomainServices {
 	events: EventBus;
 	/** Webhook deliveries in flight; the specs and the shutdown sequence wait on it. */
 	tasks: BackgroundTasks;
+	/** `/api/clock`: the instance's one clock, real or virtual (SPEC §4). */
+	clock: ClockService;
+	/** Where generated IDs get their bytes: seeded under the virtual clock. */
+	ids: IdStream;
+	/** `/api/scenarios`: repeatable simulator tests (SPEC §4, "Scenarios"). */
+	scenarios: ScenarioRunner;
 }
 
 /** Everything with a lifetime, built once at boot and injected from here on (SPEC §8). */
@@ -121,6 +139,22 @@ export interface CreateDomainServicesOptions {
 	config: AppConfig;
 	logger: Logger;
 	scheduler?: Scheduler;
+	/** Defaults to `crypto` randomness, as before the virtual clock existed. */
+	ids?: IdStream;
+}
+
+/**
+ * Waits until no background task and no webhook retry pass is running — looking again after a
+ * tick, because finishing one can start the other (a retry's failure re-arms the queue).
+ */
+async function settleBackgroundWork(tasks: BackgroundTasks, webhooks: WebhookEmitter): Promise<void> {
+	do {
+		await tasks.whenIdle();
+		await webhooks.whenIdle();
+		await new Promise(resolve => {
+			setImmediate(resolve);
+		});
+	} while (tasks.size > 0 || webhooks.isBusy);
 }
 
 /**
@@ -138,8 +172,12 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 		},
 	});
 	const scheduler = options.scheduler;
+	const ids = options.ids ?? createRandomIdStream();
+	const { random, nextSequence } = ids;
+	const virtual = scheduler instanceof VirtualClock ? scheduler : null;
 	// The default app is the environment's; registered apps live in the database (SPEC §3).
 	const apps = new AppService({
+		random,
 		repositories,
 		defaultApp: {
 			id: config.appId,
@@ -151,12 +189,14 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 		...(scheduler !== undefined && { scheduler }),
 	});
 	const webhooks = new WebhookEmitter({
+		random,
 		repositories,
 		logger,
 		apps,
 		events,
 		retryScheduleMs: config.webhookRetryScheduleMs,
 		retryMaxAgeMs: config.webhookRetryMaxAgeMs,
+		nextSequence,
 		...(scheduler !== undefined && { scheduler }),
 	});
 	const statusLadder = new StatusLadder({
@@ -182,6 +222,7 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 		...(scheduler !== undefined && { scheduler }),
 	});
 	const media = new MediaService({
+		random,
 		repositories,
 		storage: mediaStorage,
 		publicUrl: config.publicUrl,
@@ -192,6 +233,7 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 	// The Upload API is scoped to the app `subscribed_apps` reports, so it is built after it
 	// (SPEC §2.21); the templates and the business profile both resolve handles through it.
 	const uploads = new UploadService({
+		random,
 		repositories,
 		storage: mediaStorage,
 		publicUrl: config.publicUrl,
@@ -203,6 +245,7 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 	const state = new StateService({ repositories, config, webhooks, subscribedApps });
 	// The WABA cascade goes through the phone numbers, so this one is built first.
 	const phoneNumbers = new PhoneNumberService({
+		random,
 		repositories,
 		webhooks,
 		tasks,
@@ -212,17 +255,64 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 		...(scheduler !== undefined && { scheduler }),
 	});
 
-	const injection = new InjectionService({ repositories, events });
+	const injection = new InjectionService({
+		repositories,
+		events,
+		random,
+		nextSequence,
+		...(scheduler !== undefined && { scheduler }),
+	});
 	const messagingRules = new MessagingRules({
 		repositories,
 		config: config.messaging,
 		...(scheduler !== undefined && { scheduler }),
 	});
 
+	const clock = new ClockService({
+		config: config.clock,
+		scheduler: scheduler ?? createSystemScheduler(),
+		virtual,
+		ids,
+		repositories,
+		logger,
+	});
+
+	// An advance is complete once what each event started has settled: the status webhooks it
+	// sent, the retries it persisted (SPEC §4, "Virtual clock").
+	virtual?.setSettler(async () => {
+		await settleBackgroundWork(tasks, webhooks);
+	});
+
+	const inbound = new InboundService({
+		random,
+		repositories,
+		webhooks,
+		tasks,
+		media,
+		events,
+		...(scheduler !== undefined && { scheduler }),
+	});
+	const reset = new ResetService({
+		repositories,
+		mediaStorage,
+		config,
+		logger,
+		state,
+		statusLadder,
+		templateLifecycle,
+		typing,
+		messagingRules,
+		apps,
+		webhooks,
+		events,
+		clock,
+	});
+
 	return {
 		objects: new ObjectService({ repositories }),
 		// An accepted send starts the ladder *and* drops the conversation's typing indicator.
 		messages: new MessageService({
+			random,
 			repositories,
 			events: combineOutboundMessageEvents(statusLadder, typing),
 			rules: messagingRules,
@@ -237,7 +327,7 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 		}),
 		media,
 		uploads,
-		templates: new TemplateService({ repositories, events: templateLifecycle, uploads }),
+		templates: new TemplateService({ repositories, events: templateLifecycle, uploads, random }),
 		businessProfiles: new BusinessProfileService({ repositories, media, uploads, events }),
 		subscribedApps,
 		apps,
@@ -261,6 +351,7 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 		// A number change emits Meta's `user_changed_number` system webhook (SPEC §5), so this
 		// one needs the emitter and the clock like every other announcing service.
 		contacts: new ContactService({
+			random,
 			repositories,
 			webhooks,
 			tasks,
@@ -269,31 +360,11 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 		}),
 		conversations: new ConversationService({ repositories }),
 		phone: new PhoneService({ repositories, statusLadder }),
-		inbound: new InboundService({
-			repositories,
-			webhooks,
-			tasks,
-			media,
-			events,
-			...(scheduler !== undefined && { scheduler }),
-		}),
+		inbound,
 		phoneNumbers,
-		wabas: new WabaService({ repositories, phoneNumbers, events }),
+		wabas: new WabaService({ repositories, phoneNumbers, events, random }),
 		state,
-		reset: new ResetService({
-			repositories,
-			mediaStorage,
-			config,
-			logger,
-			state,
-			statusLadder,
-			templateLifecycle,
-			typing,
-			messagingRules,
-			apps,
-			webhooks,
-			events,
-		}),
+		reset,
 		// An import replaces everything a reset would wipe, so it cancels the same timers —
 		// but it does *not* re-apply the seed: the snapshot is the state (SPEC §5).
 		snapshots: new SnapshotService({
@@ -307,10 +378,26 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 			messagingRules,
 			webhooks,
 			events,
+			clock,
 			...(scheduler !== undefined && { scheduler }),
 		}),
 		events,
 		tasks,
+		clock,
+		ids,
+		scenarios: new ScenarioRunner({
+			config,
+			repositories,
+			reset,
+			apps,
+			injection,
+			inbound,
+			messagingRules,
+			clock,
+			tasks,
+			webhooks,
+			logger,
+		}),
 	};
 }
 
@@ -322,8 +409,14 @@ async function buildServices(options: CreateServicesOptions, handle: DatabaseHan
 
 	logger.info({ dbPath: config.dbPath, applied }, migrationMessage(applied));
 
-	const repositories = createRepositories(db);
-	const seed = await applySeed({ repositories, seed: config.seed });
+	// One clock per instance (SPEC §4): a test's scheduler, else the virtual clock when
+	// `MOCKWA_CLOCK=virtual`, else real time inside every service, as before.
+	const scheduler =
+		options.scheduler ?? (config.clock.mode === "virtual" ? new VirtualClock(config.clock.start) : undefined);
+	const ids = scheduler instanceof VirtualClock ? createSeededIdStream() : createRandomIdStream();
+	const clock: Clock | undefined = scheduler === undefined ? undefined : () => scheduler.now();
+	const repositories = createRepositories(db, clock);
+	const seed = await applySeed({ repositories, seed: config.seed, ...(clock !== undefined && { clock }) });
 
 	// The resolved ids — WABAs, phone numbers, contacts and templates — are what a user has to
 	// put in `GRAPH_API_BASE_URL` calls, so they are logged in full even when nothing was
@@ -340,8 +433,12 @@ async function buildServices(options: CreateServicesOptions, handle: DatabaseHan
 		mediaStorage,
 		config,
 		logger,
-		...(options.scheduler !== undefined && { scheduler: options.scheduler }),
+		ids,
+		...(scheduler !== undefined && { scheduler }),
 	});
+
+	// A stored virtual-clock position comes back before the retry queue is armed against it.
+	await domain.clock.restore();
 	const registeredApps = await domain.apps.applySeed(config.apps);
 
 	if (registeredApps.length > 0) {

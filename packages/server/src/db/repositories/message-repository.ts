@@ -9,7 +9,7 @@ import {
 	jsonObjectSchema,
 	type JsonObject,
 } from "../json-column.ts";
-import { nowIso } from "../../timestamps.ts";
+import { nowIso, systemClock, type Clock } from "../../timestamps.ts";
 import type { TemplateRecord } from "./template-repository.ts";
 import type { Database, MessageDirection, MessageStatus, MessageTable, MessageType } from "../schema.ts";
 
@@ -118,13 +118,15 @@ function toRecord(row: MessageTable): MessageRecord {
 /** Messages in both directions, the conversation the UI renders (SPEC §5). */
 export class MessageRepository {
 	readonly #db: Kysely<Database>;
+	readonly #clock: Clock;
 
-	constructor(db: Kysely<Database>) {
+	constructor(db: Kysely<Database>, clock: Clock = systemClock) {
 		this.#db = db;
+		this.#clock = clock;
 	}
 
 	async insert(input: InsertMessageInput): Promise<MessageRecord> {
-		const now = nowIso();
+		const now = nowIso(this.#clock);
 		const createdAt = input.createdAt ?? now;
 		const row = await this.#db
 			.insertInto("messages")
@@ -294,7 +296,7 @@ export class MessageRepository {
 			.set({
 				status: input.status,
 				...(input.error !== undefined && { error: input.error === null ? null : encodeJsonColumn(input.error) }),
-				updated_at: input.updatedAt ?? nowIso(),
+				updated_at: input.updatedAt ?? nowIso(this.#clock),
 			})
 			.where("id", "=", id)
 			.returningAll()

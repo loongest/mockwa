@@ -1,6 +1,6 @@
 import { sql, type Kysely, type SqlBool } from "kysely";
 import type { QualityRating, TemplateCategory, TemplateParameterFormat } from "../../config/index.ts";
-import { nowIso } from "../../timestamps.ts";
+import { nowIso, systemClock, type Clock } from "../../timestamps.ts";
 import { decodeJsonColumn, encodeJsonColumn, jsonObjectArraySchema, type JsonObject } from "../json-column.ts";
 import type { Database, TemplateStatus, TemplateTable } from "../schema.ts";
 
@@ -102,9 +102,11 @@ function toRecord(row: TemplateTable): TemplateRecord {
 /** Message templates, unique per WABA by name + language (SPEC §2.7). */
 export class TemplateRepository {
 	readonly #db: Kysely<Database>;
+	readonly #clock: Clock;
 
-	constructor(db: Kysely<Database>) {
+	constructor(db: Kysely<Database>, clock: Clock = systemClock) {
 		this.#db = db;
+		this.#clock = clock;
 	}
 
 	/**
@@ -157,7 +159,7 @@ export class TemplateRepository {
 	}
 
 	async insert(input: InsertTemplateInput): Promise<TemplateRecord> {
-		const timestamp = input.createdAt ?? nowIso();
+		const timestamp = input.createdAt ?? nowIso(this.#clock);
 		const row = await this.#db
 			.insertInto("templates")
 			.values({
@@ -272,7 +274,7 @@ export class TemplateRepository {
 				...(input.status !== undefined && { status: input.status }),
 				...(input.rejectedReason !== undefined && { rejected_reason: input.rejectedReason }),
 				...(input.qualityScore !== undefined && { quality_score: input.qualityScore }),
-				updated_at: input.updatedAt ?? nowIso(),
+				updated_at: input.updatedAt ?? nowIso(this.#clock),
 			})
 			.where("id", "=", id)
 			.returningAll()

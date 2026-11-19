@@ -270,6 +270,8 @@ webhooks rather than failing), and values are trimmed.
 | `MOCKWA_WEBHOOK_RETRY_MAX_AGE`  | `7d`                                                 | How long a delivery keeps being retried, as on Meta                                                 |
 | `MOCKWA_SEED`                   | 1 WABA + 1 phone number + 2 contacts + 1 template    | JSON array of WABAs (see [SPEC §7](docs/SPEC.md)); omitted IDs are derived deterministically        |
 | `MOCKWA_SEED_FILE`              | _unset_                                              | Path to a file with the `MOCKWA_SEED` JSON, for long seeds; setting both is refused                 |
+| `MOCKWA_CLOCK`                  | `real`                                               | `real` or `virtual`: one clock you move through `/api/clock` (see **Virtual clock and scenarios**)  |
+| `MOCKWA_CLOCK_START`            | `2026-01-01T00:00:00.000Z`                           | Where the virtual clock starts, and where a reset puts it                                           |
 | `MOCKWA_STATUS_DELAYS`          | `sent:0,delivered:800`                               | Status ladder timing in ms; add `read:<ms>` to automate read receipts                               |
 | `MOCKWA_TEMPLATE_AUTO_APPROVE`  | `2000`                                               | ms until a new template is approved; `off` leaves it `PENDING` for the UI                           |
 | `MOCKWA_TOKENS`                 | _unset → any non-empty bearer token is accepted_     | Comma-separated bearer-token registry; set it and only these tokens pass (see **Error simulation**) |
@@ -555,6 +557,87 @@ detection on, and the byte endpoint answers the plain `404` it gives an unknown 
 that route carries no Meta envelope. The row and the bytes are still there: whaloc's own
 `GET /api/media/{id}` keeps describing them, so the UI can still show what a message pointed at.
 
+## Virtual clock and scenarios
+
+> Simulator-only: Meta has no clock you can move. This exists so tests can cover minutes, days
+> and the 7-day retry horizon without waiting.
+
+### The virtual clock
+
+Start mockwa with `MOCKWA_CLOCK=virtual` and time stands still until you move it. Every timer
+(status rungs, template auto-approval, typing dismissal, webhook retries) and every timestamp
+(messages, statuses, webhooks, the 24-hour window, rate limits) uses this one clock.
+
+```bash
+docker run --rm -p 127.0.0.1:8888:8888 -p 127.0.0.1:8025:8025 \
+  -e MOCKWA_CLOCK=virtual -e MOCKWA_CLOCK_START=2026-06-01T08:00:00Z \
+  -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3001/webhook \
+  ghcr.io/loongest/mockwa:latest
+```
+
+```bash
+curl -s localhost:8025/api/clock                                    # now, and what is pending
+curl -s -X POST localhost:8025/api/clock/advance -H 'content-type: application/json' -d '{"by":"5m"}'
+curl -s -X POST localhost:8025/api/clock/set -H 'content-type: application/json' -d '{"to":"2026-06-02T08:00:00Z"}'
+curl -s -X POST localhost:8025/api/clock/run-next                   # jump to the next event
+```
+
+An advance answers `{from, to, fired, clock}`: every event that ran, in order, each at its own
+due time, and what is still pending. It returns once that work (and the webhooks it sent) is
+done, so you can assert right after it. Good to know:
+
+- Events due at the same instant run in the order they were scheduled.
+- Time never goes backwards; `POST /api/reset` puts it back at `MOCKWA_CLOCK_START`.
+- On the virtual clock, generated IDs are **deterministic**: the same steps after a reset give
+  the same wamids, the same webhook bytes and the same signatures.
+- With a file database the clock's position and pending webhook retries survive a restart.
+  Status rungs and template auto-approvals in flight do not (they are in memory, as before).
+- HTTP timeouts stay in real time, and **your app's clock does not move** with mockwa's. Webhook
+  timestamps show virtual time.
+
+### Scenarios
+
+A scenario is a JSON file: a world (numbers, people with roles, apps, templates, failure rules,
+a start time) and steps (`send`, `tap`, `expect`, `advance`). mockwa resets into the world and
+runs the steps against your app. Two examples live in `examples/scenarios/`; the full format is
+in [SPEC §4 "Scenarios"](docs/SPEC.md).
+
+```json
+{
+	"name": "menu tap",
+	"clock": { "start": "2026-05-04T09:00:00Z" },
+	"identities": [{ "waId": "60123000001", "name": "Ana", "role": "CUSTOMER" }],
+	"steps": [
+		{ "send": { "as": "Ana", "text": "menu" } },
+		{ "expect": { "message": { "to": "Ana", "type": "interactive" } } },
+		{ "tap": { "as": "Ana", "option": "Confirm" } },
+		{ "expect": { "message": { "to": "Ana", "text": "selected: Confirm" }, "within": "5s" } },
+		{ "advance": "24h" },
+		{ "expect": { "window": { "as": "Ana", "open": false } } }
+	]
+}
+```
+
+Run it with the CLI. In the image it is on the `PATH` (mount your files, for example
+`-v "$PWD/scenarios:/scenarios:ro"`); from a checkout use `npm run mockwa --`:
+
+```bash
+docker exec my-mockwa mockwa scenario run /scenarios/menu-tap.json --url http://127.0.0.1:8025 --junit /tmp/report.xml
+```
+
+```text
+PASS menu tap  [/scenarios/menu-tap.json]  (virtual clock 2026-05-04T09:00:00.000Z → 2026-05-05T09:00:00.000Z)
+  ✓ 1. Ana sends "menu"  (4 ms)  @ 2026-05-04T09:00:00.000Z
+  ...
+1 scenario(s): 1 passed, 0 failed
+```
+
+A failed expectation stops the run, names the step and prints what was expected next to what was
+observed; the steps after it are skipped. Exit codes: `0` all passed, `1` a scenario failed, `2`
+a bad file, bad arguments or an unreachable instance. **A run resets the instance**, so `--url`
+is always required. `within` is how long (in real time) an `expect` waits for your app; the
+default is 5 seconds.
+
 ## Control plane
 
 `/api` is whaloc's own API — the web UI and test scripts drive the "user side" through it. It has
@@ -566,6 +649,8 @@ port to a network you do not trust. Request and response schemas live in
 | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /health`, `GET /api/health`                                       | Liveness (the root alias is what the Docker `HEALTHCHECK` hits)                                                                                                                                                                                                               |
 | `GET /api/state`                                                       | WABAs, phone numbers (with their lifecycle and any pending verification code), configured behavior, webhook target status                                                                                                                                                     |
+| `GET /api/clock`, `POST /api/clock/advance\|set\|run-next`             | The virtual clock: where it is, what is pending, and moving it (see **Virtual clock and scenarios**)                                                                                                                                                                          |
+| `POST /api/scenarios/validate\|run`                                    | Check or run a scenario file; `?format=junit` for a JUnit report                                                                                                                                                                                                              |
 | `POST /api/reset`                                                      | Wipe every table **and** the stored media, then re-apply the seed                                                                                                                                                                                                             |
 | `GET /api/export?include=deliveries`                                   | The whole state as one downloadable JSON file, media bytes included (see **State snapshots**)                                                                                                                                                                                 |
 | `POST /api/import`                                                     | Replace all state with such a file — JSON body or a `multipart/form-data` upload                                                                                                                                                                                              |

@@ -27,6 +27,7 @@
 		"format:check": "prettier --check .",
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",
+		"mockwa": "node --experimental-transform-types --disable-warning=ExperimentalWarning --conditions=development packages/server/src/cli/mockwa.ts",
 		"start": "npm run start --workspace @mockwa/server",
 		"test": "npm run test --workspaces --if-present && npm run test:e2e-targets",
 		"test:e2e-targets": "node --test e2e/targets.test.mjs",

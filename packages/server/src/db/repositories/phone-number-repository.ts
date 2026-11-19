@@ -1,7 +1,7 @@
 import { businessProfileSchema, type BusinessProfile } from "@mockwa/shared";
 import type { Kysely } from "kysely";
 import type { QualityRating, ThroughputLevel } from "../../config/index.ts";
-import { nowIso } from "../../timestamps.ts";
+import { nowIso, systemClock, type Clock } from "../../timestamps.ts";
 import { decodeJsonColumn, encodeJsonColumn } from "../json-column.ts";
 import type {
 	CodeVerificationStatus,
@@ -113,9 +113,11 @@ function verificationColumns(pending: PendingVerificationRecord | null): Partial
 /** Business phone numbers, the `phone_number_id` every Graph route is scoped by (SPEC §2). */
 export class PhoneNumberRepository {
 	readonly #db: Kysely<Database>;
+	readonly #clock: Clock;
 
-	constructor(db: Kysely<Database>) {
+	constructor(db: Kysely<Database>, clock: Clock = systemClock) {
 		this.#db = db;
+		this.#clock = clock;
 	}
 
 	async insert(input: InsertPhoneNumberInput): Promise<PhoneNumberRecord> {
@@ -134,7 +136,7 @@ export class PhoneNumberRepository {
 				...verificationColumns(null),
 				// A new number publishes nothing until somebody posts a profile (SPEC §2.19).
 				business_profile: encodeJsonColumn({}),
-				created_at: input.createdAt ?? nowIso(),
+				created_at: input.createdAt ?? nowIso(this.#clock),
 			})
 			.returningAll()
 			.executeTakeFirstOrThrow();

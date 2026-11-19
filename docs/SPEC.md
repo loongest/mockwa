@@ -221,7 +221,7 @@ mockwa plays **several apps** at once, the way one WhatsApp Business Account can
 - On accepted send: emit `sent` immediately, then `delivered` after `MOCKWA_STATUS_DELAYS` (default `sent:0,delivered:800`). **`read` is manual by default** (button in UI, or `read:<ms>` in the env var to automate). `failed` is manual (UI picks an error code from presets: 131049 engagement, 131026 undeliverable, 131047 re-engagement window, 130472 experiment, 131048 sending restricted, 131000 unknown error; sends proper `errors[]`) — or decided at send time by a messaging rule or a `messages.status` injection rule (below), in which case `failed` takes the `sent` rung's slot and the ladder stops there: no `sent`, no `delivered`.
 - Status webhooks for `sent`/`delivered` include `conversation` + `pricing` shaped like the fixture (conversation ID = stable hash of phone+contact+day; `origin.type`/`pricing.category` = template category lowercased, else `service`; `expiration_timestamp` = now+24h as string).
 - Template create/edit → status `PENDING`; if `MOCKWA_TEMPLATE_AUTO_APPROVE` (default `2000` ms) is not `off`, auto-approve after the delay and emit the webhook. UI can approve/reject (with `reason`/`rejection_info`) any PENDING template, and later pause/disable — every transition emits the webhook. A **seeded** template never enters this flow: it is `APPROVED` at boot, announces nothing and schedules no timer (§7).
-- Timers must survive nothing: they are in-process `setTimeout`s; on restart pending timers are dropped (fine for a dev tool — document it).
+- Timers go through the injectable scheduler: in-process `setTimeout`s on the real clock, the virtual clock's queue on `MOCKWA_CLOCK=virtual` (below). Either way they live **in memory**: a restart drops the pending status rungs, template auto-approvals and typing dismissals (fine for a dev tool). Only webhook retries are persisted (§3) and come back.
 
 ### Typing indicators
 
@@ -384,6 +384,128 @@ against the injectable clock, so it is exact in tests. The row and the bytes sta
 reset deletes those — and the control plane's `GET /api/media/:id` ignores the TTL, so whaloc's
 own UI can still explain what a message's media ID pointed at.
 
+### Virtual clock (M4)
+
+**Simulator-specific.** Meta has no clock to move; this exists so a test can cover minutes,
+days and the 7-day retry horizon without waiting for them.
+
+`MOCKWA_CLOCK=real` (the default) is the wall clock and nothing below changes behavior.
+`MOCKWA_CLOCK=virtual` gives the instance **one clock** that stands still at
+`MOCKWA_CLOCK_START` until the control plane moves it (§5, `/api/clock`). Every service reads
+time and schedules work through the same `Scheduler` (`now`, `schedule`, `sleep`), so the
+virtual clock drives everything that is about time:
+
+- message, status and webhook `timestamp`s, row `created_at`s, delivery `createdAt`s;
+- the status ladder, template auto-approval and typing dismissal (§4);
+- the customer service window, the messaging limit's moving 24 hours, the throughput and pair
+  rate limits (§4, "Messaging rules"), media TTL;
+- webhook retries and their 7-day horizon (§3), persisted as virtual instants.
+
+**Order.** Pending events form one queue sorted by due time; events due at the same instant
+run in the order they were scheduled (a sequence number), so the same steps fire the same
+events in the same order. While an event runs, "now" is **its own due time**, so what it stamps
+reads the instant it was due, not the target of the advance.
+
+**Advance.** `advance(by)` / `set(to)` first let the work already in flight finish at the
+current time, then run every event due up to and including the target, one at a time, each at
+its due time. An event scheduled *during* the advance (a retry after a failed delivery, the
+next status rung) is part of it when it falls due before the target. An advance **is complete**
+when every event due up to the target has run **and** the background work each started (the
+webhook it sent, the retry pass) has settled, so a caller can assert as soon as it returns.
+Events beyond the target stay pending with their due time. `run-next` moves to the earliest
+pending event and runs everything due at that instant. Events due *now* (the `sent` rung's zero
+delay) run on the next tick without an advance, as with the real clock. Clock operations run
+one at a time; time never moves backwards (`set` to an earlier instant is `400 clock_backwards`).
+
+**Network time stays real.** A webhook's HTTP timeout, a delivery's measured `durationMs` and
+the scenario runner's waits are wall-clock durations, so a slow or dead app cannot hang an
+advance, and moving the clock never makes a request time out.
+
+**The app's clock is not mockwa's.** Moving mockwa's clock does not move the clock of the app
+under test: its own timers, token expiry and `Date.now()` keep real time. Webhook timestamps
+read virtual time; an app that compares them with its own clock sees the difference.
+
+**Deterministic IDs.** On the virtual clock, generated IDs (wamids, media, template, upload,
+delivery and rule IDs, ordered IDs) come from a **seeded SHA-256 stream** instead of
+`crypto.randomBytes`, so the same steps from the same reset produce the same IDs, the same
+webhook bytes and the same `X-Hub-Signature-256`. Seeded IDs (§7) do not change at all.
+`fbtrace_id` in error envelopes stays random: it is a trace handle, never stored or signed.
+The real clock keeps cryptographic randomness.
+
+**Reset, restart, import.**
+
+| Event | Clock | Pending events | ID stream |
+|---|---|---|---|
+| `POST /api/reset` | back to `MOCKWA_CLOCK_START` | all dropped | back to its start — the same world gives the same IDs |
+| Restart with a file database | resumes the stored position (`clock_state`, §6) | persisted retries re-armed against it; in-memory timers (status rungs, auto-approvals, typing) dropped, §4 | derived from the stored one, so nothing minted before the restart is minted again |
+| Restart with `:memory:` | `MOCKWA_CLOCK_START` | none | its start |
+| `POST /api/import` | stays where it is (a snapshot carries no clock) | all dropped, like a reset (§5) | derived from the snapshot's content, so new IDs never collide with imported ones |
+| A scenario run | the scenario's `clock.start` (else `MOCKWA_CLOCK_START`) | all dropped (it resets) | its start |
+
+### Scenarios (M4)
+
+**Simulator-specific.** A scenario is a JSON file that describes a world and a script of steps
+against it; mockwa resets into the world, runs the steps through the same domain services the
+Graph API and the console use, and reports each step. It is how a conversation with the app
+under test — sends, taps, waits, a day passing — becomes a repeatable test.
+
+```json
+{
+  "name": "booking conversation",
+  "clock": { "start": "2026-05-04T09:00:00Z" },
+  "wabas": [ /* optional: the MOCKWA_SEED format (§7); default MOCKWA_SEED */ ],
+  "identities": [{ "waId": "60123000001", "name": "Ana", "role": "CUSTOMER" }],
+  "apps": [ /* optional: MOCKWA_APPS entries + "wabas", "wabaOverrides", "phoneOverrides" */ ],
+  "failureRules": [ /* optional: injection rules, as POST /api/injection-rules takes them */ ],
+  "steps": [
+    { "send": { "as": "Ana", "text": "menu" } },
+    { "expect": { "message": { "to": "Ana", "type": "interactive" } } },
+    { "tap": { "as": "Ana", "option": "Confirm" } },
+    { "expect": { "message": { "to": "Ana", "text": "selected: Confirm" } } },
+    { "advance": "24h" },
+    { "expect": { "window": { "as": "Ana", "open": false } } }
+  ]
+}
+```
+
+- **World.** `wabas` (the seed format, so numbers, contacts and templates with explicit IDs),
+  else `MOCKWA_SEED`. `identities` are contacts with a role, added to the first WABA. `apps`
+  **replace** `MOCKWA_APPS` for the run, and route by WABA (`wabas`), WABA override and number
+  override, as §3 does. `failureRules` are armed after the reset. `clock.start` needs the
+  virtual clock.
+- **References.** An identity is named by `waId` or a unique `name`; a business number by ID,
+  display number or verified name, and may be left out when the world has one number; a WABA
+  by ID or name. Every reference is checked **before the reset**, all problems at once, so a
+  typo never costs the state that was there (`400 invalid_scenario`, each problem with its
+  path, such as `steps[3].send.as: no identity "Carol"`).
+- **Steps** — each names exactly one action, and may carry a `name`:
+  - `send` `{as, to?, text | message}` — an inbound message from the identity (`message` is any
+    `POST /api/inbound` body without `phoneNumberId`/`from`);
+  - `tap` `{as, to?, option}` — answers the **latest** outbound message to that identity that
+    offers options (reply buttons, list rows, template quick replies) by the option's title,
+    ID or payload, as the phone would;
+  - `advance` — `"5m"`, `"next"` (to the next event), `{"by": "24h"}` or `{"to": "<instant>"}`;
+  - `expect` — exactly one of `message` (`{to, from?, type?, text?, contains?, template?,
+    status?, errorCode?}`, an outbound message to the identity; a matched message is **claimed**
+    so a later expect needs a new one), `webhook` (`{field?, kind?, status?, about?, app?,
+    outcome?, count?}` over the delivery chains; `count` is exact), `window` (`{as, to?, open}`)
+    or `clock` (`{now?, pending?}`). `within` (default `5s`, at most `60s`) is how long, **in
+    real time**, an expectation waits for the app under test before it fails; `0` checks once.
+- **Results.** Each step reports `passed`/`failed`/`skipped`, the virtual instant it ran at and
+  what it did (the wamid sent, the option tapped, the events fired). The first failure stops
+  the run; it names the step and carries `expected` and `observed` (the closest candidates).
+  Results are deterministic — two runs from the same state are equal — and the wall-clock
+  duration of each step is reported separately (`elapsedMs`).
+- **One at a time.** A run resets the instance; a second concurrent run is `409
+  scenario_running`.
+- **CLI.** `mockwa scenario run <file>... --url <console URL> [--junit <file>] [--json <file>]`
+  validates each file locally, runs them in order and prints each step; `mockwa scenario
+  validate <file>... [--url]` checks without running. Exit `0` all passed, `1` a scenario
+  failed, `2` usage, file or connection problems. `--url` (or `MOCKWA_CONSOLE_URL`) is required:
+  a run resets the instance it names. The image ships it as `mockwa` on the `PATH`; JUnit XML
+  has one `<testsuite>` per scenario and one `<testcase>` per step, with `<failure>` and
+  `<skipped/>`. Examples: `examples/scenarios/`.
+
 ## 5. Control-plane API (`/api`) + WebSocket
 
 REST consumed by the web UI (and by test scripts). Suggested resources (final shapes belong to `packages/shared` zod schemas — UI and server both import them):
@@ -415,7 +537,9 @@ REST consumed by the web UI (and by test scripts). Suggested resources (final sh
 - `POST /api/phone-numbers/:id/business-profile` — the same profile the Graph endpoint writes (§2.19), in camelCase, with the same merge-and-clear semantics; answers with the updated number. Subscriptions and overrides (§2.20) are written by the app under test through the Graph API, or from the console through `/api/apps`.
 - `GET/POST /api/injection-rules`, `DELETE /api/injection-rules/:id` — the error-injection rules (§4). No `PATCH`: a rule is three decisions and a countdown, and deleting plus re-adding leaves no question about what happened to the counters.
 - `GET /api/tokens`, `POST /api/tokens/:id/expire|restore` — the `MOCKWA_TOKENS` registry (§1.9), masked. `{strict:false, data:[]}` when there is no registry, which is what the UI hides its section on.
-- `POST /api/reset` — wipe all state (keep seed). Injection rules and token expiry go with it.
+- `POST /api/reset` — wipe all state (keep seed). Injection rules and token expiry go with it. On the virtual clock, the clock goes back to `MOCKWA_CLOCK_START` and the ID stream to its start (§4, "Virtual clock").
+- `GET /api/clock` — `{mode, now, start, pending, deterministicIds}`; `pending` lists the waiting events (`{sequence, dueAt, label}`, in run order) on the virtual clock and is `null` on the real one. `POST /api/clock/advance` `{by}` (a duration such as `"5m"` or milliseconds), `POST /api/clock/set` `{to}` (an instant with an offset, never earlier than now) and `POST /api/clock/run-next` move it and answer `{from, to, fired, clock}`. On the real clock they are `409 clock_not_virtual` (§4, "Virtual clock").
+- `POST /api/scenarios/validate` — check a scenario against the configured world without touching state (`{valid, name, steps}` or `400 invalid_scenario`). `POST /api/scenarios/run[?format=junit]` — reset into it and run it: `{data: {scenario, passed, clock, world, steps, failure}, elapsedMs}`, or the JUnit XML (§4, "Scenarios").
 - `GET /api/export` — the whole state as **one downloadable JSON file** (`Content-Disposition: attachment`), so a scenario is shareable: schema version, whaloc version (the release tag the image was built from, via `MOCKWA_VERSION`; `0.0.0-dev` from source), `exportedAt`, every domain table as its **raw rows** (snake_case, JSON columns still TEXT — a snapshot is a database dump, not an API resource), and the bytes of every media object **and every completed upload session** (§2.21) **base64-inlined** beside their rows, so an imported template still previews its media header. Rows are ordered deterministically, so two exports of the same state differ only in the timestamp. The delivery log is left out unless `?include=deliveries` asks for it (it is traffic, not state, and by far the biggest table). Base64 costs a third in size over the raw bytes: acceptable for a dev tool whose media is a handful of test images, and the price of a file that restores completely on its own.
 - `POST /api/import` — the mirror image, from a JSON body or a `multipart/form-data` upload (`file`). Validated in full first (zod, every row and enum) and **version-gated**: a snapshot from a newer whaloc is refused with a clear message rather than half-loaded. Then all state is replaced — timers cancelled like a reset, the database swapped in **one transaction**, stale media bytes deleted and the snapshot's written back **through the current storage backend**, so a local export imports into an S3-backed instance and vice versa (§6). Answers with a summary count, and publishes `state.imported` so connected UIs reload. **The seed does not re-run**: the snapshot *is* the state, IDs included — `POST /api/reset` remains the only way back to `MOCKWA_SEED`. Media rows are restored verbatim, digest included, so a snapshot taken before `sha256` became base64 (§1) keeps its hex digests for those rows — the snapshot *is* the state, and re-hashing somebody else's world on the way in would be a different kind of lie. Anything uploaded afterwards is base64; re-uploading the object, or exporting from a current whaloc, settles it.
 - `GET /api/health` (alias `/health` at root, for Docker HEALTHCHECK).
@@ -442,7 +566,7 @@ WebSocket `/api/ws`: server → client events `{type, payload}`: `message.create
 
 **Kysely + `node:sqlite`** (built into Node 24; no native deps, no WASM). Default DB is `:memory:`; `MOCKWA_DB_PATH=/data/whaloc.db` makes state survive restarts (volume). Use Kysely's SQLite dialect surface with a thin custom driver over `node:sqlite`'s `DatabaseSync` (prefer a well-maintained npm dialect if one exists — verify on npm — else write the ~100-line driver in `packages/server/src/db/`; reuse Kysely's `SqliteAdapter`/`SqliteQueryCompiler`/`SqliteIntrospector`). Migrations run at boot (Kysely migrator, in-code migration list).
 
-Tables (roughly): `wabas`, `phone_numbers` (`id`, waba_id, display_phone_number, verified_name, quality_rating, throughput_level), `contacts` (wa_id, profile_name, user_id — the BSUID, nullable and unique), `templates` (`id` digits, waba_id, name, language, category, parameter_format, components JSON, status, rejected_reason, quality_score), `messages` (wamid, direction, business_initiated — `1` for a template sent while the window was closed, `0` otherwise and on rows stored before M3, phone_number_id, contact, type, payload JSON, status, error JSON, biz_opaque_callback_data, template_snapshot JSON — `{parameter_format, components}` for a template send, `null` otherwise and for rows stored before it existed, timestamps, reply_to), `media` (`id` digits, phone_number_id, mime_type, sha256, file_size, storage_key, url_token), `upload_sessions` (`id`, app_id, file_name, file_type, file_length, received_bytes, handle unique, storage_key, sha256, url_token unique, timestamps — §2.21; one row is the whole life of an upload, which is why a handle survives a restart), `webhook_deliveries` (`id`, event_type, url, request_body, request_headers, response_status, response_body, error, attempt, duration_ms, created_at, app_key, chain_id, next_attempt_at — the last three `null` on rows written before apps existed, read as the default app, a chain of one and nothing pending), `apps` (`id`, name, app_secret, verify_token, callback_url, access_token unique, timestamps), `webhook_subscriptions` (waba_id, app_key, override_callback_uri, override_verify_token, subscribed_at), `phone_number_webhook_overrides` (phone_number_id, app_key, callback_uri, verify_token, updated_at), `injection_rules` (`id` time-ordered, target, trigger_kind, trigger_count, preset, retry_after_seconds, regain_access_minutes, custom JSON, error_code — the `failed_status` code, `null` otherwise, seen, matches, remaining, timestamps), `expired_tokens` (token_id = truncated SHA-256, expired_at).
+Tables (roughly): `wabas`, `phone_numbers` (`id`, waba_id, display_phone_number, verified_name, quality_rating, throughput_level), `contacts` (wa_id, profile_name, user_id — the BSUID, nullable and unique), `templates` (`id` digits, waba_id, name, language, category, parameter_format, components JSON, status, rejected_reason, quality_score), `messages` (wamid, direction, business_initiated — `1` for a template sent while the window was closed, `0` otherwise and on rows stored before M3, phone_number_id, contact, type, payload JSON, status, error JSON, biz_opaque_callback_data, template_snapshot JSON — `{parameter_format, components}` for a template send, `null` otherwise and for rows stored before it existed, timestamps, reply_to), `media` (`id` digits, phone_number_id, mime_type, sha256, file_size, storage_key, url_token), `upload_sessions` (`id`, app_id, file_name, file_type, file_length, received_bytes, handle unique, storage_key, sha256, url_token unique, timestamps — §2.21; one row is the whole life of an upload, which is why a handle survives a restart), `webhook_deliveries` (`id`, event_type, url, request_body, request_headers, response_status, response_body, error, attempt, duration_ms, created_at, app_key, chain_id, next_attempt_at — the last three `null` on rows written before apps existed, read as the default app, a chain of one and nothing pending), `apps` (`id`, name, app_secret, verify_token, callback_url, access_token unique, timestamps), `webhook_subscriptions` (waba_id, app_key, override_callback_uri, override_verify_token, subscribed_at), `phone_number_webhook_overrides` (phone_number_id, app_key, callback_uri, verify_token, updated_at), `injection_rules` (`id` time-ordered, target, trigger_kind, trigger_count, preset, retry_after_seconds, regain_access_minutes, custom JSON, error_code — the `failed_status` code, `null` otherwise, seen, matches, remaining, timestamps), `expired_tokens` (token_id = truncated SHA-256, expired_at), `clock_state` (one row: the virtual clock's `now` and its ID stream key, §4 — absent until the virtual clock first moves; not part of a snapshot).
 
 **Media bytes** go through a `MediaStorage` interface (`put(stream|buffer, meta) → {storageKey, sha256, byteSize}`, `get(storageKey, {range?}) → {stream, size}`, `delete`, optional `close`), with two implementations selected by `MOCKWA_MEDIA_BACKEND`:
 
@@ -484,6 +608,8 @@ Parsed once at boot with zod (fail fast, print every error). Everything is an en
 | `MOCKWA_WEBHOOK_RETRY_MAX_AGE` | `7d` | How long after its first attempt a delivery is still retried (Meta: up to 7 days) |
 | `MOCKWA_SEED` | *(built-in default seed)* | JSON: `[{"id?","name?","phoneNumbers":[{"id?","displayPhoneNumber","verifiedName?","qualityRating?","throughputLevel?"}],"contacts?":[{"waId","name","userId?","role?","displayNumber?"}],"templates?":[{"id?","name","language?","category?","parameterFormat?","components?"}]}]`; omitted IDs are generated deterministically. A seeded template is **`APPROVED` from the first instant** (no review, no webhook), with `language` defaulting to `en`, `category` to `UTILITY`, `parameterFormat` to `NAMED` and `components` to a single static BODY. Default seed: 1 WABA + 1 phone number + 2 contacts + 1 zero-parameter template (`hello_whaloc` / `en`), logged at startup |
 | `MOCKWA_SEED_FILE` | *(unset)* | Path to a file holding the `MOCKWA_SEED` JSON, read once at boot — for seeds too long to keep inline in a compose file. It stands in for `MOCKWA_SEED`: setting both, an unreadable file and an empty one are all startup errors, never a silent fallback to the default seed, and an invalid seed is reported under this variable |
+| `MOCKWA_CLOCK` | `real` | `real` (wall clock) or `virtual` — one clock per instance moved through `/api/clock`, with deterministic IDs (§4, "Virtual clock") |
+| `MOCKWA_CLOCK_START` | `2026-01-01T00:00:00.000Z` | Where the virtual clock starts, and where a reset puts it. An ISO 8601 instant with an offset |
 | `MOCKWA_STATUS_DELAYS` | `sent:0,delivered:800` | Ladder config; add `read:<ms>` to automate read |
 | `MOCKWA_TEMPLATE_AUTO_APPROVE` | `2000` | ms until auto-approval; `off` = manual |
 | `MOCKWA_TOKENS` | *(unset → any non-empty bearer token)* | Comma-separated bearer-token registry (§1.9, §4). Set it and only these tokens pass; blank entries are dropped, duplicates rejected. Each can be expired/restored from the control plane |

@@ -1,5 +1,5 @@
 import type { Kysely } from "kysely";
-import { nowIso } from "../../timestamps.ts";
+import { nowIso, systemClock, type Clock } from "../../timestamps.ts";
 import type { Database, PhoneNumberWebhookOverrideTable, WebhookSubscriptionTable } from "../schema.ts";
 
 /** One row of `webhook_subscriptions` (SPEC §3, "Apps and routing"). */
@@ -60,9 +60,11 @@ function toOverride(row: PhoneNumberWebhookOverrideTable): PhoneNumberWebhookOve
 /** Who a WABA's webhooks go to, and the overrides that redirect them (SPEC §3). */
 export class WebhookSubscriptionRepository {
 	readonly #db: Kysely<Database>;
+	readonly #clock: Clock;
 
-	constructor(db: Kysely<Database>) {
+	constructor(db: Kysely<Database>, clock: Clock = systemClock) {
 		this.#db = db;
+		this.#clock = clock;
 	}
 
 	async upsert(input: UpsertWebhookSubscriptionInput): Promise<WebhookSubscriptionRecord> {
@@ -71,7 +73,7 @@ export class WebhookSubscriptionRepository {
 			app_key: input.appKey,
 			override_callback_uri: input.overrideCallbackUri,
 			override_verify_token: input.overrideVerifyToken,
-			subscribed_at: input.subscribedAt ?? nowIso(),
+			subscribed_at: input.subscribedAt ?? nowIso(this.#clock),
 		};
 		const row = await this.#db
 			.insertInto("webhook_subscriptions")
@@ -140,7 +142,7 @@ export class WebhookSubscriptionRepository {
 			app_key: input.appKey,
 			callback_uri: input.callbackUri,
 			verify_token: input.verifyToken,
-			updated_at: input.updatedAt ?? nowIso(),
+			updated_at: input.updatedAt ?? nowIso(this.#clock),
 		};
 		const row = await this.#db
 			.insertInto("phone_number_webhook_overrides")

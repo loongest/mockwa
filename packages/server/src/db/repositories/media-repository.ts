@@ -1,5 +1,5 @@
 import type { Kysely } from "kysely";
-import { nowIso } from "../../timestamps.ts";
+import { nowIso, systemClock, type Clock } from "../../timestamps.ts";
 import type { Database, MediaTable } from "../schema.ts";
 
 export interface MediaRecord {
@@ -43,9 +43,11 @@ function toRecord(row: MediaTable): MediaRecord {
  */
 export class MediaRepository {
 	readonly #db: Kysely<Database>;
+	readonly #clock: Clock;
 
-	constructor(db: Kysely<Database>) {
+	constructor(db: Kysely<Database>, clock: Clock = systemClock) {
 		this.#db = db;
+		this.#clock = clock;
 	}
 
 	async insert(input: InsertMediaInput): Promise<MediaRecord> {
@@ -59,7 +61,7 @@ export class MediaRepository {
 				file_size: input.fileSize,
 				storage_key: input.storageKey,
 				url_token: input.urlToken,
-				created_at: input.createdAt ?? nowIso(),
+				created_at: input.createdAt ?? nowIso(this.#clock),
 			})
 			.returningAll()
 			.executeTakeFirstOrThrow();
