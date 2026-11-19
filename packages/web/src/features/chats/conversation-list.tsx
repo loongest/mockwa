@@ -3,7 +3,7 @@ import clsx from "clsx";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Dialog } from "../../components/dialog.tsx";
-import { formatListTime } from "../../lib/format.ts";
+import { ListTime } from "../../components/list-time.tsx";
 import { pathFor, type Scope } from "../../store/scope.ts";
 import { useAppState } from "../../store/store.tsx";
 import { summarize } from "./message-bubble.tsx";
@@ -96,7 +96,7 @@ export function ConversationList(props: ConversationListProps) {
 								<span className="conversation__name">
 									{conversation.contact?.profileName ?? conversation.contactWaId}
 								</span>
-								<span className="conversation__time faint">{formatListTime(conversation.lastMessageAt)}</span>
+								<ListTime className="conversation__time faint" iso={conversation.lastMessageAt} />
 							</span>
 							<span className="conversation__bottom">
 								{/* A live typing indicator wins over the last message, the way WhatsApp's own list does. */}

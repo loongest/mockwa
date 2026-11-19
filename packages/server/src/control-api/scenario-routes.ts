@@ -1,3 +1,4 @@
+import { scenarioRunResponseSchema, scenarioValidateResponseSchema } from "@mockwa/shared";
 import { Hono } from "hono";
 import { describeScenarioIssues, scenarioSchema, type Scenario } from "../config/index.ts";
 import { controlBadRequest, toJUnitXml, type ScenarioRunner } from "../domain/index.ts";
@@ -37,7 +38,11 @@ export function createScenarioRoutes(options: ScenarioRoutesOptions): Hono<Contr
 
 		scenarios.plan(scenario);
 
-		return c.json({ data: { valid: true, name: scenario.name, steps: scenario.steps.length } });
+		return c.json(
+			scenarioValidateResponseSchema.parse({
+				data: { valid: true, name: scenario.name, steps: scenario.steps.length },
+			}),
+		);
 	});
 
 	routes.post("/scenarios/run", async c => {
@@ -48,7 +53,7 @@ export function createScenarioRoutes(options: ScenarioRoutesOptions): Hono<Contr
 			return c.body(toJUnitXml([run]), 200, { "content-type": "application/xml; charset=utf-8" });
 		}
 
-		return c.json({ data: run.result, elapsedMs: run.elapsedMs });
+		return c.json(scenarioRunResponseSchema.parse({ data: run.result, elapsedMs: run.elapsedMs }));
 	});
 
 	return routes;

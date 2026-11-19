@@ -667,3 +667,69 @@ describe("reducer, REST answers", () => {
 		expect(state.phoneNumberId).toBe(PHONE_NUMBER_ID);
 	});
 });
+
+describe("M5: the clock, windows closed by hand and the Graph request log", () => {
+	const virtualClock = {
+		mode: "virtual" as const,
+		now: "2026-06-01T08:00:00.000Z",
+		start: "2026-06-01T08:00:00.000Z",
+		pending: [],
+		deterministicIds: true,
+	};
+	const summary = {
+		id: 7,
+		receivedAt: "2026-06-01T08:00:00.000Z",
+		durationMs: 3,
+		method: "POST",
+		path: "/v25.0/1/messages",
+		query: "",
+		status: 200,
+		phoneNumberId: "1",
+		appKey: "default",
+		tokenMasked: "••••oken",
+		errorCode: null,
+	};
+
+	it("adopts a clock reading with the moment it was received, and keeps it across a reset", () => {
+		const state = reducer(makeAppState(), { type: "clock/loaded", clock: virtualClock, syncedAt: 42 });
+
+		expect(state.clock).toEqual({ clock: virtualClock, syncedAt: 42 });
+
+		const reset = apply(state, { type: "state.reset", payload: { state: makeStateResponse() } });
+
+		expect(reset.clock).toEqual(state.clock);
+	});
+
+	it("remembers the last window closed by hand, for the badge that shows it", () => {
+		const serviceWindow = {
+			phoneNumberId: "1",
+			waId: "2",
+			isEnforced: true,
+			isOpen: false,
+			lastInboundAt: virtualClock.now,
+			expiresAt: virtualClock.now,
+			expiredManuallyAt: virtualClock.now,
+			windowMs: 86_400_000,
+		};
+
+		expect(
+			apply(makeAppState(), { type: "service_window.changed", payload: { serviceWindow } }).serviceWindowChange,
+		).toEqual(serviceWindow);
+	});
+
+	it("puts a logged request on top of a log that is loaded, and ignores it otherwise", () => {
+		const event: WsEvent = { type: "graph_request.logged", payload: { request: summary } };
+
+		expect(apply(makeAppState(), event).graphRequests).toBeNull();
+
+		const loaded = reducer(makeAppState(), {
+			type: "graph-requests/loaded",
+			requests: [{ ...summary, id: 6 }],
+			before: null,
+			mode: "latest",
+		});
+
+		expect(apply(loaded, event).graphRequests?.map(request => request.id)).toEqual([7, 6]);
+		expect(apply(loaded, { type: "state.reset", payload: { state: makeStateResponse() } }).graphRequests).toBeNull();
+	});
+});

@@ -125,6 +125,7 @@ export {
 } from "./message-service.ts";
 export {
 	MessagingRules,
+	toServiceWindowDto,
 	type MessagingLimitUsage,
 	type MessagingRulesOptions,
 	type SendVerdict,
@@ -366,3 +367,14 @@ export {
 	type PhoneMessagesResult,
 	type PhoneServiceOptions,
 } from "./phone-service.ts";
+export {
+	GraphRequestLog,
+	MASK,
+	maskHeaders,
+	toGraphRequest,
+	toGraphRequestSummary,
+	toLoggedBody,
+	type CapturedBody,
+	type GraphRequestInput,
+	type GraphRequestLogOptions,
+} from "./graph-request-log.ts";

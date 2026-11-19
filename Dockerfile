@@ -27,6 +27,8 @@ RUN --mount=type=cache,id=npm,target=/root/.npm,sharing=locked \
 
 COPY tsconfig.base.json ./
 COPY packages packages
+# The console bundles the shipped example scenarios (Scenarios view), read at build time.
+COPY examples/scenarios examples/scenarios
 
 # `shared` first: the server and the UI both compile against its emitted declarations. npm runs
 # workspace scripts in manifest order rather than topologically, which is why the root `build`

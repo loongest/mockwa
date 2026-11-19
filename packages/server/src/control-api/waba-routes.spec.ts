@@ -324,8 +324,8 @@ describe("control plane: WABAs and phone numbers", () => {
 				method: "SMS",
 				language: "en_US",
 			});
-			// The ladder announces itself too, so Settings shows the code without a reload.
-			expect(eventTypes()).toEqual(["phone_number.changed"]);
+			// The ladder announces itself too (and the Graph call is logged), so Settings shows the code without a reload.
+			expect(eventTypes()).toEqual(["phone_number.changed", "graph_request.logged"]);
 		});
 
 		it("deletes one with its conversations, and reports it gone afterwards", async () => {

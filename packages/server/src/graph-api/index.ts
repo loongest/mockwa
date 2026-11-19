@@ -3,6 +3,7 @@ export { createBusinessProfileRoutes, type BusinessProfileRoutesOptions } from "
 export { contentRangeHeader, parseByteRange, unsatisfiableContentRangeHeader, type ByteRange } from "./byte-range.ts";
 export { parseFields, projectFields } from "./fields.ts";
 export { createGraphContext, FB_REQUEST_ID_HEADER, GRAPH_VERSION_PATH, type GraphEnv } from "./graph-env.ts";
+export { createGraphRequestLogger } from "./graph-request-logger.ts";
 export { createGraphRoutes, type GraphRoutesOptions } from "./graph-routes.ts";
 export {
 	classifyEndpoint,

@@ -438,6 +438,47 @@ export const MIGRATIONS: Record<string, Migration> = {
 				.execute();
 		},
 	},
+	"0012_service_window_expiries": {
+		// "Expire now" from the console (SPEC §4, "Messaging rules"): one row per number and
+		// contact, recording how many inbound messages there were when the window was closed by
+		// hand. The window stays closed until that count grows — a count, not a time, because a
+		// frozen virtual clock stamps the customer's next message at the very instant of the
+		// expiry. Not a snapshot table: an import starts with every window as its messages say.
+		up: async (db: Kysely<never>): Promise<void> => {
+			await db.schema
+				.createTable("service_window_expiries")
+				.addColumn("phone_number_id", "text", column => column.notNull())
+				.addColumn("contact_wa_id", "text", column => column.notNull())
+				.addColumn("inbound_count", "integer", column => column.notNull())
+				.addColumn("expired_at", "text", column => column.notNull())
+				.addPrimaryKeyConstraint("service_window_expiries_pk", ["phone_number_id", "contact_wa_id"])
+				.execute();
+		},
+	},
+	"0013_graph_requests": {
+		// The Graph request log (SPEC §5, "Graph request log"): what the app under test sent to
+		// port 8888 and what it got back, bounded by count and by body size. Diagnostics only —
+		// not a snapshot table, emptied by a reset.
+		up: async (db: Kysely<never>): Promise<void> => {
+			await db.schema
+				.createTable("graph_requests")
+				.addColumn("id", "integer", column => column.primaryKey().autoIncrement())
+				.addColumn("received_at", "text", column => column.notNull())
+				.addColumn("duration_ms", "integer", column => column.notNull())
+				.addColumn("method", "text", column => column.notNull())
+				.addColumn("path", "text", column => column.notNull())
+				.addColumn("query", "text", column => column.notNull())
+				.addColumn("status", "integer", column => column.notNull())
+				.addColumn("phone_number_id", "text")
+				.addColumn("app_key", "text")
+				.addColumn("token_masked", "text")
+				.addColumn("error_code", "integer")
+				.addColumn("request_headers", "text", column => column.notNull())
+				.addColumn("request_body", "text", column => column.notNull())
+				.addColumn("response_body", "text", column => column.notNull())
+				.execute();
+		},
+	},
 };
 
 /** Serves {@link MIGRATIONS} to Kysely's `Migrator`. */

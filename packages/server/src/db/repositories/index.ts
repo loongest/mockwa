@@ -5,10 +5,12 @@ import { AppRepository } from "./app-repository.ts";
 import { ClockStateRepository } from "./clock-state-repository.ts";
 import { ContactRepository } from "./contact-repository.ts";
 import { ExpiredTokenRepository } from "./expired-token-repository.ts";
+import { GraphRequestRepository } from "./graph-request-repository.ts";
 import { InjectionRuleRepository } from "./injection-rule-repository.ts";
 import { MediaRepository } from "./media-repository.ts";
 import { MessageRepository } from "./message-repository.ts";
 import { PhoneNumberRepository } from "./phone-number-repository.ts";
+import { ServiceWindowExpiryRepository } from "./service-window-expiry-repository.ts";
 import { SnapshotRepository } from "./snapshot-repository.ts";
 import { TemplateRepository } from "./template-repository.ts";
 import { UploadSessionRepository } from "./upload-session-repository.ts";
@@ -24,7 +26,13 @@ export {
 	type UpdateContactInput,
 } from "./contact-repository.ts";
 export { ClockStateRepository, type ClockStateRecord } from "./clock-state-repository.ts";
+export { ServiceWindowExpiryRepository, type ServiceWindowExpiryRecord } from "./service-window-expiry-repository.ts";
 export { ExpiredTokenRepository } from "./expired-token-repository.ts";
+export {
+	GraphRequestRepository,
+	type GraphRequestRecord,
+	type InsertGraphRequestInput,
+} from "./graph-request-repository.ts";
 export {
 	InjectionRuleRepository,
 	type InjectionRuleRecord,
@@ -107,6 +115,10 @@ export interface Repositories {
 	snapshots: SnapshotRepository;
 	/** Where the virtual clock stood (SPEC §4, "Virtual clock"); untouched by a reset and by a snapshot. */
 	clockState: ClockStateRepository;
+	/** Customer service windows closed by hand from the console (SPEC §4, "Messaging rules"). */
+	serviceWindowExpiries: ServiceWindowExpiryRepository;
+	/** The Graph request log (SPEC §5); diagnostics, not part of a snapshot. */
+	graphRequests: GraphRequestRepository;
 }
 
 /**
@@ -119,6 +131,8 @@ export async function deleteAllRows(repositories: Repositories): Promise<void> {
 	// unchanged: a reset disarms every injection rule and revives every expired token (SPEC §4).
 	await repositories.injectionRules.deleteAll();
 	await repositories.expiredTokens.deleteAll();
+	await repositories.serviceWindowExpiries.deleteAll();
+	await repositories.graphRequests.deleteAll();
 	await repositories.webhookDeliveries.deleteAll();
 	// Subscriptions and overrides reference WABAs and numbers; apps are referenced by nothing.
 	await repositories.webhookSubscriptions.deleteAll();
@@ -150,5 +164,7 @@ export function createRepositories(db: Kysely<Database>, clock: Clock = systemCl
 		expiredTokens: new ExpiredTokenRepository(db, clock),
 		snapshots: new SnapshotRepository(db),
 		clockState: new ClockStateRepository(db),
+		serviceWindowExpiries: new ServiceWindowExpiryRepository(db),
+		graphRequests: new GraphRequestRepository(db),
 	};
 }

@@ -416,6 +416,20 @@ export function AppsCard(props: { wabas: WabaState[] }) {
 				The default app (from <code>MOCKWA_WEBHOOK_URL</code>) also receives them while no registered app is subscribed,
 				so a setup with one URL keeps working unchanged.
 			</p>
+			<ol className="faint stack routing-steps" data-testid="routing-explainer">
+				<li>
+					<strong>Which apps get a webhook:</strong> every app subscribed to the WABA the event is about — or the
+					default app when none is.
+				</li>
+				<li>
+					<strong>Where each one goes:</strong> the phone number&apos;s override if it has one, else the WABA&apos;s
+					override, else the app&apos;s callback URL.
+				</li>
+				<li>
+					<strong>Who a Graph call is:</strong> the app whose access token it carries (the default app otherwise). That
+					decides whose subscription <code>subscribed_apps</code> changes, and the app shown in Requests.
+				</li>
+			</ol>
 
 			<div className="table-scroll">
 				<table className="table">

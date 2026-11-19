@@ -9,8 +9,10 @@
 > needs. So far: two ports — **8888** for the Graph API, **8025** for the console — and
 > `MOCKWA_*` configuration, with every `WHALOC_*` variable still accepted as an alias (M0); and a
 > **virtual phone** at `http://localhost:8025/phone` to chat with your app as named users (M1,
-> see [Virtual phone](#virtual-phone)). The
-> rest of this README describes whaloc's behavior, which mockwa keeps; "whaloc" below means the
+> see [Virtual phone](#virtual-phone)); Meta's webhook model with several apps and retries (M2);
+> the sending rules (M3); a virtual clock and scenarios (M4); and a console that runs on simulator
+> time, with Clock, Scenarios and Graph request log views (M5, see [A five-minute tour](#a-five-minute-tour)).
+> The rest of this README describes whaloc's behavior, which mockwa keeps; "whaloc" below means the
 > engine mockwa inherited.
 
 whaloc is a local emulator of the **Meta WhatsApp Cloud API (Graph API v25.0)** in a single
@@ -128,13 +130,87 @@ docker compose logs -f webhook-echo
 
 See [docker-compose.yml](docker-compose.yml); it is also the shortest example of the environment
 a real integration needs, and [docs/integrating.md](docs/integrating.md) is the long form —
-pointing your own app at whaloc, which values have to match which, and a smoke test. The image is
+pointing your own app at whaloc, which values have to match which, and a smoke test. Short
+setups for two specific apps live next to it: [Workbench](docs/integrations/workbench.md) and
+[GotUnit](docs/integrations/gotunit.md). The image is
 published by [`.github/workflows/docker.yml`](.github/workflows/docker.yml) **only from a `v*` tag**
 (the semver ladder, `sha-<short>` and `latest`, `linux/amd64` + `linux/arm64`; pull requests and
 pushes to `main` build and test the image but publish nothing) with
 full SLSA provenance and an SBOM attached to the image index, plus GitHub-signed build
 attestations — verifiable with
 `gh attestation verify oci://ghcr.io/loongest/mockwa:latest --owner loongest`.
+
+### A five-minute tour
+
+Six steps, from nothing to a scenario report. They use the seeded IDs, so they work verbatim.
+
+**Two ports, two jobs.** `8888` is the **Graph port**: your app calls it in place of
+`graph.facebook.com`, and nothing else lives there. `8025` is the **control-plane port**: the
+console, the virtual phone, `/api` and `/api/ws`. Your app should only ever know about 8888.
+
+**Which image.** The Clock, Scenarios and Requests views arrived in M5, and no release containing
+them has been published yet: images are published only from a `v*` release tag, so
+`ghcr.io/loongest/mockwa:latest` may be older and lack them. Until such a release exists, build
+the image from this checkout and use that local tag (or, while reviewing, the review image you were given):
+
+```sh
+docker build -t mockwa:local .
+```
+
+Once a release that includes M5 is published, `ghcr.io/loongest/mockwa:<version>` works the same
+way in every command below.
+
+1. **Start the image** on a virtual clock, so time moves only when you say so:
+
+   ```sh
+   docker run --rm --name mockwa-tour -p 127.0.0.1:8888:8888 -p 127.0.0.1:8025:8025 \
+     -e MOCKWA_CLOCK=virtual -e MOCKWA_CLOCK_START=2026-06-01T08:00:00Z \
+     mockwa:local
+   ```
+
+2. **Receive a message** as the seeded contact Ana, which opens her 24-hour window:
+
+   ```sh
+   curl -s -X POST http://localhost:8025/api/inbound -H 'Content-Type: application/json' \
+     -d '{"phoneNumberId":"573542517421694","from":"5571990000001","type":"text","text":{"body":"hi"}}'
+   ```
+
+3. **Send a reply** through the Graph port, the call your app makes:
+
+   ```sh
+   curl -s -X POST http://localhost:8888/v25.0/573542517421694/messages \
+     -H 'Authorization: Bearer dev-token' -H 'Content-Type: application/json' \
+     -d '{"messaging_product":"whatsapp","to":"5571990000001","type":"text","text":{"body":"hello Ana"}}'
+   ```
+
+   The console's **Requests** tab now shows that call (token masked), and **Chats** shows the
+   conversation with a "Service window open until …" badge and the time left.
+
+4. **Open the Virtual Phone** for Ana: the **Open phone** link in the chat header, or
+   <http://localhost:8025/phone?as=5571990000001&chat=573542517421694>. Type a reply there; with
+   `MOCKWA_WEBHOOK_URL` set it goes to your app as a signed webhook.
+
+5. **Advance time** in the **Clock** tab (+24h), or:
+
+   ```sh
+   curl -s -X POST http://localhost:8025/api/clock/advance -H 'content-type: application/json' -d '{"by":"24h"}'
+   ```
+
+   The window badge turns to "closed" at the 24-hour boundary in every open tab, because the console
+   reads the simulator clock, not your computer's. A new message from Ana reopens it.
+
+6. **Run a scenario** in the **Scenarios** tab: pick `service-window.json`, press **Check**, then
+   **Run…**. A run **resets the instance** first (the tab warns you). The report lists each step,
+   shows expected and observed values for a failed expectation, and downloads as JUnit XML.
+
+Good to know:
+
+- **Real vs virtual.** `MOCKWA_CLOCK=real` (the default) follows the wall clock; the Clock tab's
+  controls are then locked. `virtual` stands still until you move it.
+- **Your app keeps its own clock.** Moving mockwa's clock does not move your app's. Webhook
+  timestamps show simulator time; your app's own "now" does not.
+- **State is in memory** unless `MOCKWA_DB_PATH` points at a file (see below). A reset, a scenario
+  run or a restart without a file database starts over from the seed.
 
 ### State and the `/data` volume
 
@@ -454,6 +530,18 @@ curl -s 'http://localhost:8025/api/service-window?phoneNumberId=<id>&waId=<wa_id
 curl -s http://localhost:8025/api/messaging-rules
 ```
 
+To close one window **now**, use the chat header's **Expire now** button or:
+
+```sh
+curl -s -X POST http://localhost:8025/api/service-window/expire -H 'content-type: application/json' \
+  -d '{"phoneNumberId":"<id>","waId":"<wa_id>"}'
+```
+
+Its scope is exactly one pair: this business number and this contact. The clock does not move,
+other contacts keep their windows, and the contact's next message reopens it (even on a frozen
+virtual clock). A window that is already closed is left alone. A reset or an import clears every
+"expired by hand" mark, and snapshots do not carry them.
+
 To reach a boundary without waiting, shorten it: `MOCKWA_SERVICE_WINDOW=30s`. To get the
 behavior from before this feature, where any message goes out, set `MOCKWA_SERVICE_WINDOW=off`.
 Meta documents the messaging limit but **no error code** for going over it, so mockwa uses a
@@ -595,6 +683,14 @@ done, so you can assert right after it. Good to know:
 - HTTP timeouts stay in real time, and **your app's clock does not move** with mockwa's. Webhook
   timestamps show virtual time.
 
+The console's **Clock** tab shows the mode, the simulator time, the start and the pending events,
+and moves the clock (advance by a duration, move to a date and time, run to the next event). It
+lists what each move ran, with any error, and locks itself while a move is running. In real mode
+the controls are locked and say why. Every time the console shows — message days, list times,
+the window badge — is simulator time, in your browser's time zone (named in the top bar's clock
+badge). It updates live however the clock moved: the console, `/api/clock`, the CLI, a scenario
+or a reset.
+
 ### Scenarios
 
 A scenario is a JSON file: a world (numbers, people with roles, apps, templates, failure rules,
@@ -638,6 +734,39 @@ a bad file, bad arguments or an unreachable instance. **A run resets the instanc
 is always required. `within` is how long (in real time) an `expect` waits for your app; the
 default is 5 seconds.
 
+The console's **Scenarios** tab does the same as the CLI: load a file, paste JSON or pick a
+shipped example; **Check** validates it without touching any state and lists what is wrong;
+**Run…** warns that the instance will be reset, then shows each step (passed, failed or skipped),
+the expected and observed values of a failed expectation, and a **Download JUnit XML** button
+for that run.
+
+## Graph request log
+
+Every request your app makes to the **Graph port** (8888) is logged: successes and rejections
+alike — a template that does not exist, a send blocked by a rule, an injected failure, a 404.
+The console's **Requests** tab lists them live; click one for the detail.
+
+Each entry records: simulator time, duration, method, path, query, status, the Meta error code
+if any, the phone number ID (when the path starts with one) and the app the token belongs to.
+The detail adds the request headers and body and the response body.
+
+What is kept, and what is not:
+
+- **Secrets are masked.** The bearer token is shown as dots and its last few characters only;
+  any header, query or JSON key that looks like a secret (`token`, `secret`, `password`,
+  `signature`, `api_key`, …) is replaced by `[masked]`; a media-URL token in a path keeps only its last few characters.
+- **Bounded.** The newest 500 requests are kept; bodies are cut at 16,384 characters and marked
+  as truncated.
+- **A body that cannot be masked is not stored.** A request body that does not parse — malformed
+  JSON, free text, or a bare JSON string or number — could hold a credential anywhere, so only its content type, size and the
+  reason are kept (`kind: "omitted"`). The answer your app gets is unchanged.
+- **Binary is never stored as text.** A media upload is described (content type, size, the form
+  fields and file names) but its bytes are not kept.
+- **Reset clears it**, and it is **not part of a state export**. Download it on its own:
+  `GET /api/graph-requests/export` (also the **Download JSON** button), or clear it with
+  `DELETE /api/graph-requests`.
+- Calls to the control-plane port (8025) are not logged: this log is about your app.
+
 ## Control plane
 
 `/api` is whaloc's own API — the web UI and test scripts drive the "user side" through it. It has
@@ -645,45 +774,48 @@ default is 5 seconds.
 port to a network you do not trust. Request and response schemas live in
 `packages/shared/src/control-plane/`, imported by both the server and the UI.
 
-| Endpoint                                                               | What it does                                                                                                                                                                                                                                                                  |
-| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /health`, `GET /api/health`                                       | Liveness (the root alias is what the Docker `HEALTHCHECK` hits)                                                                                                                                                                                                               |
-| `GET /api/state`                                                       | WABAs, phone numbers (with their lifecycle and any pending verification code), configured behavior, webhook target status                                                                                                                                                     |
-| `GET /api/clock`, `POST /api/clock/advance\|set\|run-next`             | The virtual clock: where it is, what is pending, and moving it (see **Virtual clock and scenarios**)                                                                                                                                                                          |
-| `POST /api/scenarios/validate\|run`                                    | Check or run a scenario file; `?format=junit` for a JUnit report                                                                                                                                                                                                              |
-| `POST /api/reset`                                                      | Wipe every table **and** the stored media, then re-apply the seed                                                                                                                                                                                                             |
-| `GET /api/export?include=deliveries`                                   | The whole state as one downloadable JSON file, media bytes included (see **State snapshots**)                                                                                                                                                                                 |
-| `POST /api/import`                                                     | Replace all state with such a file — JSON body or a `multipart/form-data` upload                                                                                                                                                                                              |
-| `GET/POST /api/contacts`, `PATCH /api/contacts/{waId}`                 | The WhatsApp users on the other side, with their optional business-scoped user ID                                                                                                                                                                                             |
-| `POST /api/contacts/{waId}/change-number`                              | The person moved: the contact and its history follow, and `user_changed_number` goes out                                                                                                                                                                                      |
-| `GET /api/conversations?phoneNumberId=`                                | One row per contact, with the last message                                                                                                                                                                                                                                    |
-| `GET /api/conversations/{id}/messages`                                 | Paginated history, newest last                                                                                                                                                                                                                                                |
-| `POST /api/inbound`                                                    | Simulate a user message: text, media, `interactive` replies, `button`, location, contacts, reaction, `unsupported`; plus the context riders (`referral`, `forwarded`, `frequentlyForwarded`, `referredProduct`)                                                               |
-| `POST /api/inbound-media`                                              | Multipart upload used by an inbound media message                                                                                                                                                                                                                             |
-| `GET /api/media/{id}`                                                  | The descriptor behind a media ID, so the UI can preview it                                                                                                                                                                                                                    |
-| `GET /api/uploads?handle=`                                             | The same for a resumable-upload handle, which is what a template's `example.header_handle` carries                                                                                                                                                                            |
-| `POST /api/messages/{id}/status`                                       | Manual `delivered` / `read` / `failed` (with an error preset)                                                                                                                                                                                                                 |
-| `GET /api/message-error-presets`                                       | The failure codes that action accepts, with Meta's wording                                                                                                                                                                                                                    |
-| `GET /api/typing?phoneNumberId=`                                       | The typing indicators the app under test currently has up (read-only — only it can raise one)                                                                                                                                                                                 |
-| `GET /api/templates?status=&category=&language=&name=&search=`         | Templates with their status and quality score, narrowed by the same filters the Graph listing takes                                                                                                                                                                           |
-| `POST /api/templates/{id}/approve\|reject\|pause\|disable\|quality`    | The moderation whaloc performs on Meta's behalf; each transition emits its webhook                                                                                                                                                                                            |
-| `POST /api/phone-numbers/{id}/quality`                                 | Set quality/throughput, optionally emitting `phone_number_quality_update`                                                                                                                                                                                                     |
-| `POST /api/phone-numbers/{id}/business-profile`                        | The business profile, as Settings edits it (camelCase; a blank field clears it)                                                                                                                                                                                               |
-| `GET/POST /api/injection-rules`, `DELETE /api/injection-rules/{id}`    | Deterministic error injection: target, trigger, preset (see **Error simulation**)                                                                                                                                                                                             |
-| `GET /api/tokens`, `POST /api/tokens/{id}/expire\|restore`             | The `MOCKWA_TOKENS` registry, masked; expire one to get `401` / `190` / subcode `463`                                                                                                                                                                                         |
-| `GET/POST /api/wabas`, `PATCH\|DELETE /api/wabas/{id}`                 | WABAs at runtime; `POST` takes an optional `id` so the account can match a production one; a delete cascades to phone numbers, messages, media and templates                                                                                                                  |
-| `GET/POST /api/phone-numbers`, `PATCH\|DELETE /api/phone-numbers/{id}` | Numbers under a WABA — created here they are `CONNECTED` and can send immediately; `POST` takes an optional `id` too                                                                                                                                                          |
-| `GET /api/webhook-deliveries?limit=&before=`                           | The delivery log, newest first                                                                                                                                                                                                                                                |
-| `POST /api/webhook-deliveries/{id}/redeliver`                          | Send a stored body again, to the app's current URL, re-signed now                                                                                                                                                                                                             |
-| `POST /api/webhook-deliveries/{id}/cancel-retry`                       | Stop retrying that delivery's chain                                                                                                                                                                                                                                           |
-| `GET/POST /api/apps`, `PATCH\|DELETE /api/apps/{key}`                  | Apps and their routing; secrets are write-only (`hasAppSecret`, never the value); the default app is read-only                                                                                                                                                                |
-| `PUT\|DELETE /api/apps/{key}/subscriptions/{wabaId}`                   | Subscribe an app to a WABA, with an optional WABA override (`overrideCallbackUri`, `verifyToken`)                                                                                                                                                                             |
-| `PUT\|DELETE /api/apps/{key}/phone-overrides/{phoneNumberId}`          | An app's override for one number                                                                                                                                                                                                                                              |
-| `POST /api/apps/{key}/handshake`, `GET /api/webhook-routes`            | Check an app's URL with `hub.challenge`; ask where an event would go and why                                                                                                                                                                                                  |
-| `POST /api/webhook/handshake`, `POST /api/webhook/raw`                 | Run the `hub.challenge` handshake; send arbitrary (still signed) JSON                                                                                                                                                                                                         |
-| `POST /api/webhook/account-update`                                     | Emit `account_update` for a WABA: `VERIFIED_ACCOUNT`, `DISABLED_UPDATE`, `ACCOUNT_RESTRICTION` (with `restriction_info`), `ACCOUNT_DELETED`, `ACCOUNT_VIOLATION` — an event only, no state change                                                                             |
-| `POST /api/webhook/business-capability-update`                         | Emit `business_capability_update` with `max_daily_conversation_per_phone` and `max_phone_numbers_per_business` — likewise an event only                                                                                                                                       |
-| `GET /api/ws`                                                          | WebSocket: `message.created`, `message.status_changed`, `typing.changed`, `template.changed`, `webhook.delivery`, `contact.changed`, `waba.changed`, `phone_number.changed`, `injection.changed`, `token.changed`, `webhook_routing.changed`, `state.reset`, `state.imported` |
+| Endpoint                                                               | What it does                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /health`, `GET /api/health`                                       | Liveness (the root alias is what the Docker `HEALTHCHECK` hits)                                                                                                                                                                                                                                                                                  |
+| `GET /api/state`                                                       | WABAs, phone numbers (with their lifecycle and any pending verification code), configured behavior, webhook target status                                                                                                                                                                                                                        |
+| `GET /api/clock`, `POST /api/clock/advance\|set\|run-next`             | The virtual clock: where it is, what is pending, and moving it (see **Virtual clock and scenarios**)                                                                                                                                                                                                                                             |
+| `POST /api/scenarios/validate\|run`                                    | Check or run a scenario file; `?format=junit` for a JUnit report                                                                                                                                                                                                                                                                                 |
+| `POST /api/service-window/expire`                                      | Close one contact's customer service window now (see **Messaging rules**)                                                                                                                                                                                                                                                                        |
+| `GET /api/graph-requests`, `GET /api/graph-requests/{id}`              | The Graph request log, newest first (`?limit=&before=&phoneNumberId=`), and one entry in full (see **Graph request log**)                                                                                                                                                                                                                        |
+| `GET /api/graph-requests/export`, `DELETE /api/graph-requests`         | Download the whole log as JSON; clear it                                                                                                                                                                                                                                                                                                         |
+| `POST /api/reset`                                                      | Wipe every table **and** the stored media, then re-apply the seed                                                                                                                                                                                                                                                                                |
+| `GET /api/export?include=deliveries`                                   | The whole state as one downloadable JSON file, media bytes included (see **State snapshots**)                                                                                                                                                                                                                                                    |
+| `POST /api/import`                                                     | Replace all state with such a file — JSON body or a `multipart/form-data` upload                                                                                                                                                                                                                                                                 |
+| `GET/POST /api/contacts`, `PATCH /api/contacts/{waId}`                 | The WhatsApp users on the other side, with their optional business-scoped user ID                                                                                                                                                                                                                                                                |
+| `POST /api/contacts/{waId}/change-number`                              | The person moved: the contact and its history follow, and `user_changed_number` goes out                                                                                                                                                                                                                                                         |
+| `GET /api/conversations?phoneNumberId=`                                | One row per contact, with the last message                                                                                                                                                                                                                                                                                                       |
+| `GET /api/conversations/{id}/messages`                                 | Paginated history, newest last                                                                                                                                                                                                                                                                                                                   |
+| `POST /api/inbound`                                                    | Simulate a user message: text, media, `interactive` replies, `button`, location, contacts, reaction, `unsupported`; plus the context riders (`referral`, `forwarded`, `frequentlyForwarded`, `referredProduct`)                                                                                                                                  |
+| `POST /api/inbound-media`                                              | Multipart upload used by an inbound media message                                                                                                                                                                                                                                                                                                |
+| `GET /api/media/{id}`                                                  | The descriptor behind a media ID, so the UI can preview it                                                                                                                                                                                                                                                                                       |
+| `GET /api/uploads?handle=`                                             | The same for a resumable-upload handle, which is what a template's `example.header_handle` carries                                                                                                                                                                                                                                               |
+| `POST /api/messages/{id}/status`                                       | Manual `delivered` / `read` / `failed` (with an error preset)                                                                                                                                                                                                                                                                                    |
+| `GET /api/message-error-presets`                                       | The failure codes that action accepts, with Meta's wording                                                                                                                                                                                                                                                                                       |
+| `GET /api/typing?phoneNumberId=`                                       | The typing indicators the app under test currently has up (read-only — only it can raise one)                                                                                                                                                                                                                                                    |
+| `GET /api/templates?status=&category=&language=&name=&search=`         | Templates with their status and quality score, narrowed by the same filters the Graph listing takes                                                                                                                                                                                                                                              |
+| `POST /api/templates/{id}/approve\|reject\|pause\|disable\|quality`    | The moderation whaloc performs on Meta's behalf; each transition emits its webhook                                                                                                                                                                                                                                                               |
+| `POST /api/phone-numbers/{id}/quality`                                 | Set quality/throughput, optionally emitting `phone_number_quality_update`                                                                                                                                                                                                                                                                        |
+| `POST /api/phone-numbers/{id}/business-profile`                        | The business profile, as Settings edits it (camelCase; a blank field clears it)                                                                                                                                                                                                                                                                  |
+| `GET/POST /api/injection-rules`, `DELETE /api/injection-rules/{id}`    | Deterministic error injection: target, trigger, preset (see **Error simulation**)                                                                                                                                                                                                                                                                |
+| `GET /api/tokens`, `POST /api/tokens/{id}/expire\|restore`             | The `MOCKWA_TOKENS` registry, masked; expire one to get `401` / `190` / subcode `463`                                                                                                                                                                                                                                                            |
+| `GET/POST /api/wabas`, `PATCH\|DELETE /api/wabas/{id}`                 | WABAs at runtime; `POST` takes an optional `id` so the account can match a production one; a delete cascades to phone numbers, messages, media and templates                                                                                                                                                                                     |
+| `GET/POST /api/phone-numbers`, `PATCH\|DELETE /api/phone-numbers/{id}` | Numbers under a WABA — created here they are `CONNECTED` and can send immediately; `POST` takes an optional `id` too                                                                                                                                                                                                                             |
+| `GET /api/webhook-deliveries?limit=&before=`                           | The delivery log, newest first                                                                                                                                                                                                                                                                                                                   |
+| `POST /api/webhook-deliveries/{id}/redeliver`                          | Send a stored body again, to the app's current URL, re-signed now                                                                                                                                                                                                                                                                                |
+| `POST /api/webhook-deliveries/{id}/cancel-retry`                       | Stop retrying that delivery's chain                                                                                                                                                                                                                                                                                                              |
+| `GET/POST /api/apps`, `PATCH\|DELETE /api/apps/{key}`                  | Apps and their routing; secrets are write-only (`hasAppSecret`, never the value); the default app is read-only                                                                                                                                                                                                                                   |
+| `PUT\|DELETE /api/apps/{key}/subscriptions/{wabaId}`                   | Subscribe an app to a WABA, with an optional WABA override (`overrideCallbackUri`, `verifyToken`)                                                                                                                                                                                                                                                |
+| `PUT\|DELETE /api/apps/{key}/phone-overrides/{phoneNumberId}`          | An app's override for one number                                                                                                                                                                                                                                                                                                                 |
+| `POST /api/apps/{key}/handshake`, `GET /api/webhook-routes`            | Check an app's URL with `hub.challenge`; ask where an event would go and why                                                                                                                                                                                                                                                                     |
+| `POST /api/webhook/handshake`, `POST /api/webhook/raw`                 | Run the `hub.challenge` handshake; send arbitrary (still signed) JSON                                                                                                                                                                                                                                                                            |
+| `POST /api/webhook/account-update`                                     | Emit `account_update` for a WABA: `VERIFIED_ACCOUNT`, `DISABLED_UPDATE`, `ACCOUNT_RESTRICTION` (with `restriction_info`), `ACCOUNT_DELETED`, `ACCOUNT_VIOLATION` — an event only, no state change                                                                                                                                                |
+| `POST /api/webhook/business-capability-update`                         | Emit `business_capability_update` with `max_daily_conversation_per_phone` and `max_phone_numbers_per_business` — likewise an event only                                                                                                                                                                                                          |
+| `GET /api/ws`                                                          | WebSocket: `message.created`, `message.status_changed`, `typing.changed`, `template.changed`, `webhook.delivery`, `contact.changed`, `waba.changed`, `phone_number.changed`, `injection.changed`, `token.changed`, `webhook_routing.changed`, `clock.changed`, `service_window.changed`, `graph_request.logged`, `state.reset`, `state.imported` |
 
 ## Webhooks
 
@@ -768,13 +900,13 @@ curl -X DELETE localhost:3001/fail                              # back to normal
 ## Web UI
 
 The React bundle is served at `/` by the same port as everything else, with a SPA fallback that
-never shadows `/api`, `/v*.*`, `/whaloc-media` or `/health`. Four views, all live over `/api/ws`
+never shadows `/api`, `/v*.*`, `/whaloc-media` or `/health`. Seven views, all live over `/api/ws`
 and none of them polling.
 
-One **top bar** frames them: the brand, the scope, the four tabs and the live indicators, with
+One **top bar** frames them: the brand, the scope, the tabs, the simulator clock and the live indicators, with
 the content full width underneath. The scope is a breadcrumb — **WABA ▾ / number ▾** — and it
 goes exactly as deep as the view needs it: Chats is scoped to a number, Templates to an account,
-Webhooks and Settings to nothing at all. Each segment is a menu of what exists, ending in the
+Webhooks, Requests, Clock, Scenarios and Settings to nothing at all. Each segment is a menu of what exists, ending in the
 action that creates the next one ("Create WABA…", "Add number…" — the same dialogs Settings
 uses), so a whaloc with nothing in it can be filled in from the bar.
 
@@ -785,6 +917,9 @@ The scope lives in the **URL**, so a deep link and a reload land where you left 
 | Chats     | `/w/{waba-id}/p/{phone-number-id}/chats/{contact-wa-id}` (the last two segments optional) |
 | Templates | `/w/{waba-id}/templates`                                                                  |
 | Webhooks  | `/webhooks`                                                                               |
+| Requests  | `/requests`                                                                               |
+| Clock     | `/clock`                                                                                  |
+| Scenarios | `/scenarios`                                                                              |
 | Settings  | `/settings`                                                                               |
 
 `/` and the bare `/chats` and `/templates` redirect into the scope this browser used last (or the
@@ -808,16 +943,28 @@ deletion arriving over the WebSocket moves the URL the same way.
   it — mark delivered, mark read, or fail with one of the error presets. The other direction
   shows what the app under test did: a faint double check on the user's message once it called
   the read receipt, and a typing bubble (also `typing…` in the conversation list) while it has a
-  typing indicator up.
+  typing indicator up. The header also shows the service window by simulator time (with
+  **Expire now**) and an **Open phone** link that opens the Virtual Phone as exactly this
+  contact in this business chat, in a new tab.
 - **Templates** — the review a Meta moderator would perform: approve, reject with
   `rejection_info`, pause, disable, push a quality update; with the components JSON beside a
   rendered preview that marks every `{{placeholder}}` and renders a media header from the
   `example.header_handle` it was created with. The filter bar (search, status, category)
   narrows the list **server-side**, through the same filters the Graph listing takes.
-- **Webhooks** — the delivery log, expandable into the exact signed bytes, with the app each copy
+- **Webhooks** — the delivery log, expandable into the exact signed bytes, the outcome in words
+  (delivered, retrying, failed, skipped), and what is known about the signature: mockwa says
+  "signature generated" when it signed the body, never "verified" — only your receiver knows
+  whether it checked it. Each row also shows the app each copy
   went to, when the next retry is due (with **Cancel retry**), redeliver, the `hub.challenge`
   handshake, and a raw payload sender.
-- **Settings → Apps & webhooks** — the apps, which WABAs each is subscribed to, which credentials
+- **Requests** — the Graph request log (see **Graph request log**): every call your app made to
+  8888 with its status and error code, expandable into masked headers and bodies.
+- **Clock** — the simulator clock and its controls (see **Virtual clock and scenarios**).
+- **Scenarios** — check and run a scenario, read its step report, download JUnit XML.
+- **Settings → Apps & webhooks** — starts with three steps in plain words: which apps
+  get a webhook (the WABA's subscribers), where each copy goes (phone-number override, then WABA
+  override, then the app's callback URL), and which app a Graph call counts as (the one whose
+  token it carries). Then the apps, which WABAs each is subscribed to, which credentials
   are set (never their values), a handshake per app, and the WABA and phone-number overrides.
 - **Settings** — the WABA and phone-number IDs (with copy buttons, since a `GRAPH_API_BASE_URL`
   call needs them), grouped by account: add, rename and delete WABAs, add, edit and delete phone

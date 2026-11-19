@@ -231,6 +231,8 @@ export class SnapshotService {
 		const arriving = new Set(snapshot.mediaObjects.map(object => object.storageKey));
 
 		await this.#repositories.snapshots.replaceAll(snapshot.tables);
+		// Windows closed by hand belonged to the conversations being replaced (SPEC §4).
+		await this.#repositories.serviceWindowExpiries.deleteAll();
 		// A snapshot's pending retries were owed by somebody else's mockwa, at another time:
 		// like the timers above, they are cancelled rather than replayed (SPEC §5).
 		await this.#repositories.webhookDeliveries.cancelPending();

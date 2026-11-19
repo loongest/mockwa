@@ -10,6 +10,7 @@ import { useAppState, useDispatch, useToasts } from "../../store/store.tsx";
 import { Composer } from "./composer.tsx";
 import { ConversationList } from "./conversation-list.tsx";
 import { MessageList } from "./message-list.tsx";
+import { phoneSearch } from "../../phone/phone-state.ts";
 import { ServiceWindowBadge } from "./service-window-badge.tsx";
 
 const PAGE_SIZE = 50;
@@ -244,7 +245,19 @@ export function ChatsPage() {
 							phoneNumberId={endpoints.phoneNumberId}
 							waId={endpoints.contactWaId}
 							refreshKey={latestInboundId}
+							serviceWindowChange={state.serviceWindowChange}
 						/>
+						{/* The virtual phone signed in as this very contact, on this very chat (SPEC §5). */}
+						<a
+							className="button button--ghost"
+							href={`/phone${phoneSearch({ waId: endpoints.contactWaId, phoneNumberId: endpoints.phoneNumberId })}`}
+							target="_blank"
+							rel="noreferrer"
+							data-testid="open-phone"
+							title={`Open the virtual phone as ${endpoints.contactWaId}, in this chat`}
+						>
+							Open phone
+						</a>
 						{contact !== null && (
 							<button
 								type="button"

@@ -20,6 +20,7 @@ import {
 	createBackgroundTasks,
 	createEventBus,
 	createSystemScheduler,
+	GraphRequestLog,
 	InboundService,
 	InjectionService,
 	MediaService,
@@ -116,6 +117,8 @@ export interface DomainServices {
 	ids: IdStream;
 	/** `/api/scenarios`: repeatable simulator tests (SPEC §4, "Scenarios"). */
 	scenarios: ScenarioRunner;
+	/** What the app under test sent to the Graph listener, and what it got back (SPEC §5). */
+	graphRequests: GraphRequestLog;
 }
 
 /** Everything with a lifetime, built once at boot and injected from here on (SPEC §8). */
@@ -265,6 +268,7 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 	const messagingRules = new MessagingRules({
 		repositories,
 		config: config.messaging,
+		events,
 		...(scheduler !== undefined && { scheduler }),
 	});
 
@@ -275,6 +279,7 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 		ids,
 		repositories,
 		logger,
+		events,
 	});
 
 	// An advance is complete once what each event started has settled: the status webhooks it
@@ -385,6 +390,17 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 		tasks,
 		clock,
 		ids,
+		graphRequests: new GraphRequestLog({
+			repositories,
+			appKeyFor: async token => {
+				const app = await apps.forAccessToken(token);
+
+				return app.key;
+			},
+			events,
+			logger,
+			...(scheduler !== undefined && { scheduler }),
+		}),
 		scenarios: new ScenarioRunner({
 			config,
 			repositories,

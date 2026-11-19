@@ -20,7 +20,11 @@ export function dayKey(iso: string): string {
 	return `${String(date.getFullYear())}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-export function formatDayLabel(iso: string, now: Date = new Date()): string {
+/**
+ * "Today", "Yesterday", or the date. `now` is required on purpose: it is simulator time
+ * (`useSimulatorNow`), which under a virtual clock is not the browser's today.
+ */
+export function formatDayLabel(iso: string, now: Date): string {
 	const key = dayKey(iso);
 	const yesterday = new Date(now);
 
@@ -39,8 +43,8 @@ export function formatDayLabel(iso: string, now: Date = new Date()): string {
 	return date.getFullYear() === now.getFullYear() ? day.format(date) : dayWithYear.format(date);
 }
 
-/** A timestamp for a list: the clock today, the day before that. */
-export function formatListTime(iso: string, now: Date = new Date()): string {
+/** A timestamp for a list: the clock today, the day before that — "today" by simulator time. */
+export function formatListTime(iso: string, now: Date): string {
 	return dayKey(iso) === dayKey(now.toISOString()) ? formatClock(iso) : formatDayLabel(iso, now);
 }
 

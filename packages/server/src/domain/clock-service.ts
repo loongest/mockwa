@@ -2,6 +2,7 @@ import type { ClockConfig, ClockMode } from "../config/index.ts";
 import type { Repositories } from "../db/index.ts";
 import type { Logger } from "../logging/index.ts";
 import { ControlPlaneError, controlBadRequest } from "./control-plane-error.ts";
+import type { EventPublisher } from "./event-bus.ts";
 import { deriveStreamKey, INITIAL_STREAM_KEY, type IdStream } from "./id-stream.ts";
 import type { Scheduler } from "./scheduler.ts";
 import type { AdvanceResult, VirtualClock } from "./virtual-clock.ts";
@@ -54,6 +55,8 @@ export interface ClockServiceOptions {
 	ids: IdStream;
 	repositories: Repositories;
 	logger: Logger;
+	/** Told about every move of the virtual clock, so open consoles follow it (`clock.changed`). */
+	events?: EventPublisher;
 }
 
 function toEventView(event: { sequence: number; dueAt: Date; label: string; error?: string }) {
@@ -79,6 +82,7 @@ export class ClockService {
 	readonly #ids: IdStream;
 	readonly #repositories: Repositories;
 	readonly #logger: Logger;
+	readonly #events: EventPublisher | undefined;
 
 	constructor(options: ClockServiceOptions) {
 		this.#config = options.config;
@@ -87,6 +91,7 @@ export class ClockService {
 		this.#ids = options.ids;
 		this.#repositories = options.repositories;
 		this.#logger = options.logger;
+		this.#events = options.events;
 		this.#virtual?.onMove(async now => this.#save(now));
 	}
 
@@ -100,6 +105,7 @@ export class ClockService {
 
 	async #save(now: Date): Promise<void> {
 		await this.#repositories.clockState.save({ now: now.toISOString(), idStream: this.#ids.key ?? INITIAL_STREAM_KEY });
+		this.#events?.publish({ type: "clock.changed", payload: { clock: this.view() } });
 	}
 
 	#moveView(result: AdvanceResult): ClockMoveView {

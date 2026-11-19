@@ -3,7 +3,12 @@ import type { AppEnv } from "./app-env.ts";
 import type { DomainServices } from "./composition.ts";
 import type { AppConfig } from "./config/index.ts";
 import { createControlRoutes, createHealthRoutes } from "./control-api/index.ts";
-import { createGraphRoutes, createMediaDownloadRoutes, GRAPH_VERSION_PATH } from "./graph-api/index.ts";
+import {
+	createGraphRequestLogger,
+	createGraphRoutes,
+	createMediaDownloadRoutes,
+	GRAPH_VERSION_PATH,
+} from "./graph-api/index.ts";
 import { createRequestLogger, type Logger } from "./logging/index.ts";
 import { createWebUiRoutes, hasWebUiBundle } from "./web-ui.ts";
 
@@ -56,6 +61,9 @@ function mountMediaDownloads(app: Hono<AppEnv>, services: DomainServices): void 
 /** Port 8888: Graph API routes and media bytes, nothing a browser console uses. */
 export function createGraphApp(options: CreateAppOptions): Hono<AppEnv> {
 	const app = createListenerApp(options.logger);
+
+	// Before every route, so rejected requests are logged with their error envelope too.
+	app.use(createGraphRequestLogger(options.services.graphRequests));
 
 	// The same router answers every `/v<major>.<minor>` prefix (SPEC §1.1); the media byte
 	// endpoint sits outside it because the URLs it serves are opaque to the consumer.

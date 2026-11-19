@@ -150,9 +150,14 @@ describe("GET /api/ws", () => {
 				typing_indicator: { type: "text" },
 			}),
 		});
-		await waitFor(events, 2);
+		// The Graph call itself is logged last, once its answer is known (SPEC §5).
+		await waitFor(events, 3);
 
-		expect(events.map(event => event.type)).toEqual(["message.status_changed", "typing.changed"]);
+		expect(events.map(event => event.type)).toEqual([
+			"message.status_changed",
+			"typing.changed",
+			"graph_request.logged",
+		]);
 		expect(events[0]).toMatchObject({ payload: { message: { status: "read" }, previousStatus: "delivered" } });
 		expect(events[1]).toMatchObject({
 			payload: { typing: { phoneNumberId: fixture.phoneNumberId, contactWaId: "16505551234" } },

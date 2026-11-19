@@ -2,13 +2,16 @@ import { Route, Routes } from "react-router";
 import { AppShell } from "./components/app-shell.tsx";
 import { ScopeGate, ScopeRedirect } from "./components/scope-gate.tsx";
 import { ChatsPage } from "./features/chats/chats-page.tsx";
+import { ClockPage } from "./features/clock/clock-page.tsx";
+import { RequestsPage } from "./features/requests/requests-page.tsx";
+import { ScenariosPage } from "./features/scenarios/scenarios-page.tsx";
 import { SettingsPage } from "./features/settings/settings-page.tsx";
 import { TemplatesPage } from "./features/templates/templates-page.tsx";
 import { WebhooksPage } from "./features/webhooks/webhooks-page.tsx";
 import { useAppState } from "./store/store.tsx";
 
 /**
- * The four views of the control plane (SPEC §5, §8), behind the one gate that matters: the UI
+ * The views of the control plane (SPEC §5, §8), behind the one gate that matters: the UI
  * is useless without `GET /api/state`, so a failed bootstrap says so instead of rendering an
  * empty shell that looks like an empty whaloc.
  */
@@ -84,6 +87,9 @@ export function App() {
 
 				{/* Global views: the delivery log and the settings are about the whole instance. */}
 				<Route path="webhooks" element={<WebhooksPage />} />
+				<Route path="requests" element={<RequestsPage />} />
+				<Route path="clock" element={<ClockPage />} />
+				<Route path="scenarios" element={<ScenariosPage />} />
 				<Route path="settings" element={<SettingsPage />} />
 
 				{/* Unscoped entry points land in the last scope this browser used. */}
