@@ -1,4 +1,17 @@
 import {
+	clockMoveResponseSchema,
+	clockResponseSchema,
+	graphRequestListResponseSchema,
+	graphRequestResponseSchema,
+	scenarioRunResponseSchema,
+	scenarioValidateResponseSchema,
+	type ClockMove,
+	type ClockState,
+	type GraphRequest,
+	type GraphRequestListQuery,
+	type GraphRequestListResponse,
+	type ScenarioRunResponse,
+	type ScenarioValidateResponse,
 	contactListResponseSchema,
 	contactResponseSchema,
 	conversationListResponseSchema,
@@ -242,6 +255,83 @@ export const api = {
 		});
 
 		return data;
+	},
+
+	/**
+	 * "Expire now" (SPEC §4): closes the window between this number and this contact only, at
+	 * the current simulator time. The clock does not move; the contact's next message reopens it.
+	 */
+	async expireServiceWindow(phoneNumberId: string, waId: string): Promise<ServiceWindow> {
+		const { data } = await request("/api/service-window/expire", {
+			method: "POST",
+			body: { phoneNumberId, waId },
+			schema: serviceWindowResponseSchema,
+		});
+
+		return data;
+	},
+
+	/** The simulator clock (SPEC §4, "Virtual clock"). */
+	async getClock(options: Signal = {}): Promise<ClockState> {
+		const { data } = await request("/api/clock", { schema: clockResponseSchema, ...options });
+
+		return data;
+	},
+
+	/** `by` is a duration such as `"5m"` or `"24h"`; virtual clock only. */
+	async advanceClock(by: string): Promise<ClockMove> {
+		const { data } = await request("/api/clock/advance", {
+			method: "POST",
+			body: { by },
+			schema: clockMoveResponseSchema,
+		});
+
+		return data;
+	},
+
+	/** Forward only: the past is reached through a reset. */
+	async setClock(to: string): Promise<ClockMove> {
+		const { data } = await request("/api/clock/set", { method: "POST", body: { to }, schema: clockMoveResponseSchema });
+
+		return data;
+	},
+
+	async runNextClockEvent(): Promise<ClockMove> {
+		const { data } = await request("/api/clock/run-next", { method: "POST", schema: clockMoveResponseSchema });
+
+		return data;
+	},
+
+	/** Checks a scenario without running it: nothing is reset. */
+	validateScenario: async (scenario: unknown): Promise<ScenarioValidateResponse> =>
+		request("/api/scenarios/validate", { method: "POST", body: scenario, schema: scenarioValidateResponseSchema }),
+
+	/** Runs a scenario. **Resets the instance** into the scenario's world first (SPEC §4). */
+	runScenario: async (scenario: unknown): Promise<ScenarioRunResponse> =>
+		request("/api/scenarios/run", { method: "POST", body: scenario, schema: scenarioRunResponseSchema }),
+
+	/** The Graph request log, newest first (SPEC §5). */
+	listGraphRequests: async (
+		query: GraphRequestListQuery = {},
+		options: Signal = {},
+	): Promise<GraphRequestListResponse> => {
+		return request(
+			`/api/graph-requests${queryString({ limit: query.limit, before: query.before, phoneNumberId: query.phoneNumberId })}`,
+			{ schema: graphRequestListResponseSchema, ...options },
+		);
+	},
+
+	async getGraphRequest(id: number, options: Signal = {}): Promise<GraphRequest> {
+		const { data } = await request(`/api/graph-requests/${String(id)}`, {
+			schema: graphRequestResponseSchema,
+			...options,
+		});
+
+		return data;
+	},
+
+	async clearGraphRequests(): Promise<void> {
+		await request("/api/graph-requests", { method: "DELETE", schema: emptySchema });
 	},
 
 	/** The configured messaging rules and each WABA's messaging-limit count (SPEC §4). */
@@ -556,3 +646,6 @@ async function templateAction(id: string, action: string, body?: unknown): Promi
 
 	return data;
 }
+
+/** `GET /api/graph-requests/export` answers with an attachment: linked, not fetched. */
+export const GRAPH_REQUESTS_EXPORT_PATH = "/api/graph-requests/export";

@@ -227,6 +227,7 @@ describe("messaging rules (SPEC §4)", () => {
 				isOpen: false,
 				lastInboundAt: null,
 				expiresAt: null,
+				expiredManuallyAt: null,
 				windowMs: DAY_MS,
 			});
 
@@ -249,6 +250,125 @@ describe("messaging rules (SPEC §4)", () => {
 			at(30_000);
 
 			expect(await statusAfter(sendText(ANA))).toBe("failed");
+		});
+
+		it("is open just before its boundary, closed at it, and reopened by the contact's next message", async () => {
+			await boot();
+			await receive(ANA);
+			at(DAY_MS - 1);
+
+			expect(await serviceWindow(ANA)).toMatchObject({ isOpen: true, expiresAt: "2026-06-13T12:00:00.000Z" });
+			expect(await statusAfter(sendText(ANA))).not.toBe("failed");
+
+			at(DAY_MS);
+
+			expect(await serviceWindow(ANA)).toMatchObject({ isOpen: false, expiresAt: "2026-06-13T12:00:00.000Z" });
+			expect(await errorAfter(sendText(ANA))).toMatchObject({ code: 131_047 });
+
+			await receive(ANA, "2026-06-13T12:00:00.000Z");
+
+			expect(await serviceWindow(ANA)).toMatchObject({ isOpen: true, expiresAt: "2026-06-14T12:00:00.000Z" });
+		});
+
+		describe("expire now (POST /api/service-window/expire)", () => {
+			async function expire(phoneNumberId: string, waId: string): Promise<Response> {
+				return fixture.app.request("/api/service-window/expire", {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ phoneNumberId, waId }),
+				});
+			}
+
+			it("closes one contact's window on one number at the current time, and nothing else", async () => {
+				await boot();
+				await receive(ANA);
+				await receive(BRUNO);
+				at(60_000);
+
+				const seen: unknown[] = [];
+
+				fixture.services.domain.events.subscribe(event => {
+					if (event.type === "service_window.changed") {
+						seen.push(event.payload.serviceWindow);
+					}
+				});
+
+				const response = await expire(fixture.phoneNumberId, ANA);
+
+				expect(response.status).toBe(200);
+
+				const { data } = serviceWindowResponseSchema.parse(await response.json());
+				const expired = {
+					isOpen: false,
+					expiresAt: "2026-06-12T12:01:00.000Z",
+					expiredManuallyAt: "2026-06-12T12:01:00.000Z",
+					lastInboundAt: START.toISOString(),
+				};
+
+				expect(data).toMatchObject(expired);
+				expect(seen).toEqual([data]);
+				expect(await serviceWindow(ANA)).toMatchObject(expired);
+				// The send it now refuses is the one a lapsed window refuses.
+				expect(await errorAfter(sendText(ANA))).toMatchObject({ code: 131_047 });
+				expect(await statusAfter(sendTemplate(ANA))).not.toBe("failed");
+				// Another contact keeps theirs; the clock did not move.
+				expect(await serviceWindow(BRUNO)).toMatchObject({ isOpen: true, expiredManuallyAt: null });
+				expect(fixture.services.domain.clock.now().toISOString()).toBe("2026-06-12T12:01:00.000Z");
+			});
+
+			it("is reopened by the contact's next message, even at the same instant", async () => {
+				await boot();
+				await receive(ANA);
+				await expire(fixture.phoneNumberId, ANA);
+
+				expect(await serviceWindow(ANA)).toMatchObject({ isOpen: false });
+
+				// The clock has not moved: the message carries the very instant of the expiry.
+				await receive(ANA);
+
+				expect(await serviceWindow(ANA)).toMatchObject({
+					isOpen: true,
+					expiredManuallyAt: null,
+					expiresAt: "2026-06-13T12:00:00.000Z",
+				});
+			});
+
+			it("leaves a window that is not open as it was", async () => {
+				await boot();
+
+				const never = await expire(fixture.phoneNumberId, ANA);
+
+				expect(never.status).toBe(200);
+				expect(await never.json()).toMatchObject({ data: { isOpen: false, expiresAt: null, expiredManuallyAt: null } });
+
+				await receive(ANA);
+				at(DAY_MS + 5000);
+
+				const lapsed = await expire(fixture.phoneNumberId, ANA);
+
+				expect(await lapsed.json()).toMatchObject({
+					data: { isOpen: false, expiresAt: "2026-06-13T12:00:00.000Z", expiredManuallyAt: null },
+				});
+			});
+
+			it("answers 404 for an unknown number and is forgotten by a reset", async () => {
+				await boot();
+
+				const unknown = await expire("999999999", ANA);
+
+				expect(unknown.status).toBe(404);
+				expect(await unknown.json()).toMatchObject({ error: { code: "unknown_phone_number" } });
+
+				await receive(ANA);
+				await expire(fixture.phoneNumberId, ANA);
+				expect(
+					await fixture.services.repositories.serviceWindowExpiries.find(fixture.phoneNumberId, ANA),
+				).not.toBeNull();
+
+				await fixture.app.request("/api/reset", { method: "POST" });
+
+				expect(await fixture.services.repositories.serviceWindowExpiries.find(fixture.phoneNumberId, ANA)).toBeNull();
+			});
 		});
 
 		it("enforces nothing with MOCKWA_SERVICE_WINDOW=off, but still reports the window", async () => {

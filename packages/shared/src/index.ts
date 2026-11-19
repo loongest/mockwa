@@ -1,4 +1,5 @@
 export * from "./control-plane/index.ts";
+export { toJUnitXml } from "./scenario-junit.ts";
 export { healthResponseSchema, type HealthResponse } from "./health.ts";
 export {
 	wsEventSchema,

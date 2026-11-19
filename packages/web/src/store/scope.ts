@@ -18,8 +18,11 @@ export interface Scope {
 
 export const NO_SCOPE: Scope = { wabaId: null, phoneNumberId: null };
 
-/** The four views; the first two carry scope in their path, the last two are global. */
-export type View = "chats" | "templates" | "webhooks" | "settings";
+/** The views; the first two carry scope in their path, the rest are global. */
+export type View = "chats" | "templates" | "webhooks" | "requests" | "clock" | "scenarios" | "settings";
+
+/** The views about the whole instance rather than one account or number. */
+export const GLOBAL_VIEWS: readonly View[] = ["webhooks", "requests", "clock", "scenarios", "settings"];
 
 /**
  * The closest scope to the one asked for that actually exists.
@@ -60,7 +63,7 @@ export function isSameScope(a: Scope, b: Scope): boolean {
  * from here (no WABA at all), which is what disables its tab.
  */
 export function pathFor(view: View, scope: Scope, contactWaId?: string | null): string | null {
-	if (view === "webhooks" || view === "settings") {
+	if (GLOBAL_VIEWS.includes(view)) {
 		return `/${view}`;
 	}
 
@@ -83,13 +86,10 @@ export function pathFor(view: View, scope: Scope, contactWaId?: string | null): 
 /** Which view a path belongs to. Anything unrecognised is Chats, the landing view. */
 export function viewOf(pathname: string): View {
 	const segments = new Set(pathname.split("/"));
+	const global = GLOBAL_VIEWS.find(view => segments.has(view));
 
-	if (segments.has("settings")) {
-		return "settings";
-	}
-
-	if (segments.has("webhooks")) {
-		return "webhooks";
+	if (global !== undefined) {
+		return global;
 	}
 
 	return segments.has("templates") ? "templates" : "chats";

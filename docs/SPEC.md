@@ -197,7 +197,7 @@ Message sends where the recipient equals nothing known: auto-create the contact 
 A single **WebhookEmitter** service owns all outbound deliveries:
 
 - Serializes payload **once** with Meta's `\uXXXX` escaping, then sends a copy to every app the event routes to (below), each **signed with that app's own App Secret** over those exact bytes (§1.12); POSTs with `Content-Type: application/json`, `User-Agent: facebookexternalua`. An app without a secret gets unsigned deliveries; an app without a URL gets a **skipped** row in the log, never silence.
-- **Delivery log**: every attempt is persisted — payload, headers, target URL, the app it went to, response status/body (truncated), duration, error, and when the next retry is due — and browsable in the UI. This is a first-class feature.
+- **Delivery log**: every attempt is persisted — payload, headers, target URL, the app it went to, response status/body (truncated), duration, error, and when the next retry is due — and browsable in the UI. This is a first-class feature. The console states what is known about a signature and nothing more (M5): "signature generated" when an `X-Hub-Signature-256` header was sent, "unsigned" when the app has no secret. Whether the receiver **verified** it is never shown, because mockwa cannot see it — the response status is all a receiver reports. A redelivery (§5) replays the stored body byte for byte as a new chain, re-signed with the app's current secret.
 - **Retries, Meta's rule**: only an HTTP **`200`** is a success. Anything else — a `5xx`, a `4xx`, a `204`, a network error, a timeout — is retried "with decreasing frequency" for up to **7 days**, as Meta documents. The schedule is `MOCKWA_WEBHOOK_RETRY_SCHEDULE` (default `10s,30s,1m,5m,15m,1h,3h,6h,12h,24h`, the last step repeating) and the age limit `MOCKWA_WEBHOOK_RETRY_MAX_AGE` (default `7d`): a retry that would fall past the limit is not scheduled, and the chain is reported as `failed`. A retry re-sends the **stored** URL, headers and body — the same bytes and the same signature, which is what lets a receiver deduplicate — and each attempt is a new row, linked by `chainId`, with `attempt` counting up. Duplicates are possible, as on Meta.
 - **Persistent retry queue**: a pending retry is the `next_attempt_at` of its newest row, in SQLite. One timer (the injectable scheduler) points at the earliest one; a row is **claimed** (its `next_attempt_at` cleared) before it is sent, so it can never go out twice. At boot, after a reset and after an import the queue is read back and the timer re-armed, so with a file database **a pending retry survives a container restart** and goes out when it is due (late, if the container was down at the time). An import **cancels** the snapshot's pending retries — a snapshot is a picture, not a queue — and deleting an app cancels its own. `POST /api/webhook-deliveries/:id/cancel-retry` cancels one chain. `redeliver` re-routes, re-signs and starts a **new** chain, because its purpose is to send to the app's *current* URL.
 - Handshake action (§1.13): `GET <callback URL>?hub.mode=subscribe&hub.verify_token=...&hub.challenge=<random>` and verify the echo; expose result via control-plane; optionally run at startup for the default app (`MOCKWA_VERIFY_ON_START=true`). Any app can be checked on demand, against its own URL and Verify Token or an override's.
@@ -277,6 +277,14 @@ window is open while `now < last inbound + window` and **closed at exactly the b
   in the slot `sent` would have used. No `sent` or `delivered` follows.
 - `off` turns enforcement off: every send behaves as before M3, and `GET /api/service-window`
   still reports the window (with `isEnforced:false`, measured against 24h).
+- **Expire now** (simulator-only, M5). `POST /api/service-window/expire` closes the window of
+  **one pair** — one business number, one contact — at the current simulator time, without
+  moving the clock. It stores a marker holding the pair's inbound-message **count** at that
+  moment and `expired_at`; the window stays closed while the count has not grown, so the
+  contact's next inbound message reopens it even on a frozen virtual clock. Other pairs are
+  untouched. A window already closed (or never opened) is left as it is. The marker
+  (`service_window_expiries`, §6) is cleared by `POST /api/reset` and `POST /api/import` and is
+  not part of a snapshot. `GET /api/service-window` reports it as `expiredManuallyAt`.
 
 **Throughput** (`MOCKWA_THROUGHPUT`, default `off`). Meta: up to 80 messages per second per
 business number by default, up to 1,000 after the automatic upgrade; exceeding it is `130429`.
@@ -442,6 +450,14 @@ The real clock keeps cryptographic randomness.
 | `POST /api/import` | stays where it is (a snapshot carries no clock) | all dropped, like a reset (§5) | derived from the snapshot's content, so new IDs never collide with imported ones |
 | A scenario run | the scenario's `clock.start` (else `MOCKWA_CLOCK_START`) | all dropped (it resets) | its start |
 
+**The console shows simulator time (M5).** Every "now" in the console and the virtual phone —
+the service-window badge and its time left, day separators, list times, the clock badge — is
+derived from `GET /api/clock`, never from the browser's clock. On the virtual clock it is frozen
+at the clock's `now`; on the real clock it is the server's `now` plus the browser's elapsed time
+since it was read. Times are shown in the browser's time zone, which the clock badge names.
+`clock.changed` (§5) is published on every move and on reset, whoever caused it (console, API,
+CLI, scenario run), so every open tab follows.
+
 ### Scenarios (M4)
 
 **Simulator-specific.** A scenario is a JSON file that describes a world and a script of steps
@@ -505,6 +521,42 @@ under test — sends, taps, waits, a day passing — becomes a repeatable test.
   a run resets the instance it names. The image ships it as `mockwa` on the `PATH`; JUnit XML
   has one `<testsuite>` per scenario and one `<testcase>` per step, with `<failure>` and
   `<skipped/>`. Examples: `examples/scenarios/`.
+- **Console (M5).** The Scenarios view validates (no state touched) and runs through the same two
+  endpoints, warns before a run that it resets the instance, and builds the JUnit XML from the
+  run on screen with the same `toJUnitXml` the server uses (`@mockwa/shared`), so a download
+  never re-runs anything. The shipped examples are bundled into the console.
+
+### Graph request log (M5)
+
+**Simulator-specific.** Meta offers nothing like it; it exists so a developer can see exactly
+what their app asked for. A middleware on the **Graph listener only** records every request it
+answers — success, Graph error (template validation, a send gate, a messaging rule), injected
+failure, unknown path — after the response is ready. Control-plane traffic is never logged.
+
+- **Fields.** `id` (ascending), `receivedAt` (**simulator** time), `durationMs`, `method`,
+  `path`, `query`, `status`, `errorCode` (the `error.code` of a Meta envelope, else `null`),
+  `phoneNumberId` (the first path segment when it names an existing number), `appKey` (the app
+  whose access token the request carried, else the default app), `tokenMasked`. The detail adds
+  `requestHeaders`, `requestBody` and `responseBody`.
+- **Masking.** `Authorization` keeps its scheme and shows the token masked as the token
+  registry masks it. Any header, query parameter or JSON key whose name looks like a secret
+  (`token`, `secret`, `password`, `passwd`, `pin`, `signature`, `api_key`, `appsecret`,
+  `cookie`) is replaced by `[masked]`, at any depth. The token segment of media and upload URLs
+  in the path is masked too (only its last few characters stay). Nothing unmasked is stored.
+- **Unparseable request bodies are not stored.** A request body that is neither a JSON object or
+  array nor a form (malformed JSON, a bare JSON string or number, free text) cannot be searched
+  for credentials, because masking works by key, so it is recorded as
+  `kind: "omitted"` with its content type, size and `omittedReason`, and no text. The HTTP
+  answer is unaffected. Response bodies are mockwa's own and keep their text.
+- **Bodies.** Described by `kind`: `empty`, `json`, `text` (responses only), `form`, `multipart`, `binary`, `omitted`, with
+  content type and size. Text kinds keep at most 16,384 characters and say `truncated`.
+  Multipart keeps each field — text values, or a file's name, type and size — never its bytes.
+  Binary bodies (a media upload's bytes, `upload:` sessions) are described, never stored as text.
+- **Bounded.** The newest 500 entries are kept; older ones are pruned on insert.
+- **Lifecycle.** `POST /api/reset` clears it. It is **not** part of `GET /api/export` and an
+  import leaves it alone; it is exported on its own (`GET /api/graph-requests/export`) and can
+  be cleared (`DELETE /api/graph-requests`). Recording never fails a Graph request: a logging
+  error is a warning in the server log.
 
 ## 5. Control-plane API (`/api`) + WebSocket
 
@@ -524,7 +576,9 @@ REST consumed by the web UI (and by test scripts). Suggested resources (final sh
 
   The riders merge with the `context` a `replyTo` produces rather than replacing it, so a forwarded reply about a catalog item is one `context` with `from`, `id`, `forwarded` and `referred_product` in it. Persists + emits webhook.
 - `POST /api/messages/:id/status` — `{status:"read"|"delivered"|"failed", errorCode?}` manual transitions; `GET /api/message-error-presets` lists the failure presets that action accepts (code + Meta's wording), which is what the UI's "fail…" menu is built from.
-- `GET /api/service-window?phoneNumberId=&waId=` — the customer service window between one business number and one contact (§4, "Messaging rules"): `{phoneNumberId, waId, isEnforced, isOpen, lastInboundAt, expiresAt, windowMs}`, the times as ISO strings or `null` when the contact never wrote. 404 for an unknown business number.
+- `GET /api/service-window?phoneNumberId=&waId=` — the customer service window between one business number and one contact (§4, "Messaging rules"): `{phoneNumberId, waId, isEnforced, isOpen, lastInboundAt, expiresAt, windowMs, expiredManuallyAt}`, the times as ISO strings or `null` when the contact never wrote. 404 for an unknown business number.
+- `POST /api/service-window/expire` `{phoneNumberId, waId}` — close that one window now (§4, "Expire now"); answers the window and publishes `service_window.changed`. 404 `unknown_phone_number` for an unknown business number.
+- `GET /api/graph-requests?limit=&before=&phoneNumberId=` — the Graph request log, newest first: `{data: [summary], paging: {before}}` (`limit` 1–200, default 50). `GET /api/graph-requests/:id` — one entry in full, 404 `unknown_graph_request` when it is gone. `GET /api/graph-requests/export` — every kept entry, `{exportedAt, limit, data}`, as an attachment. `DELETE /api/graph-requests` — clear it (204). (§4, "Graph request log".)
 - `GET /api/messaging-rules` — the configured rules (`serviceWindowMs`, `throughput`, `pairRateLimit`, `messagingLimit`, each `null` when off) and `usage`: per WABA, the messaging limit and the unique contacts counted against it. The same configuration is in `GET /api/state` as `behavior.messaging`.
 - `GET /api/typing?phoneNumberId=` — the typing indicators that are up right now (§4). Read-only: an indicator is something the *app under test* declares, so the control plane serves them (for a UI that just loaded, and for assertions) but never raises one.
 - `GET /api/media/:id` — the descriptor behind a media ID (`{id, url, mimeType, sha256, fileSize}`), so the UI can render an inline preview of a message whose payload only carries the ID.
@@ -554,19 +608,19 @@ A second page on the console port, **`/phone`**, plays the *user* side of WhatsA
 - `GET /api/phone/identities/:waId/chats/:phoneNumberId/messages` — that conversation, the same page shape as `/api/conversations/:id/messages`.
 - `POST /api/phone/identities/:waId/chats/:phoneNumberId/messages` — `POST /api/inbound`'s body; the **path** names the sender and the business, and the same fields in the body are overridden, so a phone can only speak as itself. A tapped template quick reply or interactive reply button goes out here too, quoting the message it answers.
 - `POST /api/phone/identities/:waId/chats/:phoneNumberId/read` — the chat is open: every **delivered** business message moves to `read` through the status ladder, each with its own status webhook; a message still `accepted`/`sent` has not reached the phone and is left alone. The page calls it whenever a delivered business message is on screen in a visible tab. Answers `{data:{read}}`.
-- WebSocket `/api/phone/identities/:waId/ws` — `/api/ws` filtered to one identity: its own `message.*`, `typing.changed` and `contact.changed` (including the move away from its old number), plus the world-wide `template.changed`, `waba.changed`, `phone_number.changed`, `state.reset` and `state.imported`. The developer streams — `webhook.delivery`, `webhook_routing.changed`, `injection.changed`, `token.changed` — never reach a phone. An unknown identity is a 404 before the upgrade.
+- WebSocket `/api/phone/identities/:waId/ws` — `/api/ws` filtered to one identity: its own `message.*`, `typing.changed` and `contact.changed` (including the move away from its old number), plus the world-wide `template.changed`, `waba.changed`, `phone_number.changed`, `clock.changed`, `state.reset` and `state.imported`. The developer streams — `webhook.delivery`, `webhook_routing.changed`, `injection.changed`, `token.changed`, `service_window.changed`, `graph_request.logged` — never reach a phone. An unknown identity is a 404 before the upgrade.
 
 Replies are never mockwa's: whatever a phone receives was sent by the app under test through the Graph API. With no `MOCKWA_WEBHOOK_URL`, a phone's message is stored and shown, its delivery is logged as skipped, and nothing answers it. The console's top bar names the webhook receiver on every view (`webhooks → host/path`, or `webhooks: not sent` when none is configured), linking to the Webhooks view.
 
 Every route answers 404 for an unknown identity or business number, in the control plane's error shape. The Developer Console (`/`) and `/api/ws` are unchanged; the phone is not reachable on the Graph port (§8).
 
-WebSocket `/api/ws`: server → client events `{type, payload}`: `message.created`, `message.status_changed` (a read receipt on an inbound message arrives this way — there is no separate `message.read`), `typing.changed` (`payload.typing.expiresAt === null` means it came down), `template.changed`, `webhook.delivery`, `contact.changed` (with `previousWaId` when the contact changed number, so a client can re-key what it derived from the old one), `waba.changed`, `phone_number.changed` (both carry `event:"created"|"updated"|"deleted"`; a phone number's rung on the ladder — a `request_code` included — arrives this way too), `injection.changed` (an `updated` event is published for every rule a request touched, which is what makes the UI's countdown live), `token.changed`, `webhook_routing.changed` (the whole routing, §3), `state.reset`, `state.imported` (the same payload as a reset — a client drops everything and reloads either way; the two are separate because one comes back to the seed and the other to somebody else's world). UI is a pure client of REST+WS — no other coupling. On shutdown (`SIGTERM`/`SIGINT`) every open WebSocket — console or phone — is sent a close frame with code `1001` (going away) and given two seconds to answer before it is cut, so an open tab never holds the process until the shutdown deadline.
+WebSocket `/api/ws`: server → client events `{type, payload}`: `message.created`, `message.status_changed` (a read receipt on an inbound message arrives this way — there is no separate `message.read`), `typing.changed` (`payload.typing.expiresAt === null` means it came down), `template.changed`, `webhook.delivery`, `contact.changed` (with `previousWaId` when the contact changed number, so a client can re-key what it derived from the old one), `waba.changed`, `phone_number.changed` (both carry `event:"created"|"updated"|"deleted"`; a phone number's rung on the ladder — a `request_code` included — arrives this way too), `injection.changed` (an `updated` event is published for every rule a request touched, which is what makes the UI's countdown live), `token.changed`, `webhook_routing.changed` (the whole routing, §3), `clock.changed` (`{clock}`, the same view as `GET /api/clock`, on every move and reset), `service_window.changed` (`{serviceWindow}`, when one is expired by hand), `graph_request.logged` (`{request}`, the summary row), `state.reset`, `state.imported` (the same payload as a reset — a client drops everything and reloads either way; the two are separate because one comes back to the seed and the other to somebody else's world). UI is a pure client of REST+WS — no other coupling. On shutdown (`SIGTERM`/`SIGINT`) every open WebSocket — console or phone — is sent a close frame with code `1001` (going away) and given two seconds to answer before it is cut, so an open tab never holds the process until the shutdown deadline.
 
 ## 6. Data model & persistence
 
 **Kysely + `node:sqlite`** (built into Node 24; no native deps, no WASM). Default DB is `:memory:`; `MOCKWA_DB_PATH=/data/whaloc.db` makes state survive restarts (volume). Use Kysely's SQLite dialect surface with a thin custom driver over `node:sqlite`'s `DatabaseSync` (prefer a well-maintained npm dialect if one exists — verify on npm — else write the ~100-line driver in `packages/server/src/db/`; reuse Kysely's `SqliteAdapter`/`SqliteQueryCompiler`/`SqliteIntrospector`). Migrations run at boot (Kysely migrator, in-code migration list).
 
-Tables (roughly): `wabas`, `phone_numbers` (`id`, waba_id, display_phone_number, verified_name, quality_rating, throughput_level), `contacts` (wa_id, profile_name, user_id — the BSUID, nullable and unique), `templates` (`id` digits, waba_id, name, language, category, parameter_format, components JSON, status, rejected_reason, quality_score), `messages` (wamid, direction, business_initiated — `1` for a template sent while the window was closed, `0` otherwise and on rows stored before M3, phone_number_id, contact, type, payload JSON, status, error JSON, biz_opaque_callback_data, template_snapshot JSON — `{parameter_format, components}` for a template send, `null` otherwise and for rows stored before it existed, timestamps, reply_to), `media` (`id` digits, phone_number_id, mime_type, sha256, file_size, storage_key, url_token), `upload_sessions` (`id`, app_id, file_name, file_type, file_length, received_bytes, handle unique, storage_key, sha256, url_token unique, timestamps — §2.21; one row is the whole life of an upload, which is why a handle survives a restart), `webhook_deliveries` (`id`, event_type, url, request_body, request_headers, response_status, response_body, error, attempt, duration_ms, created_at, app_key, chain_id, next_attempt_at — the last three `null` on rows written before apps existed, read as the default app, a chain of one and nothing pending), `apps` (`id`, name, app_secret, verify_token, callback_url, access_token unique, timestamps), `webhook_subscriptions` (waba_id, app_key, override_callback_uri, override_verify_token, subscribed_at), `phone_number_webhook_overrides` (phone_number_id, app_key, callback_uri, verify_token, updated_at), `injection_rules` (`id` time-ordered, target, trigger_kind, trigger_count, preset, retry_after_seconds, regain_access_minutes, custom JSON, error_code — the `failed_status` code, `null` otherwise, seen, matches, remaining, timestamps), `expired_tokens` (token_id = truncated SHA-256, expired_at), `clock_state` (one row: the virtual clock's `now` and its ID stream key, §4 — absent until the virtual clock first moves; not part of a snapshot).
+Tables (roughly): `wabas`, `phone_numbers` (`id`, waba_id, display_phone_number, verified_name, quality_rating, throughput_level), `contacts` (wa_id, profile_name, user_id — the BSUID, nullable and unique), `templates` (`id` digits, waba_id, name, language, category, parameter_format, components JSON, status, rejected_reason, quality_score), `messages` (wamid, direction, business_initiated — `1` for a template sent while the window was closed, `0` otherwise and on rows stored before M3, phone_number_id, contact, type, payload JSON, status, error JSON, biz_opaque_callback_data, template_snapshot JSON — `{parameter_format, components}` for a template send, `null` otherwise and for rows stored before it existed, timestamps, reply_to), `media` (`id` digits, phone_number_id, mime_type, sha256, file_size, storage_key, url_token), `upload_sessions` (`id`, app_id, file_name, file_type, file_length, received_bytes, handle unique, storage_key, sha256, url_token unique, timestamps — §2.21; one row is the whole life of an upload, which is why a handle survives a restart), `webhook_deliveries` (`id`, event_type, url, request_body, request_headers, response_status, response_body, error, attempt, duration_ms, created_at, app_key, chain_id, next_attempt_at — the last three `null` on rows written before apps existed, read as the default app, a chain of one and nothing pending), `apps` (`id`, name, app_secret, verify_token, callback_url, access_token unique, timestamps), `webhook_subscriptions` (waba_id, app_key, override_callback_uri, override_verify_token, subscribed_at), `phone_number_webhook_overrides` (phone_number_id, app_key, callback_uri, verify_token, updated_at), `injection_rules` (`id` time-ordered, target, trigger_kind, trigger_count, preset, retry_after_seconds, regain_access_minutes, custom JSON, error_code — the `failed_status` code, `null` otherwise, seen, matches, remaining, timestamps), `expired_tokens` (token_id = truncated SHA-256, expired_at), `clock_state` (one row: the virtual clock's `now` and its ID stream key, §4 — absent until the virtual clock first moves; not part of a snapshot), `service_window_expiries` (phone_number_id + wa_id, inbound_count, expired_at — §4 "Expire now"; not part of a snapshot), `graph_requests` (`id` autoincrement, received_at, duration_ms, method, path, query, status, phone_number_id, app_key, token_masked, error_code, request headers and body, response body — §4 "Graph request log"; capped at 500 rows, not part of a snapshot).
 
 **Media bytes** go through a `MediaStorage` interface (`put(stream|buffer, meta) → {storageKey, sha256, byteSize}`, `get(storageKey, {range?}) → {stream, size}`, `delete`, optional `close`), with two implementations selected by `MOCKWA_MEDIA_BACKEND`:
 
@@ -670,6 +724,9 @@ The scope is a **breadcrumb whose depth follows the view**, and it lives in the 
 | Chats     | WABA ▾ / number ▾ | `/w/:wabaId/p/:phoneNumberId/chats[/:contactWaId]`, and `/w/:wabaId/chats` for an account with no number yet |
 | Templates | WABA ▾          | `/w/:wabaId/templates`                                             |
 | Webhooks  | none            | `/webhooks`                                                        |
+| Requests  | none            | `/requests` (the Graph request log, §4)                            |
+| Clock     | none            | `/clock` (the simulator clock, §4)                                 |
+| Scenarios | none            | `/scenarios` (§4)                                                  |
 | Settings  | none            | `/settings`                                                        |
 
 A conversation is named by its **contact**, not by the derived `<phoneNumberId>:<waId>` ID: the number is already a segment above it, and a contact that changes number moves within the same path.

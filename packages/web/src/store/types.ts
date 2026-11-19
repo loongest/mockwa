@@ -1,9 +1,12 @@
 import type {
+	ClockState,
 	Contact,
 	Conversation,
+	GraphRequestSummary,
 	InjectionRule,
 	Message,
 	MessageErrorPreset,
+	ServiceWindow,
 	StateResponse,
 	Template,
 	TokenState,
@@ -13,6 +16,7 @@ import type {
 	WsEvent,
 } from "@mockwa/shared";
 import type { ConnectionStatus } from "../api/ws-client.ts";
+import type { ClockSync } from "../lib/sim-clock.tsx";
 
 export interface Toast {
 	id: string;
@@ -72,6 +76,16 @@ export interface AppState {
 	deliveries: WebhookDelivery[] | null;
 	deliveriesBefore: string | null;
 	errorPresets: MessageErrorPreset[];
+	/**
+	 * The simulator clock (SPEC §4), read at bootstrap and kept current by `clock.changed`. Every
+	 * "now" the console shows is derived from it — never from the browser's clock.
+	 */
+	clock: ClockSync | null;
+	/** The last window closed by hand from any console tab, so an open badge follows it. */
+	serviceWindowChange: ServiceWindow | null;
+	/** The Graph request log, newest first; `null` until the Requests view asks. */
+	graphRequests: GraphRequestSummary[] | null;
+	graphRequestsBefore: number | null;
 	connection: ConnectionStatus;
 	toasts: Toast[];
 }
@@ -99,6 +113,8 @@ export type Action =
 	| { type: "webhook-routing/loaded"; routing: WebhookRouting }
 	| { type: "delivery/updated"; delivery: WebhookDelivery }
 	| { type: "deliveries/loaded"; deliveries: WebhookDelivery[]; before: string | null; mode: "latest" | "older" }
+	| { type: "clock/loaded"; clock: ClockState; syncedAt: number }
+	| { type: "graph-requests/loaded"; requests: GraphRequestSummary[]; before: number | null; mode: "latest" | "older" }
 	| { type: "connection/changed"; connection: ConnectionStatus }
 	| { type: "ws/event"; event: WsEvent }
 	| { type: "toast/pushed"; toast: Toast }

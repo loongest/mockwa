@@ -2,8 +2,9 @@ import type { WabaState } from "@mockwa/shared";
 import clsx from "clsx";
 import { useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
-import { pathFor, resolveScope, viewOf, type View } from "../store/scope.ts";
+import { GLOBAL_VIEWS, pathFor, resolveScope, viewOf, type View } from "../store/scope.ts";
 import { useAppState } from "../store/store.tsx";
+import { ClockBadge } from "./clock-badge.tsx";
 import { ConnectionBadge } from "./connection-badge.tsx";
 import { CreatePhoneNumberDialog } from "./create-phone-number-dialog.tsx";
 import { CreateWabaDialog } from "./create-waba-dialog.tsx";
@@ -16,7 +17,7 @@ import { WebhookBadge } from "./webhook-badge.tsx";
  * The top bar, and the whole frame under it.
  *
  * One horizontal bar carries everything that is not a view: the brand, the scope as a
- * breadcrumb, the four view tabs and the live indicators (error injection, webhook target, connection). The scope reads as a path —
+ * breadcrumb, the view tabs and the live indicators (simulator clock, error injection, webhook target, connection). The scope reads as a path —
  * *account, then number* — because that is what whaloc's world is now that both are managed at
  * runtime, and because a breadcrumb can be **deeper for some views than for others**: Chats is
  * scoped to a phone number, Templates only to a WABA, Webhooks and Settings to nothing at all.
@@ -30,12 +31,15 @@ const TABS: { view: View; label: string }[] = [
 	{ view: "chats", label: "Chats" },
 	{ view: "templates", label: "Templates" },
 	{ view: "webhooks", label: "Webhooks" },
+	{ view: "requests", label: "Requests" },
+	{ view: "clock", label: "Clock" },
+	{ view: "scenarios", label: "Scenarios" },
 	{ view: "settings", label: "Settings" },
 ];
 
 /** How deep the breadcrumb goes for the view on screen. */
 function depthOf(view: View): 0 | 1 | 2 {
-	if (view === "webhooks" || view === "settings") {
+	if (GLOBAL_VIEWS.includes(view)) {
 		return 0;
 	}
 
@@ -189,6 +193,7 @@ export function AppShell() {
 				<ViewTabs />
 
 				<div className="topbar__status">
+					<ClockBadge />
 					<InjectionBadge />
 					<WebhookBadge />
 					<ConnectionBadge />

@@ -172,6 +172,37 @@ describe("the virtual clock", () => {
 		expect(message?.createdAt).toBe(START);
 	});
 
+	it("announces every move as clock.changed, whoever made it, and stays quiet otherwise", async () => {
+		const seen: { now: string; pending: number | undefined }[] = [];
+
+		fixture.services.domain.events.subscribe(event => {
+			if (event.type === "clock.changed") {
+				seen.push({ now: event.payload.clock.now, pending: event.payload.clock.pending?.length });
+			}
+		});
+
+		await sendText(fixture);
+		expect(seen).toEqual([]);
+
+		await advance(fixture, "1m");
+		expect(seen.at(-1)).toEqual({ now: at(MINUTE), pending: 1 });
+
+		await post(fixture, "/api/clock/set", { to: at(2 * MINUTE) });
+		expect(seen.at(-1)?.now).toBe(at(2 * MINUTE));
+
+		await post(fixture, "/api/clock/run-next");
+		expect(seen.at(-1)).toEqual({ now: at(8 * MINUTE), pending: 0 });
+
+		// An advance over nothing is not a move.
+		const count = seen.length;
+
+		await advance(fixture, 0);
+		expect(seen).toHaveLength(count);
+
+		await post(fixture, "/api/reset");
+		expect(seen.at(-1)).toEqual({ now: START, pending: 0 });
+	});
+
 	it("AC-10: advancing five minutes fires exactly the events due, in order, with virtual timestamps", async () => {
 		const first = await sendText(fixture, "first");
 

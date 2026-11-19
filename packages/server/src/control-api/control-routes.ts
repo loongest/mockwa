@@ -18,6 +18,7 @@ import { createSnapshotRoutes } from "./snapshot-routes.ts";
 import { createStateRoutes } from "./state-routes.ts";
 import { createTemplateRoutes } from "./template-routes.ts";
 import { createTokenRoutes } from "./token-routes.ts";
+import { createGraphRequestRoutes } from "./graph-request-routes.ts";
 import { createMessagingRulesRoutes } from "./messaging-rules-routes.ts";
 import { createTypingRoutes } from "./typing-routes.ts";
 import { createWabaRoutes } from "./waba-routes.ts";
@@ -61,6 +62,7 @@ export function createControlRoutes(options: ControlRoutesOptions): Hono<Control
 	routes.route("/", createInjectionRoutes({ injection: services.injection }));
 	routes.route("/", createClockRoutes({ clock: services.clock }));
 	routes.route("/", createScenarioRoutes({ scenarios: services.scenarios }));
+	routes.route("/", createGraphRequestRoutes({ graphRequests: services.graphRequests }));
 	routes.route("/", createTokenRoutes({ tokens: services.tokens }));
 	routes.route("/", createWebhookRoutes({ webhooks: services.webhooks, accountEvents: services.accountEvents }));
 	routes.route("/", createAppRoutes({ apps: services.apps, webhooks: services.webhooks }));

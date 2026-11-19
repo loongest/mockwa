@@ -2,6 +2,7 @@ import { createContext, use, useCallback, useEffect, useMemo, useReducer, type R
 import { describeError } from "../api/client.ts";
 import { api } from "../api/endpoints.ts";
 import { connectEvents } from "../api/ws-client.ts";
+import { SimClockContext } from "../lib/sim-clock.tsx";
 import { initialState, reducer } from "./reducer.ts";
 import type { Action, AppState, Toast } from "./types.ts";
 
@@ -53,13 +54,15 @@ export function StoreProvider(props: StoreProviderProps) {
 				// The injection rules load here rather than in the view that manages them: a
 				// forgotten rule has to show up in the shell's badge from the first frame,
 				// whether or not anyone opens Settings (SPEC §4).
-				const [server, contacts, errorPresets, injectionRules] = await Promise.all([
+				const [server, contacts, errorPresets, injectionRules, clock] = await Promise.all([
 					api.getState({ signal }),
 					api.listContacts({ signal }),
 					api.listMessageErrorPresets({ signal }),
 					api.listInjectionRules({ signal }),
+					api.getClock({ signal }),
 				]);
 
+				dispatch({ type: "clock/loaded", clock, syncedAt: Date.now() });
 				dispatch({ type: "bootstrap/loaded", server, contacts, errorPresets, injectionRules });
 			} catch (error) {
 				if (!signal.aborted) {
@@ -104,7 +107,9 @@ export function StoreProvider(props: StoreProviderProps) {
 			onEvent: event => {
 				dispatch({ type: "ws/event", event });
 
-				if (event.type === "state.reset" || event.type === "state.imported") {
+				if (event.type === "clock.changed") {
+					dispatch({ type: "clock/loaded", clock: event.payload.clock, syncedAt: Date.now() });
+				} else if (event.type === "state.reset" || event.type === "state.imported") {
 					void reloadAfterWipe().catch(() => {
 						// Whoever pressed the button gets the error; a toast in every other tab for
 						// something nobody there asked for is noise.
@@ -122,10 +127,10 @@ export function StoreProvider(props: StoreProviderProps) {
 				// phone number could have come or gone. Re-reading the snapshot is the cheapest
 				// way to be right again, and it is the only fetch this UI makes on its own.
 				if (hasConnected) {
-					void api
-						.getState()
-						.then(server => {
+					void Promise.all([api.getState(), api.getClock()])
+						.then(([server, clock]) => {
 							dispatch({ type: "state/loaded", server });
+							dispatch({ type: "clock/loaded", clock, syncedAt: Date.now() });
 						})
 						.catch(() => {
 							// The socket is back but the REST call failed: the next reconnect
@@ -140,7 +145,11 @@ export function StoreProvider(props: StoreProviderProps) {
 
 	const store = useMemo<Store>(() => ({ state, dispatch }), [state]);
 
-	return <StoreContext value={store}>{props.children}</StoreContext>;
+	return (
+		<StoreContext value={store}>
+			<SimClockContext value={state.clock}>{props.children}</SimClockContext>
+		</StoreContext>
+	);
 }
 
 function useStore(): Store {

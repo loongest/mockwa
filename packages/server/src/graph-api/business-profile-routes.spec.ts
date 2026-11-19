@@ -147,7 +147,7 @@ describe("business profile (SPEC §2.19)", () => {
 
 			await write({ messaging_product: "whatsapp", about: "Hello" });
 
-			expect(events).toEqual(["phone_number.changed"]);
+			expect(events).toEqual(["phone_number.changed", "graph_request.logged"]);
 		});
 
 		it.each([

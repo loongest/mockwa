@@ -24,6 +24,9 @@ services:
       META_WEBHOOK_VERIFY_TOKEN: dev-verify-token
 
   whaloc:
+    # Published only from a `v*` release tag. For features newer than the latest release (the
+    # Requests view of step 6, for one) build from a checkout instead: `docker build -t mockwa:local .`
+    # and use `image: mockwa:local`.
     image: ghcr.io/loongest/mockwa:latest
     # Published to loopback only: the console has no login. The app itself reaches 8888
     # inside the network; the host ports are for you and your curl commands.
@@ -200,7 +203,30 @@ an outbound message emits the `read` status webhook, and "fail…" emits a `fail
 real Meta error code (131049, 131026, 131047, 130472). Add `read:<ms>` to `MOCKWA_STATUS_DELAYS`
 if you would rather automate it.
 
+**6 — see what your app actually sent.** Open <http://localhost:8025/requests> (the
+**Requests** tab). Every call your app made to the Graph port is there with its status and Meta
+error code, the token masked, and the request and response bodies — rejected calls included.
+It is the fastest way to tell "my app sent the wrong thing" from "whaloc answered wrongly".
+
+## App-specific guides
+
+Short, copy-paste setups for two apps, with test placeholders and the matching seed template:
+
+- [Workbench](integrations/workbench.md) — WhatsApp OTP template, one body parameter.
+- [GotUnit](integrations/gotunit.md) — WhatsApp OTP template, `PRODUCTION_AUTH` or `META_TEST`.
+
+Both need a template seeded with the **same name, language and parameter count** they send; the
+default `hello_whaloc` takes no parameters, so it will not match. Neither app receives webhooks.
+
 ## Notes and limits
+
+- **Two ports.** Your app calls only the Graph port (8888). The console, `/api` and the
+  WebSocket are on 8025; an app pointed at 8025 gets `404` for every Graph path.
+- **Your app keeps its own clock.** With `MOCKWA_CLOCK=virtual`, moving mockwa's clock does not
+  move your app's. Webhook timestamps carry mockwa's time; an app that compares them with its own
+  "now" sees the difference.
+- **A scenario run resets mockwa.** Anything your app created there (templates, subscriptions)
+  is gone afterwards; re-run your app's setup after a scenario.
 
 - **Templates take the long way round.** A template your app submits arrives at
   `POST /v25.0/{wabaId}/message_templates`; whaloc creates it `PENDING` and auto-approves after

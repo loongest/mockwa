@@ -1,6 +1,7 @@
 import type { Message } from "@mockwa/shared";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { dayKey, formatDayLabel } from "../../lib/format.ts";
+import { useSimulatorNow } from "../../lib/sim-clock.tsx";
 import { readString } from "../../lib/json.ts";
 import { MessageBubble } from "./message-bubble.tsx";
 import { TypingBubble } from "./typing-bubble.tsx";
@@ -45,6 +46,8 @@ function groupReactions(messages: readonly Message[]): { rendered: Message[]; re
  * restoring the scroll offset after the prepend.
  */
 export function MessageList(props: MessageListProps) {
+	// "Today" is simulator time: under a virtual clock it is the clock's day, not the wall's.
+	const today = new Date(useSimulatorNow());
 	const container = useRef<HTMLDivElement>(null);
 	const sentinel = useRef<HTMLDivElement>(null);
 	const [atBottom, setAtBottom] = useState(true);
@@ -123,7 +126,7 @@ export function MessageList(props: MessageListProps) {
 
 				{rendered.map(message => {
 					const day = dayKey(message.timestamp);
-					const separator = day === lastDay ? null : formatDayLabel(message.timestamp);
+					const separator = day === lastDay ? null : formatDayLabel(message.timestamp, today);
 
 					lastDay = day;
 

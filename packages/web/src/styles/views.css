@@ -307,3 +307,66 @@
 	border: 0;
 	border-top: 1px solid var(--border);
 }
+
+/* --- M5: clock, scenarios, requests ------------------------------------------------------- */
+
+.facts {
+	display: grid;
+	grid-template-columns: max-content 1fr;
+	gap: var(--sp-1) var(--sp-4);
+	margin: 0;
+}
+
+.facts dt {
+	color: var(--text-muted, inherit);
+	font-weight: 600;
+}
+
+.facts dd {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.card.is-disabled {
+	opacity: 0.6;
+}
+
+.page__note {
+	margin: 0;
+	padding: 0 var(--sp-4) var(--sp-2);
+}
+
+.scenario-editor {
+	width: 100%;
+	min-height: 16rem;
+	resize: vertical;
+}
+
+.scenario-error {
+	margin: 0;
+	white-space: pre-wrap;
+}
+
+.scenario-compare {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+	gap: var(--sp-3);
+}
+
+.scenario-failure td {
+	background: var(--surface-2);
+}
+
+.request-path {
+	max-width: 420px;
+	overflow-wrap: anywhere;
+}
+
+.request-body {
+	min-width: 0;
+}
+
+.routing-steps {
+	margin: 0;
+	padding-left: var(--sp-5, 1.25rem);
+}

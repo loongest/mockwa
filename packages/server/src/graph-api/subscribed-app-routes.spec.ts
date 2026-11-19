@@ -78,7 +78,7 @@ describe("subscribed apps (SPEC §2.20)", () => {
 		await call("POST");
 
 		// The routing view changes with it: the console's Apps settings listen for that one.
-		expect(events).toEqual(["waba.changed", "webhook_routing.changed"]);
+		expect(events).toEqual(["waba.changed", "webhook_routing.changed", "graph_request.logged"]);
 	});
 
 	it("unsubscribes, and stays a success when there was nothing to remove", async () => {

@@ -85,6 +85,15 @@ describe("ChatsPage", () => {
 		expect(fetchMock).toHaveBeenCalled();
 	});
 
+	it("opens the virtual phone as this contact, in this chat", () => {
+		renderChat();
+
+		const link = screen.getByTestId("open-phone");
+
+		expect(link.getAttribute("href")).toBe(`/phone?as=${CONTACT_WA_ID}&chat=${PHONE_NUMBER_ID}`);
+		expect(link.getAttribute("target")).toBe("_blank");
+	});
+
 	it("leaves the header without a BSUID for a contact that has none", () => {
 		renderChat();
 

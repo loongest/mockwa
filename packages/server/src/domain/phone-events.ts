@@ -26,14 +26,18 @@ export function isPhoneEvent(event: WsEvent, waId: string): boolean {
 		case "waba.changed":
 		case "phone_number.changed":
 		case "state.reset":
-		case "state.imported": {
+		case "state.imported":
+		case "clock.changed": {
+			// The phone labels what it shows ("Today", "Yesterday") by simulator time too.
 			return true;
 		}
 
 		case "webhook.delivery":
 		case "webhook_routing.changed":
 		case "injection.changed":
-		case "token.changed": {
+		case "token.changed":
+		case "service_window.changed":
+		case "graph_request.logged": {
 			return false;
 		}
 	}

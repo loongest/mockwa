@@ -1,4 +1,5 @@
 import type { InjectionPreset, InjectionTarget, InjectionTriggerKind } from "@mockwa/shared";
+import type { Generated } from "kysely";
 import type { QualityRating, TemplateCategory, TemplateParameterFormat, ThroughputLevel } from "../config/index.ts";
 
 /**
@@ -26,6 +27,8 @@ export interface Database {
 	webhook_subscriptions: WebhookSubscriptionTable;
 	phone_number_webhook_overrides: PhoneNumberWebhookOverrideTable;
 	clock_state: ClockStateTable;
+	service_window_expiries: ServiceWindowExpiryTable;
+	graph_requests: GraphRequestTable;
 }
 
 export const MESSAGE_DIRECTIONS = ["inbound", "outbound"] as const;
@@ -356,4 +359,41 @@ export interface ClockStateTable {
 	/** Key of the deterministic ID stream in use; a restart derives the next one from it. */
 	id_stream: string;
 	updated_at: string;
+}
+
+/** A customer service window closed by hand (migration 0012). */
+export interface ServiceWindowExpiryTable {
+	phone_number_id: string;
+	contact_wa_id: string;
+	/** Inbound messages from the contact when it was closed; a higher count reopens the window. */
+	inbound_count: number;
+	/** ISO 8601, simulator time. */
+	expired_at: string;
+}
+
+/**
+ * One Graph API request and its response (migration 0013). The three JSON columns hold a
+ * {@link import("../domain/graph-request-log.ts").LoggedBody} or a header map, already masked
+ * and capped when written.
+ */
+export interface GraphRequestTable {
+	id: Generated<number>;
+	/** ISO 8601, simulator time. */
+	received_at: string;
+	duration_ms: number;
+	method: string;
+	path: string;
+	/** The query string with `access_token` and friends masked, `""` when there was none. */
+	query: string;
+	status: number;
+	phone_number_id: string | null;
+	/** The registered app whose access token was used (`default` for the environment's app). */
+	app_key: string | null;
+	/** The bearer token masked the way `/api/tokens` shows it (last four characters), never the token. */
+	token_masked: string | null;
+	/** Meta's `error.code` when the response was an error envelope. */
+	error_code: number | null;
+	request_headers: string;
+	request_body: string;
+	response_body: string;
 }

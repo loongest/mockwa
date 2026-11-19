@@ -1,0 +1,25 @@
+[
+	{
+		"name": "whaloc Test Business",
+		"phoneNumbers": [
+			{
+				"displayPhoneNumber": "+55 11 91234-5678",
+				"verifiedName": "whaloc Test Business",
+				"qualityRating": "GREEN",
+				"throughputLevel": "STANDARD"
+			}
+		],
+		"contacts": [
+			{ "waId": "60123000001", "name": "Test User", "role": "CUSTOMER", "displayNumber": "+60 12-300 0001" }
+		],
+		"templates": [
+			{
+				"name": "workbench_otp",
+				"language": "en",
+				"category": "AUTHENTICATION",
+				"parameterFormat": "POSITIONAL",
+				"components": [{ "type": "BODY", "text": "{{1}} is your verification code." }]
+			}
+		]
+	}
+]

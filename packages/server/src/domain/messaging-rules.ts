@@ -1,5 +1,8 @@
 import { DEFAULT_SERVICE_WINDOW_MS, META_THROUGHPUT_MPS, type MessagingRulesConfig } from "../config/index.ts";
+import type { ServiceWindow } from "@mockwa/shared";
 import type { PhoneNumberRecord, Repositories } from "../db/index.ts";
+import { controlNotFound } from "./control-plane-error.ts";
+import type { EventPublisher } from "./event-bus.ts";
 import { RETRY_AFTER_HEADER } from "./injection-presets.ts";
 import { SIMULATED_MESSAGING_LIMIT_CODE, type SendFailure } from "./message-error-presets.ts";
 import { pairRateLimitError, rateLimitError } from "./meta-errors.ts";
@@ -31,6 +34,8 @@ export interface MessagingRulesOptions {
 	repositories: Repositories;
 	config: MessagingRulesConfig;
 	scheduler?: Scheduler;
+	/** Told when a window is closed by hand (`service_window.changed`). */
+	events?: EventPublisher;
 }
 
 /** The customer service window between one business number and one contact. */
@@ -42,7 +47,26 @@ export interface ServiceWindowState {
 	lastInboundAt: Date | null;
 	/** When the window closes (or closed); `null` if it never opened. */
 	expiresAt: Date | null;
+	/**
+	 * When the window was closed by hand ("Expire now"), if that is why it is closed. A new
+	 * message from the contact reopens it and this goes back to `null`.
+	 */
+	expiredManuallyAt: Date | null;
 	windowMs: number;
+}
+
+/** The control plane's (and the WebSocket's) view of a {@link ServiceWindowState}. */
+export function toServiceWindowDto(phoneNumberId: string, waId: string, state: ServiceWindowState): ServiceWindow {
+	return {
+		phoneNumberId,
+		waId,
+		isEnforced: state.isEnforced,
+		isOpen: state.isOpen,
+		lastInboundAt: state.lastInboundAt?.toISOString() ?? null,
+		expiresAt: state.expiresAt?.toISOString() ?? null,
+		expiredManuallyAt: state.expiredManuallyAt?.toISOString() ?? null,
+		windowMs: state.windowMs,
+	};
 }
 
 /** How an admitted send ends, decided before it is stored. */
@@ -65,6 +89,7 @@ export class MessagingRules {
 	readonly #repositories: Repositories;
 	readonly #config: MessagingRulesConfig;
 	readonly #scheduler: Scheduler;
+	readonly #events: EventPublisher | undefined;
 	/** Per phone number: the second being counted, and the sends admitted in it. */
 	readonly #throughput = new Map<string, { second: number; count: number }>();
 	/** Per (number, contact): the theoretical arrival time of the next send, in epoch ms. */
@@ -74,6 +99,7 @@ export class MessagingRules {
 		this.#repositories = options.repositories;
 		this.#config = options.config;
 		this.#scheduler = options.scheduler ?? createSystemScheduler();
+		this.#events = options.events;
 	}
 
 	/** Meta's figure for the number's `throughput.level`, or the one configured for every number. */
@@ -167,16 +193,62 @@ export class MessagingRules {
 	 */
 	async serviceWindow(phoneNumberId: string, waId: string): Promise<ServiceWindowState> {
 		const windowMs = this.#config.serviceWindowMs ?? DEFAULT_SERVICE_WINDOW_MS;
-		const lastInboundAt = await this.#repositories.messages.lastInboundAt(phoneNumberId, waId);
-		const expiresAt = lastInboundAt === null ? null : new Date(lastInboundAt.getTime() + windowMs);
+		const inbound = await this.#repositories.messages.inboundSummary(phoneNumberId, waId);
+		const expiry = await this.#repositories.serviceWindowExpiries.find(phoneNumberId, waId);
+		// Closed by hand and nothing new from the contact since: the expiry is when it closed.
+		const expiredManuallyAt =
+			expiry !== null && inbound.count <= expiry.inboundCount ? new Date(expiry.expiredAt) : null;
+		const naturalExpiry = inbound.lastAt === null ? null : new Date(inbound.lastAt.getTime() + windowMs);
+		const expiresAt =
+			expiredManuallyAt !== null && naturalExpiry !== null && expiredManuallyAt < naturalExpiry
+				? expiredManuallyAt
+				: naturalExpiry;
 
 		return {
 			isEnforced: this.#config.serviceWindowMs !== null,
 			isOpen: expiresAt !== null && this.#scheduler.now().getTime() < expiresAt.getTime(),
-			lastInboundAt,
+			lastInboundAt: inbound.lastAt,
 			expiresAt,
+			expiredManuallyAt: expiresAt !== null && expiredManuallyAt?.getTime() === expiresAt.getTime() ? expiresAt : null,
 			windowMs,
 		};
+	}
+
+	/**
+	 * "Expire now" (SPEC §4): closes the window between this one number and this one contact at
+	 * the current simulator time, as if the 24 hours had run out. Nothing else changes — the
+	 * clock does not move, other contacts and other numbers keep their windows — and the
+	 * contact's next message reopens it as usual. Closing a window that is already closed is a
+	 * no-op, so the reported expiry never moves.
+	 */
+	async expireServiceWindow(phoneNumberId: string, waId: string): Promise<ServiceWindowState> {
+		if ((await this.#repositories.phoneNumbers.findById(phoneNumberId)) === null) {
+			throw controlNotFound(`no phone number with id ${phoneNumberId}`, "unknown_phone_number");
+		}
+
+		const current = await this.serviceWindow(phoneNumberId, waId);
+
+		if (!current.isOpen) {
+			return current;
+		}
+
+		const inbound = await this.#repositories.messages.inboundSummary(phoneNumberId, waId);
+
+		await this.#repositories.serviceWindowExpiries.save({
+			phoneNumberId,
+			contactWaId: waId,
+			inboundCount: inbound.count,
+			expiredAt: this.#scheduler.now().toISOString(),
+		});
+
+		const expired = await this.serviceWindow(phoneNumberId, waId);
+
+		this.#events?.publish({
+			type: "service_window.changed",
+			payload: { serviceWindow: toServiceWindowDto(phoneNumberId, waId, expired) },
+		});
+
+		return expired;
 	}
 
 	/**

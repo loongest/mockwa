@@ -27,6 +27,12 @@ export const serviceWindowSchema = z.object({
 	lastInboundAt: z.iso.datetime().nullable(),
 	/** When the window closes (or closed); `null` if it never opened. */
 	expiresAt: z.iso.datetime().nullable(),
+	/**
+	 * Set while the window is closed because the console expired it (`POST
+	 * /api/service-window/expire`); equal to `expiresAt` then. The contact's next message
+	 * reopens the window and clears it.
+	 */
+	expiredManuallyAt: z.iso.datetime().nullable(),
 	windowMs: z.number().int().positive(),
 });
 
@@ -35,6 +41,15 @@ export type ServiceWindow = z.infer<typeof serviceWindowSchema>;
 export const serviceWindowResponseSchema = z.object({ data: serviceWindowSchema });
 
 export type ServiceWindowResponse = z.infer<typeof serviceWindowResponseSchema>;
+
+/**
+ * `POST /api/service-window/expire` — closes the window between **this** business number and
+ * **this** contact at the current simulator time. Other contacts, other numbers and the clock
+ * are untouched; the contact's next message reopens it.
+ */
+export const serviceWindowExpireRequestSchema = serviceWindowQuerySchema;
+
+export type ServiceWindowExpireRequest = z.infer<typeof serviceWindowExpireRequestSchema>;
 
 /** One WABA's messaging-limit count: unique contacts reached outside a window in 24 hours. */
 export const messagingLimitUsageSchema = z.object({

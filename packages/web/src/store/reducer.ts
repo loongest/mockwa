@@ -48,9 +48,16 @@ export const initialState: AppState = {
 	deliveries: null,
 	deliveriesBefore: null,
 	errorPresets: [],
+	clock: null,
+	serviceWindowChange: null,
+	graphRequests: null,
+	graphRequestsBefore: null,
 	connection: "connecting",
 	toasts: [],
 };
+
+/** The Requests view shows at most this many rows live; older ones are a "Load older" away. */
+const LIVE_GRAPH_REQUESTS = 200;
 
 /** Where a status sits on the ladder (SPEC §4); `failed` is last, so it always wins. */
 export function statusRank(status: MessageStatus): number {
@@ -472,6 +479,23 @@ function applyWsEvent(state: AppState, event: WsEvent): AppState {
 			};
 		}
 
+		// The store adopts the clock through `clock/loaded`, which carries when it was received.
+		case "clock.changed": {
+			return state;
+		}
+
+		case "service_window.changed": {
+			return { ...state, serviceWindowChange: event.payload.serviceWindow };
+		}
+
+		case "graph_request.logged": {
+			if (state.graphRequests === null) {
+				return state;
+			}
+
+			return { ...state, graphRequests: [event.payload.request, ...state.graphRequests].slice(0, LIVE_GRAPH_REQUESTS) };
+		}
+
 		// A reset went back to the seed and an import went to somebody else's world, but from
 		// here they are the same event: everything this client held is gone (SPEC §5).
 		case "state.imported":
@@ -489,6 +513,8 @@ function applyWsEvent(state: AppState, event: WsEvent): AppState {
 					wabaId: state.wabaId,
 					phoneNumberId: state.phoneNumberId,
 					errorPresets: state.errorPresets,
+					// The clock's own frame (sent before this one) already says where it went.
+					clock: state.clock,
 					// A reset disarmed every injection rule and revived every token (SPEC §4), so
 					// both are stated outright rather than left `null` and the shell's badge goes
 					// away without anyone having to reload the list. An **import** brings whatever
@@ -523,6 +549,21 @@ export function reducer(state: AppState, action: Action): AppState {
 				errorPresets: action.errorPresets,
 				injectionRules: action.injectionRules,
 				...resolveScope(action.server, state),
+			};
+		}
+
+		case "clock/loaded": {
+			return { ...state, clock: { clock: action.clock, syncedAt: action.syncedAt } };
+		}
+
+		case "graph-requests/loaded": {
+			return {
+				...state,
+				graphRequests:
+					action.mode === "older" && state.graphRequests !== null
+						? [...state.graphRequests, ...action.requests]
+						: action.requests,
+				graphRequestsBefore: action.before,
 			};
 		}
 

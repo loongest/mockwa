@@ -75,10 +75,49 @@ describe("DeliveryRow", () => {
 		fireEvent.click(screen.getByRole("button", { name: /Toggle delivery/ }));
 
 		expect(screen.getByText("Request headers")).toBeTruthy();
-		expect(screen.getByText(/x-hub-signature-256/)).toBeTruthy();
+		expect(screen.getByText(/"x-hub-signature-256": "sha256=abc"/)).toBeTruthy();
 		// The stored body is one line; the inspector pretty-prints it.
 		expect(screen.getByText(/"object": "whatsapp_business_account"/)).toBeTruthy();
 		expect(screen.getByText("Response body")).toBeTruthy();
+	});
+
+	it("says the signature was generated, never that the receiver verified it", () => {
+		renderRow();
+		fireEvent.click(screen.getByRole("button", { name: /Toggle delivery/ }));
+
+		const signature = screen.getByTestId("delivery-signature");
+
+		expect(signature.textContent).toContain("signature generated");
+		expect(signature.textContent).toContain("Whether the receiver verified it is not visible to mockwa");
+		expect(signature.textContent).not.toMatch(/\bverified\b(?! it)/);
+	});
+
+	it("says an attempt without an app secret went unsigned", () => {
+		renderRow(makeDelivery({ requestHeaders: { "content-type": "application/json" } }));
+		fireEvent.click(screen.getByRole("button", { name: /Toggle delivery/ }));
+
+		expect(screen.getByTestId("delivery-signature").textContent).toContain("unsigned");
+	});
+
+	it("keeps a failed attempt's error, response and retry state in view", () => {
+		renderRow(
+			makeDelivery({
+				responseStatus: 500,
+				responseBody: '{"error":"down"}',
+				outcome: "retrying",
+				nextAttemptAt: "2026-08-31T12:00:30.000Z",
+			}),
+		);
+
+		expect(screen.getByTestId("delivery-outcome").dataset["outcome"]).toBe("retrying");
+
+		fireEvent.click(screen.getByRole("button", { name: /Toggle delivery/ }));
+
+		const facts = screen.getByTestId("delivery-facts").textContent;
+
+		expect(facts).toContain("retrying — another attempt is scheduled");
+		expect(facts).toContain("HTTP 500");
+		expect(screen.getByText(/"error": "down"/)).toBeTruthy();
 	});
 
 	it("collapses again on a second click", () => {

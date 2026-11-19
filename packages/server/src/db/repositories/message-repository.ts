@@ -245,6 +245,13 @@ export class MessageRepository {
 	 * milliseconds.
 	 */
 	async lastInboundAt(phoneNumberId: string, contactWaId: string): Promise<Date | null> {
+		const summary = await this.inboundSummary(phoneNumberId, contactWaId);
+
+		return summary.lastAt;
+	}
+
+	/** {@link lastInboundAt} plus how many messages the contact has sent this number. */
+	async inboundSummary(phoneNumberId: string, contactWaId: string): Promise<{ count: number; lastAt: Date | null }> {
 		const rows = await this.#db
 			.selectFrom("messages")
 			.select("timestamp")
@@ -262,7 +269,7 @@ export class MessageRepository {
 			}
 		}
 
-		return latest === null ? null : new Date(latest);
+		return { count: rows.length, lastAt: latest === null ? null : new Date(latest) };
 	}
 
 	/**

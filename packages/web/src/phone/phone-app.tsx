@@ -1,10 +1,12 @@
 import type { Contact, Message, PhoneChat, WsEvent } from "@mockwa/shared";
 import clsx from "clsx";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { api } from "../api/endpoints.ts";
 import { connectEvents, type ConnectionStatus } from "../api/ws-client.ts";
+import { ListTime } from "../components/list-time.tsx";
 import { Toasts } from "../components/toasts.tsx";
 import { summarize } from "../features/chats/message-bubble.tsx";
-import { formatListTime } from "../lib/format.ts";
+import { SimClockContext, type ClockSync } from "../lib/sim-clock.tsx";
 import { useToasts } from "../store/store.tsx";
 import { ChatView } from "./chat-view.tsx";
 import { phoneApi, phoneWsUrl } from "./phone-api.ts";
@@ -118,7 +120,7 @@ function ChatList(props: { chats: PhoneChat[] | null; onOpen: (phoneNumberId: st
 							</span>
 						</span>
 						<span className="phone-row__side">
-							{chat.lastMessage !== null && <time>{formatListTime(chat.lastMessage.timestamp)}</time>}
+							{chat.lastMessage !== null && <ListTime iso={chat.lastMessage.timestamp} />}
 							{chat.unreadCount > 0 && (
 								<span className="phone-unread" aria-label={`${String(chat.unreadCount)} unread`}>
 									{chat.unreadCount}
@@ -152,6 +154,8 @@ function PhoneScreen(props: PhoneScreenProps) {
 	const [typing, setTyping] = useState<ReadonlySet<string>>(new Set());
 	const [connection, setConnection] = useState<ConnectionStatus>("connecting");
 	const [reloads, setReloads] = useState(0);
+	// The phone labels its chats by simulator time, like the console (SPEC §4).
+	const [clock, setClock] = useState<ClockSync | null>(null);
 	const openChat = useRef(phoneNumberId);
 
 	openChat.current = phoneNumberId;
@@ -216,10 +220,33 @@ function PhoneScreen(props: PhoneScreenProps) {
 	}, [waId, phoneNumberId, reloads, toasts]);
 
 	useEffect(() => {
+		const controller = new AbortController();
+
+		void (async () => {
+			try {
+				const state = await api.getClock({ signal: controller.signal });
+
+				setClock({ clock: state, syncedAt: Date.now() });
+			} catch {
+				// Without a reading the browser's clock stands in; the next reload tries again.
+			}
+		})();
+
+		return () => {
+			controller.abort();
+		};
+	}, [reloads]);
+
+	useEffect(() => {
 		let hasConnected = false;
 
 		const onEvent = (event: WsEvent): void => {
 			switch (event.type) {
+				case "clock.changed": {
+					setClock({ clock: event.payload.clock, syncedAt: Date.now() });
+					break;
+				}
+
 				case "message.created":
 				case "message.status_changed": {
 					const { message } = event.payload;
@@ -299,56 +326,58 @@ function PhoneScreen(props: PhoneScreenProps) {
 	const chat = chats?.find(candidate => candidate.phoneNumberId === phoneNumberId);
 
 	return (
-		<div className="phone-screen" data-testid="phone-screen" data-wa-id={waId}>
-			<header className="phone-identity">
-				<span className="phone-avatar" aria-hidden="true">
-					{initialOf(identity?.profileName ?? "")}
-				</span>
-				<span className="phone-row__main">
-					<span className="phone-row__title" data-testid="phone-identity-name">
-						{identity?.profileName ?? waId} <RoleBadge role={identity?.role ?? null} />
+		<SimClockContext value={clock}>
+			<div className="phone-screen" data-testid="phone-screen" data-wa-id={waId}>
+				<header className="phone-identity">
+					<span className="phone-avatar" aria-hidden="true">
+						{initialOf(identity?.profileName ?? "")}
 					</span>
-					<span className="phone-row__subtitle">{identity === null ? "" : displayNumberOf(identity)}</span>
-				</span>
-				<span
-					className={clsx("connection", `connection--${connection}`)}
-					data-testid="phone-connection"
-					data-connection={connection}
-				>
-					<span className="connection__dot" aria-hidden="true" />
-					<span>{connection === "open" ? "live" : connection}</span>
-				</span>
-				<button
-					type="button"
-					className="button button--ghost"
-					onClick={() => {
-						navigate({});
-					}}
-				>
-					Switch
-				</button>
-			</header>
+					<span className="phone-row__main">
+						<span className="phone-row__title" data-testid="phone-identity-name">
+							{identity?.profileName ?? waId} <RoleBadge role={identity?.role ?? null} />
+						</span>
+						<span className="phone-row__subtitle">{identity === null ? "" : displayNumberOf(identity)}</span>
+					</span>
+					<span
+						className={clsx("connection", `connection--${connection}`)}
+						data-testid="phone-connection"
+						data-connection={connection}
+					>
+						<span className="connection__dot" aria-hidden="true" />
+						<span>{connection === "open" ? "live" : connection}</span>
+					</span>
+					<button
+						type="button"
+						className="button button--ghost"
+						onClick={() => {
+							navigate({});
+						}}
+					>
+						Switch
+					</button>
+				</header>
 
-			{phoneNumberId === undefined ? (
-				<ChatList
-					chats={chats}
-					onOpen={id => {
-						navigate({ waId, phoneNumberId: id });
-					}}
-				/>
-			) : (
-				<ChatView
-					waId={waId}
-					phoneNumberId={phoneNumberId}
-					chat={chat}
-					messages={messages}
-					isTyping={typing.has(phoneNumberId)}
-					onBack={() => {
-						navigate({ waId });
-					}}
-				/>
-			)}
-		</div>
+				{phoneNumberId === undefined ? (
+					<ChatList
+						chats={chats}
+						onOpen={id => {
+							navigate({ waId, phoneNumberId: id });
+						}}
+					/>
+				) : (
+					<ChatView
+						waId={waId}
+						phoneNumberId={phoneNumberId}
+						chat={chat}
+						messages={messages}
+						isTyping={typing.has(phoneNumberId)}
+						onBack={() => {
+							navigate({ waId });
+						}}
+					/>
+				)}
+			</div>
+		</SimClockContext>
 	);
 }
 

@@ -50,6 +50,39 @@ export function describeRetry(delivery: WebhookDelivery): string | null {
 	return delivery.outcome === "failed" ? "gave up" : null;
 }
 
+const SIGNATURE_HEADER = "x-hub-signature-256";
+
+/**
+ * What can honestly be said about the signature (SPEC §1.12): mockwa **generated** it over the
+ * exact body bytes with the app's secret. Whether the receiver **verified** it is something only
+ * the receiver knows — its answer says what it decided, not why — so nothing here claims it.
+ */
+export function describeSignature(delivery: WebhookDelivery): { label: string; detail: string } {
+	const header = delivery.requestHeaders[SIGNATURE_HEADER];
+
+	if (header === undefined) {
+		return {
+			label: "unsigned",
+			detail: "No app secret is configured for this app, so no x-hub-signature-256 header was sent.",
+		};
+	}
+
+	return {
+		label: "signature generated",
+		detail:
+			"mockwa computed x-hub-signature-256 (HMAC-SHA256 of the body below with the app secret) and sent it. " +
+			"Whether the receiver verified it is not visible to mockwa: the response status is all it reports.",
+	};
+}
+
+/** The chain's state in words: Meta retries anything but a 200 (SPEC §3). */
+const OUTCOME_TEXT: Record<WebhookDelivery["outcome"], string> = {
+	delivered: "delivered — the receiver answered 200",
+	retrying: "retrying — another attempt is scheduled",
+	failed: "failed — no further attempt will be made",
+	skipped: "skipped — the app has no callback URL, nothing was sent",
+};
+
 export interface DeliveryRowProps {
 	delivery: WebhookDelivery;
 }
@@ -65,6 +98,7 @@ export function DeliveryRow(props: DeliveryRowProps) {
 	const outcome = describeOutcome(delivery);
 	const retry = describeRetry(delivery);
 	const appName = webhookRouting?.apps.find(app => app.key === delivery.appKey)?.name ?? delivery.appKey;
+	const signature = describeSignature(delivery);
 
 	return (
 		<>
@@ -89,7 +123,14 @@ export function DeliveryRow(props: DeliveryRowProps) {
 					<span className="chip">{delivery.eventType}</span>
 				</td>
 				<td>
-					<span className={clsx("badge", outcome.tone)}>{outcome.label}</span>
+					<span
+						className={clsx("badge", outcome.tone)}
+						title={OUTCOME_TEXT[delivery.outcome]}
+						data-testid="delivery-outcome"
+						data-outcome={delivery.outcome}
+					>
+						{outcome.label}
+					</span>
 				</td>
 				<td className="faint">{appName}</td>
 				<td className="faint">
@@ -106,6 +147,23 @@ export function DeliveryRow(props: DeliveryRowProps) {
 						<div className="stack">
 							{delivery.error !== null && <p className="composer__error">{delivery.error}</p>}
 
+							<dl className="facts" data-testid="delivery-facts">
+								<dt>Outcome</dt>
+								<dd>
+									{OUTCOME_TEXT[delivery.outcome]}
+									{delivery.nextAttemptAt !== null && ` (next at ${formatClockWithSeconds(delivery.nextAttemptAt)})`}
+								</dd>
+								<dt>Response</dt>
+								<dd>
+									{delivery.responseStatus === null ? "no HTTP response" : `HTTP ${String(delivery.responseStatus)}`}
+									{delivery.durationMs === null ? "" : ` in ${formatDuration(delivery.durationMs)}`}
+								</dd>
+								<dt>Signature</dt>
+								<dd data-testid="delivery-signature" title={signature.detail}>
+									<span className="badge">{signature.label}</span> <span className="faint">{signature.detail}</span>
+								</dd>
+							</dl>
+
 							<div className="row row--wrap">
 								<button
 									type="button"
@@ -117,6 +175,9 @@ export function DeliveryRow(props: DeliveryRowProps) {
 								>
 									Redeliver
 								</button>
+								<span className="faint">
+									Redelivery re-sends these exact body bytes, signed again with the app's current secret.
+								</span>
 								{delivery.nextAttemptAt !== null && (
 									<button
 										type="button"

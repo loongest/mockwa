@@ -272,6 +272,31 @@ jobs:
           done
           test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m4)" = "healthy"
 
+      # A sixth instance for the console on simulator time (M5): a virtual clock at a fixed start,
+      # the default seed and its own echo app. The M5 checks and the M5 browser tests reset it.
+      - name: Start the M5 image and its echo app 🧪
+        run: |
+          set -euo pipefail
+          PORT=3007 APP_SECRET=m5-app-secret VERIFY_TOKEN=m5-verify-token \
+            GRAPH_API_BASE_URL=http://127.0.0.1:60888/v25.0 \
+            nohup node examples/echo-app/server.mjs > echo-app-m5.log 2>&1 &
+          docker run -d --name mockwa-ci-m5 \
+            --add-host=host.docker.internal:host-gateway \
+            -p 127.0.0.1:60888:8888 -p 127.0.0.1:60025:8025 \
+            -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3007/webhook \
+            -e MOCKWA_APP_SECRET=m5-app-secret \
+            -e MOCKWA_WEBHOOK_VERIFY_TOKEN=m5-verify-token \
+            -e MOCKWA_CLOCK=virtual \
+            -e MOCKWA_CLOCK_START=2026-07-01T08:00:00Z \
+            mockwa:ci
+          for _ in $(seq 1 60); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m5)"
+            [ "$status" = "healthy" ] && break
+            [ "$status" = "unhealthy" ] && break
+            sleep 1
+          done
+          test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m5)" = "healthy"
+
       - name: M0 smoke checks (AC-01, AC-02, signed webhooks) ✅
         run: node e2e/m0-smoke.mjs
         env:
@@ -305,7 +330,14 @@ jobs:
           M4_ECHO_URL: http://127.0.0.1:3006
           M4_CONTAINER: mockwa-ci-m4
 
-      - name: Playwright against the console, the virtual phone, the M2 webhook views, M3 and M4 🎭
+      - name: M5 console checks (AC-13 request log, window, webhook bytes, guide seeds) ✅
+        run: node e2e/m5-console.mjs
+        env:
+          M5_GRAPH_URL: http://127.0.0.1:60888
+          M5_CONSOLE_URL: http://127.0.0.1:60025
+          M5_ECHO_URL: http://127.0.0.1:3007
+
+      - name: Playwright against the console, the virtual phone, the M2 webhook views, M3, M4 and M5 🎭
         run: npx playwright test -c e2e/playwright.config.mjs --trace off
         env:
           GRAPH_URL: http://127.0.0.1:8888
@@ -317,6 +349,8 @@ jobs:
           M2_SALES_ECHO_URL: http://127.0.0.1:3003
           M3_CONSOLE_URL: http://127.0.0.1:58025
           M4_CONSOLE_URL: http://127.0.0.1:59025
+          M5_CONSOLE_URL: http://127.0.0.1:60025
+          M5_GRAPH_URL: http://127.0.0.1:60888
 
       - name: Logs on failure 📜
         if: failure()
@@ -332,11 +366,13 @@ jobs:
           cat echo-app-m3.log || true
           docker logs mockwa-ci-m4 || true
           cat echo-app-m4.log || true
+          docker logs mockwa-ci-m5 || true
+          cat echo-app-m5.log || true
 
       - name: Stop the image 🧹
         if: always()
         run: |
-          docker rm --force mockwa-ci mockwa-ci-m1 mockwa-ci-m2 mockwa-ci-m3 mockwa-ci-m4 || true
+          docker rm --force mockwa-ci mockwa-ci-m1 mockwa-ci-m2 mockwa-ci-m3 mockwa-ci-m4 mockwa-ci-m5 || true
           docker volume rm mockwa-ci-m2-data mockwa-ci-m3-data mockwa-ci-m4-data || true
 
       - name: Login to GitHub Container Registry 🔑
