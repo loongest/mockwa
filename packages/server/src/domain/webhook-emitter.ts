@@ -48,6 +48,8 @@ export interface WebhookEmitterOptions {
 	/** Injected in tests; defaults to the global `fetch`. */
 	fetch?: FetchLike;
 	random?: RandomBytes;
+	/** Tie-breaker of the delivery IDs; the ID stream's under the virtual clock. */
+	nextSequence?: () => number;
 	/** Delay before each retry; the last repeats. `[]` disables retries. */
 	retryScheduleMs?: readonly number[];
 	/** A chain stops retrying once its first attempt is this old. */
@@ -157,6 +159,7 @@ export class WebhookEmitter {
 	readonly #scheduler: Scheduler;
 	readonly #fetch: FetchLike;
 	readonly #random: RandomBytes;
+	readonly #nextSequence: (() => number) | undefined;
 	readonly #retryScheduleMs: readonly number[];
 	readonly #retryMaxAgeMs: number;
 	readonly #requestTimeoutMs: number;
@@ -185,6 +188,7 @@ export class WebhookEmitter {
 			});
 		this.#fetch = options.fetch ?? ((input, init) => fetch(input, init));
 		this.#random = options.random ?? defaultRandomBytes;
+		this.#nextSequence = options.nextSequence;
 		this.#retryScheduleMs = options.retryScheduleMs ?? DEFAULT_RETRY_SCHEDULE_MS;
 		this.#retryMaxAgeMs = options.retryMaxAgeMs ?? DEFAULT_RETRY_MAX_AGE_MS;
 		this.#requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
@@ -214,7 +218,7 @@ export class WebhookEmitter {
 		durationMs?: number | null;
 	}): Promise<WebhookDeliveryRecord> {
 		const record = await this.#repositories.webhookDeliveries.insert({
-			id: createWebhookDeliveryId(this.#random),
+			id: createWebhookDeliveryId(this.#random, this.#scheduler.now().getTime(), this.#nextSequence),
 			eventType: input.eventType,
 			url: input.url,
 			requestBody: input.body,
@@ -244,6 +248,9 @@ export class WebhookEmitter {
 	 * whether it is worth another attempt.
 	 */
 	async #attempt(url: string, body: string, headers: WebhookDeliveryHeaders): Promise<AttemptOutcome> {
+		// Wall-clock on purpose: the duration and the request timeout measure the network, which
+		// the virtual clock does not move — a receiver that never answers still gives up after
+		// `requestTimeoutMs` of real time, so no clock operation can hang on it.
 		const startedAt = Date.now();
 
 		try {
@@ -414,11 +421,15 @@ export class WebhookEmitter {
 
 		const delay = Math.min(Math.max(0, dueAt - this.#scheduler.now().getTime()), MAX_TIMER_DELAY_MS);
 
-		this.#timer = this.#scheduler.schedule(delay, () => {
-			this.#timer = null;
-			this.#timerDueAt = null;
-			void this.runDueRetries();
-		});
+		this.#timer = this.#scheduler.schedule(
+			delay,
+			() => {
+				this.#timer = null;
+				this.#timerDueAt = null;
+				void this.runDueRetries();
+			},
+			"webhook retry",
+		);
 	}
 
 	/** Sends one batch of due rows, each claimed first so it can never go out twice. */
@@ -568,6 +579,18 @@ export class WebhookEmitter {
 		this.#draining ??= this.#runPass();
 
 		return this.#draining;
+	}
+
+	/** Whether a retry pass is running right now. */
+	get isBusy(): boolean {
+		return this.#draining !== null;
+	}
+
+	/** Resolves once no retry pass is running; part of what a virtual-clock advance waits for. */
+	async whenIdle(): Promise<void> {
+		while (this.#draining !== null) {
+			await this.#draining;
+		}
 	}
 
 	/** Boot, reset and import call this: whatever the database owes is scheduled again. */

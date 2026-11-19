@@ -86,6 +86,11 @@ COPY --from=build /src/packages/web/dist packages/web/dist
 # uid 1000 (the `node` user) on the host side.
 RUN mkdir -p /data/media && chown -R node:node /data
 
+# `mockwa scenario run|validate` (SPEC §4, "Scenarios") inside the container, for
+# `docker exec <container> mockwa scenario run /scenarios/x.json --url http://127.0.0.1:8025`.
+RUN printf '#!/bin/sh\nexec node --disable-warning=ExperimentalWarning /app/packages/server/dist/cli/mockwa.js "$@"\n' \
+	> /usr/local/bin/mockwa && chmod 755 /usr/local/bin/mockwa
+
 USER node
 
 # 8888: the Graph API the app under test calls. 8025: the console (UI, /api, /api/ws). Publish

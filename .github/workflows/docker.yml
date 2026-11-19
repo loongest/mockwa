@@ -240,6 +240,38 @@ jobs:
           done
           test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m3)" = "healthy"
 
+      # A fifth instance for the virtual clock and scenarios (M4): the clock stands still from a
+      # fixed start, slow status rungs give a few minutes several events, a file database on a
+      # volume for the restart check, and the scenario files mounted for `mockwa scenario run`.
+      - name: Start the M4 image and its echo app 🧪
+        run: |
+          set -euo pipefail
+          PORT=3006 APP_SECRET=m4-app-secret VERIFY_TOKEN=m4-verify-token \
+            GRAPH_API_BASE_URL=http://127.0.0.1:59888/v25.0 \
+            nohup node examples/echo-app/server.mjs > echo-app-m4.log 2>&1 &
+          docker volume create mockwa-ci-m4-data
+          docker run -d --name mockwa-ci-m4 \
+            --add-host=host.docker.internal:host-gateway \
+            -p 127.0.0.1:59888:8888 -p 127.0.0.1:59025:8025 \
+            -v mockwa-ci-m4-data:/data \
+            -v "$PWD/examples/scenarios:/scenarios:ro" \
+            -v "$PWD/e2e/fixtures:/fixtures:ro" \
+            -e MOCKWA_DB_PATH=/data/mockwa.db \
+            -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3006/webhook \
+            -e MOCKWA_APP_SECRET=m4-app-secret \
+            -e MOCKWA_WEBHOOK_VERIFY_TOKEN=m4-verify-token \
+            -e MOCKWA_CLOCK=virtual \
+            -e MOCKWA_CLOCK_START=2026-06-01T08:00:00Z \
+            -e MOCKWA_STATUS_DELAYS=sent:0,delivered:120000,read:240000 \
+            mockwa:ci
+          for _ in $(seq 1 60); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m4)"
+            [ "$status" = "healthy" ] && break
+            [ "$status" = "unhealthy" ] && break
+            sleep 1
+          done
+          test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m4)" = "healthy"
+
       - name: M0 smoke checks (AC-01, AC-02, signed webhooks) ✅
         run: node e2e/m0-smoke.mjs
         env:
@@ -265,7 +297,15 @@ jobs:
           M3_ECHO_URL: http://127.0.0.1:3005
           M3_CONTAINER: mockwa-ci-m3
 
-      - name: Playwright against the console, the virtual phone, the M2 webhook views and M3 🎭
+      - name: M4 clock and scenario checks (AC-10 timeline, AC-11 determinism, AC-12 failures, restart) ✅
+        run: node e2e/m4-clock-scenarios.mjs
+        env:
+          M4_GRAPH_URL: http://127.0.0.1:59888
+          M4_CONSOLE_URL: http://127.0.0.1:59025
+          M4_ECHO_URL: http://127.0.0.1:3006
+          M4_CONTAINER: mockwa-ci-m4
+
+      - name: Playwright against the console, the virtual phone, the M2 webhook views, M3 and M4 🎭
         run: npx playwright test -c e2e/playwright.config.mjs --trace off
         env:
           GRAPH_URL: http://127.0.0.1:8888
@@ -276,6 +316,7 @@ jobs:
           M2_CONSOLE_URL: http://127.0.0.1:28025
           M2_SALES_ECHO_URL: http://127.0.0.1:3003
           M3_CONSOLE_URL: http://127.0.0.1:58025
+          M4_CONSOLE_URL: http://127.0.0.1:59025
 
       - name: Logs on failure 📜
         if: failure()
@@ -289,12 +330,14 @@ jobs:
           cat echo-app-m2-support.log || true
           docker logs mockwa-ci-m3 || true
           cat echo-app-m3.log || true
+          docker logs mockwa-ci-m4 || true
+          cat echo-app-m4.log || true
 
       - name: Stop the image 🧹
         if: always()
         run: |
-          docker rm --force mockwa-ci mockwa-ci-m1 mockwa-ci-m2 mockwa-ci-m3 || true
-          docker volume rm mockwa-ci-m2-data mockwa-ci-m3-data || true
+          docker rm --force mockwa-ci mockwa-ci-m1 mockwa-ci-m2 mockwa-ci-m3 mockwa-ci-m4 || true
+          docker volume rm mockwa-ci-m2-data mockwa-ci-m3-data mockwa-ci-m4-data || true
 
       - name: Login to GitHub Container Registry 🔑
         if: env.PUBLISH == 'true'

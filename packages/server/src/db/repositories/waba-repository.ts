@@ -1,5 +1,5 @@
 import type { Kysely } from "kysely";
-import { nowIso } from "../../timestamps.ts";
+import { nowIso, systemClock, type Clock } from "../../timestamps.ts";
 import type { Database, WabaTable } from "../schema.ts";
 
 export interface WabaRecord {
@@ -30,9 +30,11 @@ function toRecord(row: WabaTable): WabaRecord {
 /** WhatsApp Business Accounts — the root of every other entity (SPEC §6). */
 export class WabaRepository {
 	readonly #db: Kysely<Database>;
+	readonly #clock: Clock;
 
-	constructor(db: Kysely<Database>) {
+	constructor(db: Kysely<Database>, clock: Clock = systemClock) {
 		this.#db = db;
+		this.#clock = clock;
 	}
 
 	async insert(input: InsertWabaInput): Promise<WabaRecord> {
@@ -42,7 +44,7 @@ export class WabaRepository {
 				id: input.id,
 				name: input.name,
 				subscribed_at: null,
-				created_at: input.createdAt ?? nowIso(),
+				created_at: input.createdAt ?? nowIso(this.#clock),
 			})
 			.returningAll()
 			.executeTakeFirstOrThrow();

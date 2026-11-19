@@ -1,0 +1,17 @@
+{
+	"name": "service window",
+	"description": "The 24-hour customer service window on the virtual clock: open one millisecond before the boundary, closed at it, reopened by the customer's next message. Works with or without an app listening.",
+	"clock": { "start": "2026-05-04T09:00:00Z" },
+	"identities": [{ "waId": "60123000003", "name": "Chen", "role": "CUSTOMER" }],
+	"steps": [
+		{ "expect": { "window": { "as": "Chen", "open": false } } },
+		{ "send": { "as": "Chen", "text": "hello" } },
+		{ "expect": { "window": { "as": "Chen", "open": true } } },
+		{ "advance": { "to": "2026-05-05T08:59:59.999Z" } },
+		{ "name": "one millisecond before the boundary", "expect": { "window": { "as": "Chen", "open": true } } },
+		{ "advance": { "by": "1ms" } },
+		{ "name": "at the boundary", "expect": { "window": { "as": "Chen", "open": false } } },
+		{ "send": { "as": "Chen", "text": "still there?" } },
+		{ "name": "the customer reopens it", "expect": { "window": { "as": "Chen", "open": true } } }
+	]
+}

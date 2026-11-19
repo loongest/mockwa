@@ -1,0 +1,67 @@
+{
+	"name": "booking conversation",
+	"description": "A customer talks to the example echo app (examples/echo-app): plain text, a reply-button menu, a template with quick replies, then a day of virtual time closes the 24-hour window. Run it with MOCKWA_CLOCK=virtual and MOCKWA_WEBHOOK_URL pointing at the echo app.",
+	"clock": { "start": "2026-05-04T09:00:00Z" },
+	"wabas": [
+		{
+			"id": "104000000000001",
+			"name": "Acme Field Service",
+			"phoneNumbers": [
+				{ "id": "204000000000001", "displayPhoneNumber": "+60 3-2000 0001", "verifiedName": "Acme Field Service" }
+			],
+			"templates": [
+				{
+					"name": "appointment_confirmation",
+					"language": "en",
+					"category": "UTILITY",
+					"parameterFormat": "POSITIONAL",
+					"components": [
+						{
+							"type": "BODY",
+							"text": "Hi {{1}}, your technician visit is booked for tomorrow at 10:00. Please confirm.",
+							"example": { "body_text": [["Customer A"]] }
+						},
+						{
+							"type": "BUTTONS",
+							"buttons": [
+								{ "type": "QUICK_REPLY", "text": "Confirm" },
+								{ "type": "QUICK_REPLY", "text": "Reschedule" }
+							]
+						}
+					]
+				}
+			]
+		}
+	],
+	"identities": [
+		{ "waId": "60123000001", "name": "Ana", "role": "CUSTOMER" },
+		{ "waId": "60123000002", "name": "Ben", "role": "TECHNICIAN" }
+	],
+	"steps": [
+		{ "send": { "as": "Ana", "text": "hi" } },
+		{ "name": "the app echoes it", "expect": { "message": { "to": "Ana", "text": "echo: hi" } } },
+		{ "send": { "as": "Ana", "text": "menu" } },
+		{
+			"name": "the app offers two buttons",
+			"expect": { "message": { "to": "Ana", "type": "interactive", "contains": "technician visit" } }
+		},
+		{ "tap": { "as": "Ana", "option": "Confirm" } },
+		{ "expect": { "message": { "to": "Ana", "text": "selected: Confirm" } } },
+		{ "send": { "as": "Ana", "text": "template" } },
+		{
+			"name": "the app sends the confirmation template",
+			"expect": { "message": { "to": "Ana", "template": "appointment_confirmation" } }
+		},
+		{ "tap": { "as": "Ana", "option": "Reschedule" } },
+		{ "expect": { "message": { "to": "Ana", "text": "selected: Reschedule" } } },
+		{ "advance": "5m" },
+		{
+			"name": "every reply reached delivered",
+			"expect": { "webhook": { "kind": "status", "status": "delivered", "about": "Ana", "count": 5 }, "within": 0 }
+		},
+		{ "expect": { "window": { "as": "Ana", "open": true } } },
+		{ "advance": { "by": "24h" } },
+		{ "name": "a day later the window is closed", "expect": { "window": { "as": "Ana", "open": false } } },
+		{ "expect": { "clock": { "now": "2026-05-05T09:05:00Z" } } }
+	]
+}

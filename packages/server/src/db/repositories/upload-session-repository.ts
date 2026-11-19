@@ -1,5 +1,5 @@
 import type { Kysely } from "kysely";
-import { nowIso } from "../../timestamps.ts";
+import { nowIso, systemClock, type Clock } from "../../timestamps.ts";
 import type { Database, UploadSessionTable } from "../schema.ts";
 
 /**
@@ -63,13 +63,15 @@ function toRecord(row: UploadSessionTable): UploadSessionRecord {
 
 export class UploadSessionRepository {
 	readonly #db: Kysely<Database>;
+	readonly #clock: Clock;
 
-	constructor(db: Kysely<Database>) {
+	constructor(db: Kysely<Database>, clock: Clock = systemClock) {
 		this.#db = db;
+		this.#clock = clock;
 	}
 
 	async insert(input: InsertUploadSessionInput): Promise<UploadSessionRecord> {
-		const now = input.createdAt ?? nowIso();
+		const now = input.createdAt ?? nowIso(this.#clock);
 		const row = await this.#db
 			.insertInto("upload_sessions")
 			.values({
@@ -129,7 +131,7 @@ export class UploadSessionRepository {
 				...(input.storageKey !== undefined && { storage_key: input.storageKey }),
 				...(input.sha256 !== undefined && { sha256: input.sha256 }),
 				...(input.urlToken !== undefined && { url_token: input.urlToken }),
-				updated_at: input.updatedAt ?? nowIso(),
+				updated_at: input.updatedAt ?? nowIso(this.#clock),
 			})
 			.where("id", "=", id)
 			.returningAll()

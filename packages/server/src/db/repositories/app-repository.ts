@@ -1,5 +1,5 @@
 import type { Kysely } from "kysely";
-import { nowIso } from "../../timestamps.ts";
+import { nowIso, systemClock, type Clock } from "../../timestamps.ts";
 import type { AppTable, Database } from "../schema.ts";
 
 /** A registered app (SPEC §3, "Apps and routing"). */
@@ -49,13 +49,15 @@ function toRecord(row: AppTable): AppRecord {
 
 export class AppRepository {
 	readonly #db: Kysely<Database>;
+	readonly #clock: Clock;
 
-	constructor(db: Kysely<Database>) {
+	constructor(db: Kysely<Database>, clock: Clock = systemClock) {
 		this.#db = db;
+		this.#clock = clock;
 	}
 
 	async insert(input: InsertAppInput): Promise<AppRecord> {
-		const createdAt = input.createdAt ?? nowIso();
+		const createdAt = input.createdAt ?? nowIso(this.#clock);
 		const row = await this.#db
 			.insertInto("apps")
 			.values({
@@ -101,7 +103,7 @@ export class AppRepository {
 				...(input.verifyToken !== undefined && { verify_token: input.verifyToken }),
 				...(input.callbackUrl !== undefined && { callback_url: input.callbackUrl }),
 				...(input.accessToken !== undefined && { access_token: input.accessToken }),
-				updated_at: input.updatedAt ?? nowIso(),
+				updated_at: input.updatedAt ?? nowIso(this.#clock),
 			})
 			.where("id", "=", id)
 			.returningAll()

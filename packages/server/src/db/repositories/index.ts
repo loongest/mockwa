@@ -1,6 +1,8 @@
 import type { Kysely } from "kysely";
 import type { Database } from "../schema.ts";
+import { systemClock, type Clock } from "../../timestamps.ts";
 import { AppRepository } from "./app-repository.ts";
+import { ClockStateRepository } from "./clock-state-repository.ts";
 import { ContactRepository } from "./contact-repository.ts";
 import { ExpiredTokenRepository } from "./expired-token-repository.ts";
 import { InjectionRuleRepository } from "./injection-rule-repository.ts";
@@ -21,6 +23,7 @@ export {
 	type InsertContactInput,
 	type UpdateContactInput,
 } from "./contact-repository.ts";
+export { ClockStateRepository, type ClockStateRecord } from "./clock-state-repository.ts";
 export { ExpiredTokenRepository } from "./expired-token-repository.ts";
 export {
 	InjectionRuleRepository,
@@ -102,6 +105,8 @@ export interface Repositories {
 	expiredTokens: ExpiredTokenRepository;
 	/** Whole-database reads and writes, for state export/import (SPEC §5). */
 	snapshots: SnapshotRepository;
+	/** Where the virtual clock stood (SPEC §4, "Virtual clock"); untouched by a reset and by a snapshot. */
+	clockState: ClockStateRepository;
 }
 
 /**
@@ -129,20 +134,21 @@ export async function deleteAllRows(repositories: Repositories): Promise<void> {
 	await repositories.wabas.deleteAll();
 }
 
-export function createRepositories(db: Kysely<Database>): Repositories {
+export function createRepositories(db: Kysely<Database>, clock: Clock = systemClock): Repositories {
 	return {
-		wabas: new WabaRepository(db),
-		phoneNumbers: new PhoneNumberRepository(db),
-		contacts: new ContactRepository(db),
-		templates: new TemplateRepository(db),
-		messages: new MessageRepository(db),
-		media: new MediaRepository(db),
-		uploadSessions: new UploadSessionRepository(db),
-		webhookDeliveries: new WebhookDeliveryRepository(db),
-		apps: new AppRepository(db),
-		webhookSubscriptions: new WebhookSubscriptionRepository(db),
-		injectionRules: new InjectionRuleRepository(db),
-		expiredTokens: new ExpiredTokenRepository(db),
+		wabas: new WabaRepository(db, clock),
+		phoneNumbers: new PhoneNumberRepository(db, clock),
+		contacts: new ContactRepository(db, clock),
+		templates: new TemplateRepository(db, clock),
+		messages: new MessageRepository(db, clock),
+		media: new MediaRepository(db, clock),
+		uploadSessions: new UploadSessionRepository(db, clock),
+		webhookDeliveries: new WebhookDeliveryRepository(db, clock),
+		apps: new AppRepository(db, clock),
+		webhookSubscriptions: new WebhookSubscriptionRepository(db, clock),
+		injectionRules: new InjectionRuleRepository(db, clock),
+		expiredTokens: new ExpiredTokenRepository(db, clock),
 		snapshots: new SnapshotRepository(db),
+		clockState: new ClockStateRepository(db),
 	};
 }

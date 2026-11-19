@@ -10,6 +10,7 @@ import { runMigrations } from "./migrator.ts";
 
 const TABLES = [
 	"apps",
+	"clock_state",
 	"contacts",
 	"expired_tokens",
 	"injection_rules",

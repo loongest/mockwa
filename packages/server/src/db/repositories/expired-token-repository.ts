@@ -1,5 +1,5 @@
 import type { Kysely } from "kysely";
-import { nowIso } from "../../timestamps.ts";
+import { nowIso, systemClock, type Clock } from "../../timestamps.ts";
 import type { Database } from "../schema.ts";
 
 /**
@@ -11,9 +11,11 @@ import type { Database } from "../schema.ts";
  */
 export class ExpiredTokenRepository {
 	readonly #db: Kysely<Database>;
+	readonly #clock: Clock;
 
-	constructor(db: Kysely<Database>) {
+	constructor(db: Kysely<Database>, clock: Clock = systemClock) {
 		this.#db = db;
+		this.#clock = clock;
 	}
 
 	/** When the token was marked expired, or `null` while it is valid. */
@@ -34,7 +36,7 @@ export class ExpiredTokenRepository {
 	}
 
 	/** Idempotent: expiring an already-expired token keeps the moment it first expired. */
-	async expire(tokenId: string, expiredAt: string = nowIso()): Promise<string> {
+	async expire(tokenId: string, expiredAt: string = nowIso(this.#clock)): Promise<string> {
 		const existing = await this.findExpiredAt(tokenId);
 
 		if (existing !== null) {

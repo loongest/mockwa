@@ -1,6 +1,6 @@
 import type { Seed, SeedWaba } from "../config/index.ts";
 import type { Repositories } from "../db/index.ts";
-import { nowIso } from "../timestamps.ts";
+import { nowIso, type Clock } from "../timestamps.ts";
 import { deriveNumericId } from "./ids.ts";
 import { phoneNumberDigits } from "./phone-number-format.ts";
 
@@ -40,8 +40,10 @@ export interface SeedResult {
 export interface ApplySeedOptions {
 	repositories: Repositories;
 	seed: Seed;
-	/** ISO timestamp stamped on the rows this run creates; defaults to now. */
+	/** ISO timestamp stamped on the rows this run creates; defaults to `clock`'s now. */
 	createdAt?: string;
+	/** The instance's clock (virtual or real); defaults to the wall clock. */
+	clock?: Clock;
 }
 
 const DEFAULT_BUSINESS_NAME = "whaloc Business";
@@ -78,7 +80,7 @@ function wabaName(waba: SeedWaba): string {
  */
 export async function applySeed(options: ApplySeedOptions): Promise<SeedResult> {
 	const { repositories, seed } = options;
-	const createdAt = options.createdAt ?? nowIso();
+	const createdAt = options.createdAt ?? nowIso(options.clock);
 	const result: SeedResult = { wabas: [], created: { wabas: 0, phoneNumbers: 0, contacts: 0, templates: 0 } };
 
 	for (const seedWaba of seed) {

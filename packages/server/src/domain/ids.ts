@@ -171,28 +171,33 @@ export function createUploadHandle(
 }
 
 /**
- * A **time-ordered** row id, for whaloc's own tables: milliseconds, then a per-process counter,
+ * A **time-ordered** row id, for whaloc's own tables: milliseconds (the injected clock's, when the
+ * caller passes it), then a counter (per process, or the virtual clock's ID stream's),
  * then randomness, all in hex, so the ids sort lexicographically in creation order.
  *
  * Timestamps alone do not: several rows land in the same millisecond routinely, and a table
  * whose order *is* its behavior — the delivery log read newest first (SPEC §3), the injection
  * rules evaluated in creation order (SPEC §4) — cannot leave that tie to a random id.
  */
-export function createOrderedId(random: RandomBytes = defaultRandomBytes, now: number = Date.now()): string {
+export function createOrderedId(
+	random: RandomBytes = defaultRandomBytes,
+	now: number = Date.now(),
+	nextSequence: () => number = nextOrderedIdSequence,
+): string {
 	const time = now.toString(16).padStart(ORDERED_ID_TIME_DIGITS, "0");
-	const sequence = nextOrderedIdSequence().toString(16).padStart(ORDERED_ID_COUNTER_DIGITS, "0");
+	const sequence = (nextSequence() % ORDERED_ID_COUNTER_MODULO).toString(16).padStart(ORDERED_ID_COUNTER_DIGITS, "0");
 
 	return time + sequence + Buffer.from(random(ORDERED_ID_RANDOM_BYTES)).toString("hex");
 }
 
 /** Row id of one webhook delivery attempt; whaloc's own, never seen by the consumer. */
-export function createWebhookDeliveryId(random?: RandomBytes, now?: number): string {
-	return createOrderedId(random, now);
+export function createWebhookDeliveryId(random?: RandomBytes, now?: number, nextSequence?: () => number): string {
+	return createOrderedId(random, now, nextSequence);
 }
 
 /** Row id of one error-injection rule (SPEC §4); ordered, because evaluation order is too. */
-export function createInjectionRuleId(random?: RandomBytes, now?: number): string {
-	return createOrderedId(random, now);
+export function createInjectionRuleId(random?: RandomBytes, now?: number, nextSequence?: () => number): string {
+	return createOrderedId(random, now, nextSequence);
 }
 
 /**

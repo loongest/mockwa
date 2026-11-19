@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { ImportSummary, StateResponse } from "@mockwa/shared";
 import { buffer } from "node:stream/consumers";
 import type { Repositories } from "../db/index.ts";
@@ -6,6 +7,7 @@ import { MediaObjectNotFoundError, type MediaStorage } from "../storage/index.ts
 import { MOCKWA_VERSION } from "../version.ts";
 import { controlBadRequest, ControlPlaneError } from "./control-plane-error.ts";
 import { noopEventPublisher, type EventPublisher } from "./event-bus.ts";
+import type { ClockService } from "./clock-service.ts";
 import { deleteStoredMedia } from "./media-cleanup.ts";
 import { createSystemScheduler, type Scheduler } from "./scheduler.ts";
 import {
@@ -53,6 +55,8 @@ export interface SnapshotServiceOptions {
 	events?: EventPublisher;
 	/** Injected by tests so `exportedAt` is not the wall clock. */
 	scheduler?: Scheduler;
+	/** Under the virtual clock, an import moves the ID stream on (SPEC §4, "Virtual clock"). */
+	clock?: ClockService;
 }
 
 export interface ExportOptions {
@@ -88,7 +92,10 @@ export class SnapshotService {
 	readonly #events: EventPublisher;
 	readonly #scheduler: Scheduler;
 
+	readonly #clock: ClockService | undefined;
+
 	constructor(options: SnapshotServiceOptions) {
+		this.#clock = options.clock;
 		this.#repositories = options.repositories;
 		this.#mediaStorage = options.mediaStorage;
 		this.#logger = options.logger;
@@ -228,6 +235,7 @@ export class SnapshotService {
 		// like the timers above, they are cancelled rather than replayed (SPEC §5).
 		await this.#repositories.webhookDeliveries.cancelPending();
 		await this.#webhooks?.resumeRetries();
+		await this.#clock?.afterImport(createHash("sha256").update(JSON.stringify(snapshot.tables)).digest("hex"));
 		await deleteStoredMedia({
 			storageKeys: [
 				...previous.map(media => media.storageKey),

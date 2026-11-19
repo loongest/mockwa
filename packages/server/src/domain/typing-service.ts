@@ -78,9 +78,13 @@ export class TypingService implements OutboundMessageEvents {
 		this.#drop(key);
 
 		const expiresAt = new Date(this.#scheduler.now().getTime() + this.#ttlMs);
-		const dismissal = this.#scheduler.schedule(this.#ttlMs, () => {
-			this.clear(phoneNumberId, contactWaId);
-		});
+		const dismissal = this.#scheduler.schedule(
+			this.#ttlMs,
+			() => {
+				this.clear(phoneNumberId, contactWaId);
+			},
+			`typing dismissal ${phoneNumberId}:${contactWaId}`,
+		);
 
 		this.#active.set(key, { phoneNumberId, contactWaId, expiresAt, dismissal });
 

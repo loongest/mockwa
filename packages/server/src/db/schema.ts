@@ -25,6 +25,7 @@ export interface Database {
 	apps: AppTable;
 	webhook_subscriptions: WebhookSubscriptionTable;
 	phone_number_webhook_overrides: PhoneNumberWebhookOverrideTable;
+	clock_state: ClockStateTable;
 }
 
 export const MESSAGE_DIRECTIONS = ["inbound", "outbound"] as const;
@@ -340,5 +341,19 @@ export interface UploadSessionTable {
 	/** Opaque token in the public `/whaloc-upload/:token` URL (SPEC §2.22); minted with the handle. */
 	url_token: string | null;
 	created_at: string;
+	updated_at: string;
+}
+
+/**
+ * The virtual clock's resting place (SPEC §4, "Virtual clock"): a single row, `id` 1, written
+ * whenever the virtual clock moves. Absent until the virtual clock first runs; the real clock
+ * never writes it.
+ */
+export interface ClockStateTable {
+	id: number;
+	/** ISO 8601, the virtual "now". */
+	now: string;
+	/** Key of the deterministic ID stream in use; a restart derives the next one from it. */
+	id_stream: string;
 	updated_at: string;
 }

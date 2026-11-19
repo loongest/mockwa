@@ -8,7 +8,7 @@ import {
 	type InjectionTrigger,
 } from "@mockwa/shared";
 import type { Kysely } from "kysely";
-import { nowIso } from "../../timestamps.ts";
+import { nowIso, systemClock, type Clock } from "../../timestamps.ts";
 import { decodeNullableJsonColumn, encodeJsonColumn } from "../json-column.ts";
 import type { Database, InjectionRuleTable } from "../schema.ts";
 
@@ -112,13 +112,15 @@ function toRecord(row: InjectionRuleTable): InjectionRuleRecord {
  */
 export class InjectionRuleRepository {
 	readonly #db: Kysely<Database>;
+	readonly #clock: Clock;
 
-	constructor(db: Kysely<Database>) {
+	constructor(db: Kysely<Database>, clock: Clock = systemClock) {
 		this.#db = db;
+		this.#clock = clock;
 	}
 
 	async insert(input: InsertInjectionRuleInput): Promise<InjectionRuleRecord> {
-		const now = input.createdAt ?? nowIso();
+		const now = input.createdAt ?? nowIso(this.#clock);
 		const row = await this.#db
 			.insertInto("injection_rules")
 			.values({
@@ -160,7 +162,7 @@ export class InjectionRuleRepository {
 	async updateCounters(id: string, input: UpdateInjectionCountersInput): Promise<InjectionRuleRecord | null> {
 		const row = await this.#db
 			.updateTable("injection_rules")
-			.set({ seen: input.seen, matches: input.matches, remaining: input.remaining, updated_at: nowIso() })
+			.set({ seen: input.seen, matches: input.matches, remaining: input.remaining, updated_at: nowIso(this.#clock) })
 			.where("id", "=", id)
 			.returningAll()
 			.executeTakeFirst();

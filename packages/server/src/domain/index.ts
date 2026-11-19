@@ -188,6 +188,30 @@ export {
 export { ReadReceiptService, type MarkReadResult, type ReadReceiptServiceOptions } from "./read-receipt-service.ts";
 export { ResetService, type ResetResult, type ResetServiceOptions } from "./reset-service.ts";
 export { createSystemScheduler, type ScheduledTask, type Scheduler } from "./scheduler.ts";
+export { VirtualClock, type AdvanceResult, type FiredClockEvent, type VirtualClockEvent } from "./virtual-clock.ts";
+export {
+	ClockService,
+	clockNotVirtual,
+	type ClockEventView,
+	type ClockMoveView,
+	type ClockView,
+} from "./clock-service.ts";
+export {
+	defaultStepName,
+	ScenarioRunner,
+	type ScenarioResult,
+	type ScenarioRun,
+	type StepResult,
+	type StepStatus,
+} from "./scenario-runner.ts";
+export { toJUnitXml } from "./scenario-junit.ts";
+export {
+	createRandomIdStream,
+	createSeededIdStream,
+	deriveStreamKey,
+	INITIAL_STREAM_KEY,
+	type IdStream,
+} from "./id-stream.ts";
 export {
 	locationPayloadSchema,
 	MAX_BIZ_OPAQUE_CALLBACK_DATA_LENGTH,

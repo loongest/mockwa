@@ -8,6 +8,7 @@ import {
 	throughputSchema,
 	type MessagingRulesConfig,
 } from "./messaging-config.ts";
+import { clockModeSchema, clockStartSchema, type ClockConfig } from "./clock-config.ts";
 import { appsEnvSchema, retryMaxAgeSchema, retryScheduleSchema } from "./webhook-config.ts";
 
 export const LOG_LEVELS = ["fatal", "error", "warn", "info", "debug", "trace", "silent"] as const;
@@ -247,6 +248,8 @@ export const appConfigSchema = z
 		MOCKWA_THROUGHPUT: throughputSchema,
 		MOCKWA_PAIR_RATE_LIMIT: pairRateLimitSchema,
 		MOCKWA_MESSAGING_LIMIT: messagingLimitSchema,
+		MOCKWA_CLOCK: clockModeSchema,
+		MOCKWA_CLOCK_START: clockStartSchema,
 		MOCKWA_DB_PATH: z.string().min(1).default(":memory:"),
 		// Where the bytes go (SPEC §6). `local` is the default and needs nothing else; `s3`
 		// requires the bucket and region below, and is checked before the server boots.
@@ -302,6 +305,8 @@ export const appConfigSchema = z
 			pairRateLimit: env.MOCKWA_PAIR_RATE_LIMIT,
 			messagingLimit: env.MOCKWA_MESSAGING_LIMIT,
 		} satisfies MessagingRulesConfig,
+		/** Real time (the default) or the virtual clock the control plane moves (SPEC §4). */
+		clock: { mode: env.MOCKWA_CLOCK, start: env.MOCKWA_CLOCK_START } satisfies ClockConfig,
 		dbPath: env.MOCKWA_DB_PATH,
 		/** Which `MediaStorage` the boot sequence builds (SPEC §6). */
 		mediaBackend: env.MOCKWA_MEDIA_BACKEND,

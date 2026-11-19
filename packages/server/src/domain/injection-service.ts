@@ -6,6 +6,7 @@ import { noopEventPublisher, type EventPublisher } from "./event-bus.ts";
 import type { GraphApiError } from "./graph-api-error.ts";
 import { createInjectionRuleId, defaultRandomBytes, type RandomBytes } from "./ids.ts";
 import { injectionResponse } from "./injection-presets.ts";
+import { createSystemScheduler, type Scheduler } from "./scheduler.ts";
 
 /**
  * Deterministic error injection (SPEC §4).
@@ -25,6 +26,9 @@ export interface InjectionServiceOptions {
 	repositories: Repositories;
 	events?: EventPublisher;
 	random?: RandomBytes;
+	/** Rule IDs are time-ordered: by this clock, with the ID stream's tie-breaker. */
+	scheduler?: Scheduler;
+	nextSequence?: () => number;
 }
 
 export interface InjectionDecision {
@@ -56,11 +60,15 @@ export class InjectionService {
 	readonly #repositories: Repositories;
 	readonly #events: EventPublisher;
 	readonly #random: RandomBytes;
+	readonly #scheduler: Scheduler;
+	readonly #nextSequence: (() => number) | undefined;
 
 	constructor(options: InjectionServiceOptions) {
 		this.#repositories = options.repositories;
 		this.#events = options.events ?? noopEventPublisher;
 		this.#random = options.random ?? defaultRandomBytes;
+		this.#scheduler = options.scheduler ?? createSystemScheduler();
+		this.#nextSequence = options.nextSequence;
 	}
 
 	#announce(rule: InjectionRuleRecord, event: "created" | "updated" | "deleted"): void {
@@ -114,7 +122,7 @@ export class InjectionService {
 		const rule = await this.#repositories.injectionRules.insert({
 			// Time-ordered, because "the first rule that fires wins" is only well defined if two
 			// rules armed in the same millisecond still have an order.
-			id: createInjectionRuleId(this.#random),
+			id: createInjectionRuleId(this.#random, this.#scheduler.now().getTime(), this.#nextSequence),
 			target: request.target,
 			trigger: request.trigger,
 			preset: request.preset,

@@ -1,5 +1,5 @@
 import type { Kysely } from "kysely";
-import { nowIso } from "../../timestamps.ts";
+import { nowIso, systemClock, type Clock } from "../../timestamps.ts";
 import type { ContactTable, Database } from "../schema.ts";
 
 export interface ContactRecord {
@@ -57,13 +57,15 @@ function toRecord(row: ContactTable): ContactRecord {
  */
 export class ContactRepository {
 	readonly #db: Kysely<Database>;
+	readonly #clock: Clock;
 
-	constructor(db: Kysely<Database>) {
+	constructor(db: Kysely<Database>, clock: Clock = systemClock) {
 		this.#db = db;
+		this.#clock = clock;
 	}
 
 	async insert(input: InsertContactInput): Promise<ContactRecord> {
-		const timestamp = input.createdAt ?? nowIso();
+		const timestamp = input.createdAt ?? nowIso(this.#clock);
 		const row = await this.#db
 			.insertInto("contacts")
 			.values({
@@ -117,7 +119,7 @@ export class ContactRepository {
 				...(input.userId !== undefined && { user_id: input.userId }),
 				...(input.role !== undefined && { role: input.role }),
 				...(input.displayNumber !== undefined && { display_number: input.displayNumber }),
-				updated_at: input.updatedAt ?? nowIso(),
+				updated_at: input.updatedAt ?? nowIso(this.#clock),
 			})
 			.where("wa_id", "=", waId)
 			.returningAll()
@@ -137,7 +139,7 @@ export class ContactRepository {
 	 * transaction, so a conversation is never left pointing at a contact that does not exist.
 	 */
 	async changeWaId(waId: string, nextWaId: string, updatedAt?: string): Promise<ContactRecord | null> {
-		const timestamp = updatedAt ?? nowIso();
+		const timestamp = updatedAt ?? nowIso(this.#clock);
 
 		return this.#db.transaction().execute(async trx => {
 			const existing = await trx.selectFrom("contacts").selectAll().where("wa_id", "=", waId).executeTakeFirst();

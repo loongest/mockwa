@@ -1,6 +1,6 @@
 import type { Kysely } from "kysely";
 import { z } from "zod";
-import { nowIso } from "../../timestamps.ts";
+import { nowIso, systemClock, type Clock } from "../../timestamps.ts";
 import { decodeJsonColumn, encodeJsonColumn } from "../json-column.ts";
 import type { Database, WebhookDeliveryTable } from "../schema.ts";
 
@@ -81,9 +81,11 @@ function toRecord(row: WebhookDeliveryTable): WebhookDeliveryRecord {
  */
 export class WebhookDeliveryRepository {
 	readonly #db: Kysely<Database>;
+	readonly #clock: Clock;
 
-	constructor(db: Kysely<Database>) {
+	constructor(db: Kysely<Database>, clock: Clock = systemClock) {
 		this.#db = db;
+		this.#clock = clock;
 	}
 
 	async insert(input: InsertWebhookDeliveryInput): Promise<WebhookDeliveryRecord> {
@@ -100,7 +102,7 @@ export class WebhookDeliveryRepository {
 				error: input.error ?? null,
 				attempt: input.attempt ?? 1,
 				duration_ms: input.durationMs ?? null,
-				created_at: input.createdAt ?? nowIso(),
+				created_at: input.createdAt ?? nowIso(this.#clock),
 				app_key: input.appKey ?? null,
 				chain_id: input.chainId ?? input.id,
 				next_attempt_at: input.nextAttemptAt ?? null,

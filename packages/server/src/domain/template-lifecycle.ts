@@ -104,10 +104,14 @@ export class TemplateLifecycle implements TemplateLifecycleEvents {
 
 		this.cancel(templateId);
 
-		const task = this.#scheduler.schedule(this.#autoApproveMs, () => {
-			this.#pending.delete(templateId);
-			this.#tasks.run(() => this.#autoApprove(templateId));
-		});
+		const task = this.#scheduler.schedule(
+			this.#autoApproveMs,
+			() => {
+				this.#pending.delete(templateId);
+				this.#tasks.run(() => this.#autoApprove(templateId));
+			},
+			`template auto-approve ${templateId}`,
+		);
 
 		this.#pending.set(templateId, task);
 	}
