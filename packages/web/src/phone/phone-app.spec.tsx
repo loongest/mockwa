@@ -1,4 +1,4 @@
-import type { Contact, Message, PhoneChat, WsEvent } from "@mockwa/shared";
+import type { Contact, Message, PhoneChat, VisitorSession, WsEvent } from "@mockwa/shared";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StoreProvider } from "../store/store.tsx";
@@ -24,6 +24,18 @@ const IDENTITIES: Contact[] = [
 	makeContact({ waId: BRUNO, profileName: "Ah Mad", role: "TECHNICIAN" }),
 ];
 const CHAT_PATH = `/api/phone/identities/${ANA}/chats/${PHONE_NUMBER_ID}`;
+const VISITOR_SESSION: VisitorSession = {
+	identities: [IDENTITIES[0]!],
+	csrfToken: "csrf-for-this-browser",
+	expiresAt: "2026-08-31T12:30:00.000Z",
+	limits: {
+		sessionTtlSeconds: 1800,
+		messagesPerMinute: 20,
+		mediaMaxBytes: 1_048_576,
+		mediaPerSession: 10,
+		mediaTypes: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
+	},
+};
 
 class FakeWebSocket extends EventTarget {
 	static readonly instances: FakeWebSocket[] = [];
@@ -45,6 +57,11 @@ class FakeWebSocket extends EventTarget {
 	close(): void {
 		// The client stops for good before closing; nothing to report back.
 	}
+
+	/** The server closing the socket, e.g. with 4401 when a demo session ends. */
+	serverClose(code: number): void {
+		this.dispatchEvent(Object.assign(new Event("close"), { code }));
+	}
 }
 
 function chatOf(lastMessage: Message | null = null, unreadCount = 0): PhoneChat {
@@ -61,9 +78,14 @@ function chatOf(lastMessage: Message | null = null, unreadCount = 0): PhoneChat 
 describe("the virtual phone", () => {
 	let fetchMock: FetchMock;
 	let history: Message[];
+	let mode: "dev" | "public";
+	/** Public mode: whether this browser has a live demo session, and what a read answers without one. */
+	let session: "none" | "expired" | "live";
 
 	beforeEach(() => {
 		FakeWebSocket.instances.length = 0;
+		mode = "dev";
+		session = "none";
 		vi.stubGlobal("WebSocket", FakeWebSocket);
 		globalThis.history.replaceState(null, "", "/phone");
 		history = [
@@ -83,8 +105,58 @@ describe("the virtual phone", () => {
 			}),
 		];
 		const respond = (path: string, init?: RequestInit): Response => {
+			if (path === "/api/phone/config") {
+				return jsonResponse({ data: { mode } });
+			}
+
+			if (path === "/api/public/session") {
+				if (init?.method === "POST") {
+					session = "live";
+
+					return jsonResponse({ data: VISITOR_SESSION }, 201);
+				}
+
+				if (init?.method === "DELETE") {
+					session = "none";
+
+					return new Response(null, { status: 204 });
+				}
+
+				return session === "live"
+					? jsonResponse({ data: VISITOR_SESSION })
+					: jsonResponse(
+							{
+								error: {
+									message: "this demo session has ended; start a new one",
+									code: session === "expired" ? "session_expired" : "session_required",
+								},
+							},
+							401,
+						);
+			}
+
+			if (path === "/api/phone/clock") {
+				return jsonResponse({ error: { message: "no clock in this stub" } }, 500);
+			}
+
 			if (path === "/api/phone/identities") {
-				return jsonResponse({ data: IDENTITIES });
+				return jsonResponse({ data: mode === "public" ? VISITOR_SESSION.identities : IDENTITIES });
+			}
+
+			if (path === `${CHAT_PATH}/media`) {
+				return jsonResponse(
+					{
+						data: {
+							id: "1234567890",
+							phoneNumberId: PHONE_NUMBER_ID,
+							mimeType: "image/png",
+							sha256: "00",
+							fileSize: 4,
+							createdAt: "2026-08-31T12:00:00.000Z",
+						},
+					},
+					201,
+				);
 			}
 
 			if (path === `/api/phone/identities/${ANA}/chats`) {
@@ -233,5 +305,121 @@ describe("the virtual phone", () => {
 			expect(fetchMock).toHaveBeenCalledWith(`${CHAT_PATH}/messages`, expect.objectContaining({ method: "POST" }));
 		});
 		expect(fetchMock).not.toHaveBeenCalledWith("/api/inbound", expect.anything());
+	});
+
+	describe("in public mode", () => {
+		beforeEach(() => {
+			mode = "public";
+		});
+
+		it("starts a demo, then opens the visitor's own identity and nothing else", async () => {
+			renderPhone();
+
+			fireEvent.click(await screen.findByTestId("phone-start-demo"));
+
+			expect(await screen.findByText("Acme Support")).toBeTruthy();
+			expect(globalThis.location.search).toBe(`?as=${ANA}`);
+
+			fireEvent.click(screen.getByRole("button", { name: "Switch" }));
+
+			const rows = await screen.findAllByTestId("phone-identity");
+
+			expect(rows.map(row => row.dataset["waId"])).toEqual([ANA]);
+			expect(screen.getByTestId("phone-demo-limits").textContent).toMatch(/30 minutes/);
+		});
+
+		it("never shows a contact outside the session, even when the URL names one", async () => {
+			session = "live";
+			globalThis.history.replaceState(null, "", `/phone?as=${BRUNO}`);
+			renderPhone();
+
+			const rows = await screen.findAllByTestId("phone-identity");
+
+			expect(rows.map(row => row.dataset["waId"])).toEqual([ANA]);
+			expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining(BRUNO), expect.anything());
+		});
+
+		it("sends the session's CSRF token on every write", async () => {
+			session = "live";
+			globalThis.history.replaceState(null, "", `/phone?as=${ANA}&chat=${PHONE_NUMBER_ID}`);
+			renderPhone();
+			await screen.findByText("Is my order ready?");
+
+			fireEvent.change(screen.getByLabelText("Message"), { target: { value: "hi" } });
+			fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+			await waitFor(() => {
+				const call = fetchMock.mock.calls.find(
+					([path, init]) => path === `${CHAT_PATH}/messages` && init?.method === "POST",
+				);
+
+				const headers = new Headers(call?.[1]?.headers);
+
+				expect(headers.get("x-csrf-token")).toBe("csrf-for-this-browser");
+			});
+		});
+
+		it("explains an expired session and offers a new demo", async () => {
+			session = "expired";
+			renderPhone();
+
+			const notice = await screen.findByTestId("phone-session-ended");
+
+			expect(notice.textContent).toMatch(/has ended/);
+			expect(screen.getByTestId("phone-start-demo").textContent).toBe("Start a new demo");
+		});
+
+		it("drops back to the welcome screen when the server ends the session under an open phone", async () => {
+			session = "live";
+			globalThis.history.replaceState(null, "", `/phone?as=${ANA}`);
+			renderPhone();
+			await screen.findByText("Acme Support");
+
+			const socket = FakeWebSocket.instances.at(-1)!;
+
+			act(() => {
+				socket.serverClose(4401);
+			});
+
+			expect(await screen.findByTestId("phone-session-ended")).toBeTruthy();
+			expect(globalThis.location.search).toBe("");
+		});
+
+		it("leaves the demo on request", async () => {
+			session = "live";
+			renderPhone();
+
+			fireEvent.click(await screen.findByTestId("phone-leave-demo"));
+
+			await waitFor(() => {
+				expect(fetchMock).toHaveBeenCalledWith("/api/public/session", expect.objectContaining({ method: "DELETE" }));
+			});
+			expect(await screen.findByTestId("phone-start-demo")).toBeTruthy();
+			expect(screen.queryByTestId("phone-session-ended")).toBeNull();
+		});
+
+		it("uploads an attached image and sends it as this phone", async () => {
+			session = "live";
+			globalThis.history.replaceState(null, "", `/phone?as=${ANA}&chat=${PHONE_NUMBER_ID}`);
+			renderPhone();
+			await screen.findByText("Is my order ready?");
+
+			const file = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "receipt.png", { type: "image/png" });
+
+			fireEvent.change(screen.getByTestId("phone-attach-input"), { target: { files: [file] } });
+
+			await waitFor(() => {
+				const call = fetchMock.mock.calls.find(
+					([path, init]) => path === `${CHAT_PATH}/messages` && init?.method === "POST",
+				);
+
+				expect(JSON.parse((call?.[1]?.body as string | undefined) ?? "null")).toEqual({
+					phoneNumberId: PHONE_NUMBER_ID,
+					from: ANA,
+					type: "image",
+					media: { id: "1234567890" },
+				});
+			});
+		});
 	});
 });

@@ -2,8 +2,10 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { statusOf, textOf } from "./testing/expectations.ts";
 import { createTestApp, type TestApp } from "./testing/test-app.ts";
-import { isReservedPath } from "./web-ui.ts";
+import { ADMIN_HEADERS, PUBLIC_ENV } from "./testing/visitor-client.ts";
+import { isReservedPath, PHONE_CONTENT_SECURITY_POLICY } from "./web-ui.ts";
 
 const INDEX_HTML = '<!doctype html><title>whaloc</title><div id="root"></div>';
 const PHONE_HTML = '<!doctype html><title>mockwa phone</title><div id="root"></div>';
@@ -124,4 +126,73 @@ describe("isReservedPath", () => {
 			expect(isReservedPath(pathname)).toBe(false);
 		},
 	);
+});
+
+describe("the static web UI in public mode (SPEC §7)", () => {
+	let fixture: TestApp;
+	let webDir: string;
+	const PHONE_JS = "console.log('phone');\n";
+	const SHARED_JS = "console.log('shared');\n";
+	const CONSOLE_JS = "console.log('console');\n";
+
+	beforeEach(async () => {
+		webDir = await mkdtemp(path.join(tmpdir(), "mockwa-test-public-web-"));
+		await mkdir(path.join(webDir, "assets"));
+		await mkdir(path.join(webDir, ".vite"));
+		await writeFile(path.join(webDir, "index.html"), INDEX_HTML);
+		await writeFile(path.join(webDir, "phone.html"), PHONE_HTML);
+		await writeFile(path.join(webDir, "favicon.svg"), "<svg/>");
+		await writeFile(path.join(webDir, "assets", "phone-1.js"), PHONE_JS);
+		await writeFile(path.join(webDir, "assets", "shared-1.js"), SHARED_JS);
+		await writeFile(path.join(webDir, "assets", "phone-1.css"), "body{}");
+		await writeFile(path.join(webDir, "assets", "console-1.js"), CONSOLE_JS);
+		await writeFile(
+			path.join(webDir, ".vite", "manifest.json"),
+			JSON.stringify({
+				"phone.html": { file: "assets/phone-1.js", imports: ["_shared"], css: ["assets/phone-1.css"], isEntry: true },
+				_shared: { file: "assets/shared-1.js" },
+				"index.html": { file: "assets/console-1.js", imports: ["_shared"], isEntry: true },
+			}),
+		);
+		fixture = await createTestApp({ ...PUBLIC_ENV, MOCKWA_WEB_DIR: webDir });
+	});
+
+	afterEach(async () => {
+		await fixture.close();
+		await rm(webDir, { recursive: true, force: true });
+	});
+
+	it("serves the phone page with a strict Content-Security-Policy", async () => {
+		const response = await fixture.consoleApp.request("/phone");
+
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe(PHONE_HTML);
+		expect(response.headers.get("content-security-policy")).toBe(PHONE_CONTENT_SECURITY_POLICY);
+		expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+	});
+
+	it("serves a visitor the phone bundle and the shared files, nothing of the console's", async () => {
+		for (const asset of ["/assets/phone-1.js", "/assets/shared-1.js", "/assets/phone-1.css", "/favicon.svg"]) {
+			expect({ asset, status: await statusOf(fixture.consoleApp.request(asset)) }).toEqual({ asset, status: 200 });
+		}
+
+		for (const hidden of ["/assets/console-1.js", "/index.html", "/phone.html", "/.vite/manifest.json"]) {
+			expect({ hidden, status: await statusOf(fixture.consoleApp.request(hidden)) }).toEqual({ hidden, status: 404 });
+		}
+	});
+
+	it.each(["/", "/chats", "/settings", "/webhooks", "/clock", "/scenarios", "/requests", "/templates"])(
+		"answers 404 for the console page %s without the admin's sign-in",
+		async page => {
+			const response = await fixture.consoleApp.request(page);
+
+			expect(response.status).toBe(404);
+			expect(await response.text()).not.toContain("whaloc");
+		},
+	);
+
+	it("serves the console to the admin", async () => {
+		expect(await textOf(fixture.consoleApp.request("/", { headers: ADMIN_HEADERS }))).toBe(INDEX_HTML);
+		expect(await statusOf(fixture.consoleApp.request("/assets/console-1.js", { headers: ADMIN_HEADERS }))).toBe(200);
+	});
 });

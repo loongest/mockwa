@@ -297,6 +297,48 @@ jobs:
           done
           test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m5)" = "healthy"
 
+      # A seventh instance in public demo mode (M6), on the M1 seed (its template has quick
+      # replies): real time, an admin token, a Graph token
+      # registry its echo app replies with, and short limits so the quota and cleanup checks
+      # finish quickly. 127.0.0.1 is the trusted proxy, so the in-container checks may name a
+      # client address; the checks restart and stop this container.
+      - name: Start the M6 public-mode image and its echo app 🧪
+        run: |
+          set -euo pipefail
+          PORT=3008 APP_SECRET=m6-app-secret VERIFY_TOKEN=m6-verify-token ACCESS_TOKEN=m6-app-token \
+            GRAPH_API_BASE_URL=http://127.0.0.1:61888/v25.0 \
+            nohup node examples/echo-app/server.mjs > echo-app-m6.log 2>&1 &
+          docker volume create mockwa-ci-m6-data
+          docker run -d --name mockwa-ci-m6 \
+            --add-host=host.docker.internal:host-gateway \
+            -p 127.0.0.1:61888:8888 -p 127.0.0.1:61025:8025 \
+            -v mockwa-ci-m6-data:/data \
+            -v "$PWD/e2e/fixtures/m1-seed.json:/seed/m1-seed.json:ro" \
+            -e MOCKWA_SEED_FILE=/seed/m1-seed.json \
+            -e MOCKWA_DB_PATH=/data/mockwa.db \
+            -e MOCKWA_MODE=public \
+            -e MOCKWA_ADMIN_TOKEN=m6-admin-token-0123456789 \
+            -e MOCKWA_TOKENS=m6-app-token \
+            -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3008/webhook \
+            -e MOCKWA_APP_SECRET=m6-app-secret \
+            -e MOCKWA_WEBHOOK_VERIFY_TOKEN=m6-verify-token \
+            -e MOCKWA_PUBLIC_SESSION_TTL=20s \
+            -e MOCKWA_PUBLIC_MESSAGES_PER_MINUTE=6 \
+            -e MOCKWA_PUBLIC_IP_MESSAGES_PER_MINUTE=500 \
+            -e MOCKWA_PUBLIC_MEDIA_MAX_BYTES=65536 \
+            -e MOCKWA_PUBLIC_MEDIA_PER_SESSION=2 \
+            -e MOCKWA_PUBLIC_SESSIONS_PER_IP=30 \
+            -e MOCKWA_PUBLIC_SESSION_CREATES_PER_MINUTE=100 \
+            -e MOCKWA_TRUSTED_PROXIES=127.0.0.1 \
+            mockwa:ci
+          for _ in $(seq 1 60); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m6)"
+            [ "$status" = "healthy" ] && break
+            [ "$status" = "unhealthy" ] && break
+            sleep 1
+          done
+          test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m6)" = "healthy"
+
       - name: M0 smoke checks (AC-01, AC-02, signed webhooks) ✅
         run: node e2e/m0-smoke.mjs
         env:
@@ -337,7 +379,15 @@ jobs:
           M5_CONSOLE_URL: http://127.0.0.1:60025
           M5_ECHO_URL: http://127.0.0.1:3007
 
-      - name: Playwright against the console, the virtual phone, the M2 webhook views, M3, M4 and M5 🎭
+      - name: M6 public demo checks (AC-14 to AC-17 sessions, isolation, admin surface, quotas, cleanup) ✅
+        run: node e2e/m6-public.mjs
+        env:
+          M6_GRAPH_URL: http://127.0.0.1:61888
+          M6_CONSOLE_URL: http://127.0.0.1:61025
+          M6_ECHO_URL: http://127.0.0.1:3008
+          M6_CONTAINER: mockwa-ci-m6
+
+      - name: Playwright against the console, the virtual phone, the M2 webhook views, M3, M4, M5 and M6 🎭
         run: npx playwright test -c e2e/playwright.config.mjs --trace off
         env:
           GRAPH_URL: http://127.0.0.1:8888
@@ -351,6 +401,7 @@ jobs:
           M4_CONSOLE_URL: http://127.0.0.1:59025
           M5_CONSOLE_URL: http://127.0.0.1:60025
           M5_GRAPH_URL: http://127.0.0.1:60888
+          M6_CONSOLE_URL: http://127.0.0.1:61025
 
       - name: Logs on failure 📜
         if: failure()
@@ -368,12 +419,14 @@ jobs:
           cat echo-app-m4.log || true
           docker logs mockwa-ci-m5 || true
           cat echo-app-m5.log || true
+          docker logs mockwa-ci-m6 || true
+          cat echo-app-m6.log || true
 
       - name: Stop the image 🧹
         if: always()
         run: |
-          docker rm --force mockwa-ci mockwa-ci-m1 mockwa-ci-m2 mockwa-ci-m3 mockwa-ci-m4 mockwa-ci-m5 || true
-          docker volume rm mockwa-ci-m2-data mockwa-ci-m3-data mockwa-ci-m4-data || true
+          docker rm --force mockwa-ci mockwa-ci-m1 mockwa-ci-m2 mockwa-ci-m3 mockwa-ci-m4 mockwa-ci-m5 mockwa-ci-m6 || true
+          docker volume rm mockwa-ci-m2-data mockwa-ci-m3-data mockwa-ci-m4-data mockwa-ci-m6-data || true
 
       - name: Login to GitHub Container Registry 🔑
         if: env.PUBLISH == 'true'

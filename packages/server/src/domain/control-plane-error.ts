@@ -11,17 +11,21 @@ export interface ControlPlaneErrorOptions extends ErrorOptions {
 	status?: number;
 	/** Machine-readable hint for the UI, e.g. `unknown_media`. */
 	code?: string;
+	/** Sent as `Retry-After` with a 429 (SPEC §5, "Public demo mode"). */
+	retryAfterSeconds?: number;
 }
 
 export class ControlPlaneError extends Error {
 	readonly status: number;
 	readonly code: string | undefined;
+	readonly retryAfterSeconds: number | undefined;
 
 	constructor(message: string, options: ControlPlaneErrorOptions = {}) {
 		super(message, options);
 		this.name = "ControlPlaneError";
 		this.status = options.status ?? 400;
 		this.code = options.code;
+		this.retryAfterSeconds = options.retryAfterSeconds;
 	}
 }
 

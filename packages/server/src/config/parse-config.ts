@@ -267,5 +267,14 @@ export function describeConfig(config: AppConfig): Record<string, unknown> {
 			mode: config.clock.mode,
 			start: config.clock.mode === "virtual" ? config.clock.start.toISOString() : null,
 		},
+		// Whether a token is set, never the token (SPEC §7, "Access modes").
+		access: {
+			mode: config.access.mode,
+			adminToken: config.access.adminToken === undefined ? "unset" : "set",
+			trustedProxies: config.access.trustedProxies,
+			allowedOrigins: config.access.allowedOrigins,
+			cookieSecure: config.access.cookieSecure,
+			visitors: config.access.mode === "public" ? config.access.visitors : null,
+		},
 	};
 }

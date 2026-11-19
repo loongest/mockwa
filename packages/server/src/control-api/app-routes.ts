@@ -10,12 +10,24 @@ import {
 	webhookRoutingResponseSchema,
 } from "@mockwa/shared";
 import { Hono } from "hono";
-import { toWebhookAppDto, type AppService, type OverrideInput, type WebhookEmitter } from "../domain/index.ts";
+import {
+	ControlPlaneError,
+	toWebhookAppDto,
+	type AppService,
+	type OverrideInput,
+	type WebhookEmitter,
+} from "../domain/index.ts";
 import { controlError, parseOrThrow, readBody, readOptionalJsonBody, type ControlEnv } from "./control-env.ts";
 
 export interface AppRoutesOptions {
 	apps: AppService;
 	webhooks: WebhookEmitter;
+	/**
+	 * Public demo mode (SPEC §5): webhook destinations come only from the server's configuration,
+	 * so nothing here may introduce a URL — not even for the admin, whose browser session is the
+	 * one a stolen cookie would ride.
+	 */
+	destinationsLocked?: boolean;
 }
 
 /**
@@ -35,11 +47,22 @@ export interface AppRoutesOptions {
 export function createAppRoutes(options: AppRoutesOptions): Hono<ControlEnv> {
 	const routes = new Hono<ControlEnv>();
 	const routing = async () => webhookRoutingResponseSchema.parse({ data: await options.apps.routing() });
+	const assertUnlocked = (isIntroducingUrl: boolean): void => {
+		if (isIntroducingUrl && options.destinationsLocked === true) {
+			throw new ControlPlaneError("webhook destinations come from this instance's configuration in public mode", {
+				status: 403,
+				code: "webhook_destinations_locked",
+			});
+		}
+	};
 
 	routes.get("/apps", async c => c.json(await routing()));
 
 	routes.post("/apps", async c => {
 		const request = await readBody(c, webhookAppCreateRequestSchema);
+
+		assertUnlocked(request.callbackUrl !== undefined);
+
 		const app = await options.apps.create(request);
 
 		return c.json(webhookAppResponseSchema.parse({ data: toWebhookAppDto(app) }), 201);
@@ -47,6 +70,9 @@ export function createAppRoutes(options: AppRoutesOptions): Hono<ControlEnv> {
 
 	routes.patch("/apps/:key", async c => {
 		const request = await readBody(c, webhookAppUpdateRequestSchema);
+
+		assertUnlocked(request.callbackUrl !== undefined && request.callbackUrl !== null);
+
 		const app = await options.apps.update(c.req.param("key"), request);
 
 		return c.json(webhookAppResponseSchema.parse({ data: toWebhookAppDto(app) }));
@@ -61,6 +87,9 @@ export function createAppRoutes(options: AppRoutesOptions): Hono<ControlEnv> {
 	routes.put("/apps/:key/subscriptions/:wabaId", async c => {
 		const app = await options.apps.require(c.req.param("key"));
 		const request = parseOrThrow(putWebhookSubscriptionRequestSchema, (await readOptionalJsonBody(c)) ?? {});
+
+		assertUnlocked(request.overrideCallbackUri !== undefined);
+
 		const override: OverrideInput | null =
 			request.overrideCallbackUri === undefined
 				? null
@@ -88,6 +117,9 @@ export function createAppRoutes(options: AppRoutesOptions): Hono<ControlEnv> {
 	routes.put("/apps/:key/phone-overrides/:phoneNumberId", async c => {
 		const app = await options.apps.require(c.req.param("key"));
 		const request = await readBody(c, putPhoneNumberWebhookOverrideRequestSchema);
+
+		assertUnlocked(true);
+
 		const phoneNumberId = c.req.param("phoneNumberId");
 		const isKnown = await options.apps.setPhoneOverride(app, phoneNumberId, {
 			callbackUri: request.callbackUri,
@@ -115,6 +147,9 @@ export function createAppRoutes(options: AppRoutesOptions): Hono<ControlEnv> {
 	routes.post("/apps/:key/handshake", async c => {
 		const body = (await readOptionalJsonBody(c)) ?? {};
 		const target = parseOrThrow(putPhoneNumberWebhookOverrideRequestSchema.partial(), body);
+
+		// A handshake against an arbitrary URL is a request to anywhere the server can reach.
+		assertUnlocked(target.callbackUri !== undefined);
 		const result = await options.webhooks.handshakeApp(c.req.param("key"), {
 			...(target.callbackUri !== undefined && { url: target.callbackUri }),
 			...(target.verifyToken !== undefined && { verifyToken: target.verifyToken }),

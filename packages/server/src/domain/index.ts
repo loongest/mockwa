@@ -378,3 +378,15 @@ export {
 	type GraphRequestInput,
 	type GraphRequestLogOptions,
 } from "./graph-request-log.ts";
+export { RateLimiter, type RateLimiterOptions, type RateLimitResult } from "./rate-limiter.ts";
+export {
+	isVisitorEvent,
+	limitExceeded,
+	mediaIdsOf,
+	toVisitorEvent,
+	toVisitorMessage,
+	VisitorSessionService,
+	type CreatedVisitorSession,
+	type VisitorAuthResult,
+	type VisitorSessionServiceOptions,
+} from "./visitor-sessions.ts";

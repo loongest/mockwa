@@ -1,0 +1,60 @@
+# Public demo mode, locally: mockwa with MOCKWA_MODE=public and the example echo app playing the
+# app under test. Visitors open http://127.0.0.1:8025/phone; the admin signs in at
+# http://127.0.0.1:8025/admin with MOCKWA_ADMIN_TOKEN.
+#
+#   docker compose -f examples/public-demo/docker-compose.yml up
+#
+# Everything is bound to 127.0.0.1. Putting it on the internet needs a TLS reverse proxy in
+# front (see README, "Public demo mode") and a token of your own; the values below are examples.
+
+name: mockwa-public-demo
+
+services:
+  mockwa:
+    image: ghcr.io/loongest/mockwa:latest
+    # No release is published yet, so this builds the checkout; drop it to pull the image.
+    build: ../..
+    ports:
+      - "127.0.0.1:8888:8888"
+      - "127.0.0.1:8025:8025"
+    environment:
+      MOCKWA_MODE: public
+      # Required in public mode: at least 16 characters. Change it.
+      MOCKWA_ADMIN_TOKEN: ${MOCKWA_ADMIN_TOKEN:-change-me-admin-token}
+      # Required in public mode: only these bearer tokens reach the Graph API. The echo app
+      # below replies with the same one.
+      MOCKWA_TOKENS: ${DEMO_APP_TOKEN:-demo-app-token}
+      MOCKWA_WEBHOOK_URL: http://echo-app:3001/webhook
+      MOCKWA_APP_SECRET: ${DEMO_APP_SECRET:-demo-app-secret}
+      MOCKWA_WEBHOOK_VERIFY_TOKEN: ${DEMO_VERIFY_TOKEN:-demo-verify-token}
+      # Keep the demo across restarts; visitors' sessions survive one.
+      MOCKWA_DB_PATH: /data/mockwa.db
+      # The defaults, spelled out so they are easy to tune.
+      MOCKWA_PUBLIC_SESSION_TTL: 30m
+      MOCKWA_PUBLIC_MESSAGES_PER_MINUTE: "20"
+      MOCKWA_PUBLIC_MEDIA_MAX_BYTES: "1048576"
+      MOCKWA_PUBLIC_MEDIA_PER_SESSION: "10"
+      MOCKWA_PUBLIC_SESSIONS_PER_IP: "3"
+    volumes:
+      - public-demo-data:/data
+    depends_on:
+      - echo-app
+
+  # The app under test: answers "menu" with reply buttons and echoes anything else, through
+  # mockwa's Graph API. (Its "template" reply needs a seed with a quick-reply template, such as
+  # e2e/fixtures/m1-seed.json via MOCKWA_SEED_FILE.)
+  echo-app:
+    image: node:24-alpine
+    working_dir: /app
+    volumes:
+      - ../echo-app:/app:ro
+    command: ["node", "server.mjs"]
+    environment:
+      PORT: "3001"
+      APP_SECRET: ${DEMO_APP_SECRET:-demo-app-secret}
+      VERIFY_TOKEN: ${DEMO_VERIFY_TOKEN:-demo-verify-token}
+      ACCESS_TOKEN: ${DEMO_APP_TOKEN:-demo-app-token}
+      GRAPH_API_BASE_URL: http://mockwa:8888/v25.0
+
+volumes:
+  public-demo-data:

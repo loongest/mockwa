@@ -64,6 +64,7 @@ describe("an unconfigured suite stops before touching anything", () => {
 		"e2e/m3-fidelity.mjs": ["M3_GRAPH_URL", "M3_CONSOLE_URL", "M3_ECHO_URL", "M3_CONTAINER"],
 		"e2e/m4-clock-scenarios.mjs": ["M4_GRAPH_URL", "M4_CONSOLE_URL", "M4_ECHO_URL", "M4_CONTAINER"],
 		"e2e/m5-console.mjs": ["M5_GRAPH_URL", "M5_CONSOLE_URL", "M5_ECHO_URL"],
+		"e2e/m6-public.mjs": ["M6_GRAPH_URL", "M6_CONSOLE_URL", "M6_ECHO_URL", "M6_CONTAINER"],
 	};
 
 	for (const [script, variables] of Object.entries(scripts)) {
@@ -101,6 +102,7 @@ describe("an unconfigured suite stops before touching anything", () => {
 		["m4-clock", "M4_CONSOLE_URL"],
 		["m5-console", "M5_CONSOLE_URL"],
 		["m5-console", "M5_GRAPH_URL"],
+		["m6-public", "M6_CONSOLE_URL"],
 	]) {
 		it(`the ${project} Playwright project fails while loading, before any test`, () => {
 			const { status, output } = run([

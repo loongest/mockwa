@@ -29,6 +29,10 @@ export interface Database {
 	clock_state: ClockStateTable;
 	service_window_expiries: ServiceWindowExpiryTable;
 	graph_requests: GraphRequestTable;
+	public_sessions: PublicSessionTable;
+	public_session_identities: PublicSessionIdentityTable;
+	public_session_media: PublicSessionMediaTable;
+	public_wa_ids: PublicWaIdTable;
 }
 
 export const MESSAGE_DIRECTIONS = ["inbound", "outbound"] as const;
@@ -396,4 +400,37 @@ export interface GraphRequestTable {
 	request_headers: string;
 	request_body: string;
 	response_body: string;
+}
+
+/** mockwa M6: one anonymous visitor (SPEC §5, "Public demo mode"), migration 0014. */
+export interface PublicSessionTable {
+	/** SHA-256 of the cookie's secret, hex; the secret itself is never stored. */
+	id: string;
+	/** Sent back in `X-CSRF-Token` on every cookie-authenticated write. */
+	csrf_token: string;
+	/** The address the session was created from, as the listener resolved it (SPEC §7). */
+	client_ip: string;
+	created_at: string;
+	/** Moved by every authenticated request; the TTL counts from here. */
+	last_seen_at: string;
+}
+
+/** Which session owns an identity; one row per identity, so an identity has one owner at most. */
+export interface PublicSessionIdentityTable {
+	wa_id: string;
+	session_id: string;
+	/** The template's order, so a visitor's identities are always listed the same way. */
+	position: number;
+}
+
+/** A media object a visitor uploaded, so only that visitor can send it or read it back. */
+export interface PublicSessionMediaTable {
+	media_id: string;
+	session_id: string;
+}
+
+/** Every `wa_id` ever handed to a visitor; never emptied, so none is handed out twice. */
+export interface PublicWaIdTable {
+	wa_id: string;
+	allocated_at: string;
 }

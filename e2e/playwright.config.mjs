@@ -16,6 +16,8 @@ import { defineConfig } from "@playwright/test";
  * - `m5-console` drives the Clock, Scenarios, Requests and Webhooks views and the window badge on
  *   the virtual-clock instance e2e/m5-console.mjs checks, at M5_CONSOLE_URL with M5_GRAPH_URL (it resets that
  *   instance).
+ * - `m6-public` drives the public Virtual Phone and the admin sign-in of the MOCKWA_MODE=public
+ *   instance e2e/m6-public.mjs checks, at M6_CONSOLE_URL (each test is a new anonymous visitor).
  *
  * Every URL is required and has no default (e2e/targets.mjs): each spec file checks its own
  * before any test runs, so a missing one can never reach a developer's own instance.
@@ -61,6 +63,11 @@ export default defineConfig({
 			name: "m5-console",
 			testMatch: "m5-*.spec.mjs",
 			use: { baseURL: process.env.M5_CONSOLE_URL },
+		},
+		{
+			name: "m6-public",
+			testMatch: "m6-*.spec.mjs",
+			use: { baseURL: process.env.M6_CONSOLE_URL },
 		},
 	],
 });

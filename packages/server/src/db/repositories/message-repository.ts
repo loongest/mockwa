@@ -159,6 +159,26 @@ export class MessageRepository {
 		return row === undefined ? null : toRecord(row);
 	}
 
+	/**
+	 * A contact's messages whose payload names `mediaId` — the candidates, which the caller
+	 * confirms against the parsed payload. `mediaId` must be a plain media ID (digits): it is
+	 * matched as a JSON string inside the stored payload.
+	 */
+	async listMentioningMedia(contactWaId: string, mediaId: string): Promise<MessageRecord[]> {
+		if (!/^\d{1,32}$/.test(mediaId)) {
+			return [];
+		}
+
+		const rows = await this.#db
+			.selectFrom("messages")
+			.selectAll()
+			.where("contact_wa_id", "=", contactWaId)
+			.where("payload", "like", `%"${mediaId}"%`)
+			.execute();
+
+		return rows.map(row => toRecord(row));
+	}
+
 	/** One conversation, newest last (SPEC §5). */
 	async listConversation(query: ListConversationQuery): Promise<MessageRecord[]> {
 		let builder = this.#db

@@ -20,6 +20,11 @@ export interface WsClientOptions {
 	/** Overridden by tests; defaults to `/api/ws` on the page's own origin. */
 	url?: string;
 	onParseError?: (error: unknown) => void;
+	/**
+	 * Decides, from the close code, whether a dropped socket is worth reopening. A visitor's
+	 * stream closes with 4401 when the demo session ends; retrying that only gets refused again.
+	 */
+	shouldReconnect?: (closeCode: number) => boolean;
 }
 
 const INITIAL_DELAY_MS = 500;
@@ -73,7 +78,7 @@ export function connectEvents(options: WsClientOptions): () => void {
 			}
 		});
 
-		socket.addEventListener("close", () => {
+		socket.addEventListener("close", event => {
 			socket = null;
 
 			if (isStopped) {
@@ -81,6 +86,13 @@ export function connectEvents(options: WsClientOptions): () => void {
 			}
 
 			options.onStatus("closed");
+
+			if (options.shouldReconnect?.(event.code) === false) {
+				isStopped = true;
+
+				return;
+			}
+
 			retryTimer = setTimeout(open, backoffDelay(attempt));
 			attempt += 1;
 		});

@@ -10,6 +10,7 @@ import {
 } from "./messaging-config.ts";
 import { clockModeSchema, clockStartSchema, type ClockConfig } from "./clock-config.ts";
 import { appsEnvSchema, retryMaxAgeSchema, retryScheduleSchema } from "./webhook-config.ts";
+import { accessConfigOf, accessEnvShape, checkAccessEnv } from "./access-config.ts";
 
 export const LOG_LEVELS = ["fatal", "error", "warn", "info", "debug", "trace", "silent"] as const;
 /** Where media bytes live (SPEC §6): a directory, or an S3-compatible bucket. */
@@ -270,9 +271,11 @@ export const appConfigSchema = z
 			.transform(value => path.resolve(value))
 			.default(DEFAULT_WEB_DIR),
 		MOCKWA_LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
+		...accessEnvShape,
 	})
 	.superRefine(checkS3Env)
 	.superRefine(checkPorts)
+	.superRefine(checkAccessEnv)
 	.transform(env => ({
 		graphPort: env.MOCKWA_GRAPH_PORT,
 		consolePort: env.MOCKWA_CONSOLE_PORT,
@@ -316,6 +319,8 @@ export const appConfigSchema = z
 		/** Where the static UI is served from; an absent directory just leaves `/` unrouted. */
 		webDir: env.MOCKWA_WEB_DIR,
 		logLevel: env.MOCKWA_LOG_LEVEL,
+		/** `dev` or `public`, the admin token and the visitor limits (SPEC §7, "Access modes"). */
+		access: accessConfigOf(env),
 	}));
 
 export type AppConfig = z.infer<typeof appConfigSchema>;

@@ -13,6 +13,20 @@ export {
 	type StatusDelays,
 } from "./app-config.ts";
 export {
+	ACCESS_MODES,
+	COOKIE_SECURE_MODES,
+	DEFAULT_PUBLIC_LIMITS,
+	DEFAULT_VISITOR_IDENTITIES,
+	DEFAULT_VISITOR_WA_ID_PREFIX,
+	MIN_ADMIN_TOKEN_LENGTH,
+	VISITOR_WA_ID_LENGTH,
+	type AccessConfig,
+	type AccessMode,
+	type CookieSecureMode,
+	type VisitorConfig,
+	type VisitorIdentityTemplate,
+} from "./access-config.ts";
+export {
 	canonicalEnvKey,
 	collectConfigWarnings,
 	describeConfig,

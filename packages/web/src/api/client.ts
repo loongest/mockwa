@@ -38,6 +38,8 @@ export interface RequestOptions<TSchema extends ZodType> {
 	/** JSON body; mutually exclusive with `form`. */
 	body?: unknown;
 	form?: FormData;
+	/** Extra request headers (the virtual phone's CSRF token in public mode). */
+	headers?: Record<string, string>;
 	/** Parsed against the response body. Omit for routes that answer with nothing. */
 	schema: TSchema;
 	signal?: AbortSignal | undefined;
@@ -74,13 +76,16 @@ export async function request<TSchema extends ZodType>(
 	path: string,
 	options: RequestOptions<TSchema>,
 ): Promise<output<TSchema>> {
+	const isJson = options.form === undefined && options.body !== undefined;
+	const headers = { ...options.headers, ...(isJson && { "content-type": "application/json" }) };
 	const init: RequestInit = {
 		method: options.method ?? "GET",
 		signal: options.signal ?? null,
+		...(Object.keys(headers).length > 0 && { headers }),
 		...(options.form === undefined
 			? options.body === undefined
 				? {}
-				: { headers: { "content-type": "application/json" }, body: JSON.stringify(options.body) }
+				: { body: JSON.stringify(options.body) }
 			: { body: options.form }),
 	};
 

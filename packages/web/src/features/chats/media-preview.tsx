@@ -1,5 +1,5 @@
 import type { MediaDescriptor, MessageType } from "@mockwa/shared";
-import { useEffect, useState } from "react";
+import { createContext, use, useEffect, useState } from "react";
 import { describeError } from "../../api/client.ts";
 import { api } from "../../api/endpoints.ts";
 import { formatBytes } from "../../lib/format.ts";
@@ -11,12 +11,24 @@ import { formatBytes } from "../../lib/format.ts";
  */
 const descriptors = new Map<string, MediaDescriptor>();
 
+/** Resolves a media ID to its descriptor; the phone resolves through its own scoped route. */
+export type MediaResolver = (mediaId: string, options: { signal: AbortSignal }) => Promise<MediaDescriptor>;
+
+/**
+ * Where a media ID is looked up. The console asks `GET /api/media/:id`; the virtual phone
+ * provides its own route, which in public mode only answers for media the visitor may see.
+ */
+export const MediaResolverContext = createContext<MediaResolver>(async (mediaId, options) =>
+	api.getMedia(mediaId, options),
+);
+
 interface MediaState {
 	media: MediaDescriptor | null;
 	error: string | null;
 }
 
 export function useMediaDescriptor(id: string | null): MediaState {
+	const resolveMedia = use(MediaResolverContext);
 	const cached = id === null ? null : (descriptors.get(id) ?? null);
 	const [state, setState] = useState<MediaState>({ media: cached, error: null });
 
@@ -37,7 +49,7 @@ export function useMediaDescriptor(id: string | null): MediaState {
 
 		async function resolve(mediaId: string): Promise<void> {
 			try {
-				const media = await api.getMedia(mediaId, { signal: controller.signal });
+				const media = await resolveMedia(mediaId, { signal: controller.signal });
 
 				descriptors.set(mediaId, media);
 				setState({ media, error: null });
@@ -53,7 +65,7 @@ export function useMediaDescriptor(id: string | null): MediaState {
 		return () => {
 			controller.abort();
 		};
-	}, [id]);
+	}, [id, resolveMedia]);
 
 	return state;
 }
