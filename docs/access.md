@@ -39,7 +39,7 @@ listener is the admin's.
 | `/api/phone/identities/:waId/ws`                                | GET (upgrade)       | admin†             | visitor, own `:waId`; Origin required; 8 per session | Own `message.*`, `typing.changed`, `contact.changed` only. Closed with 4401 when the session ends |
 | `/phone`, `/phone/*`, the phone bundle's assets                   | GET                 | admin†             | visitor (no session needed to load the page)      | Assets from the Vite manifest closure of `phone.html`; strict CSP on the page               |
 | `/whaloc-media/:token`                                          | GET                 | admin†             | visitor: own uploads and media in own chats only  | `no-store` for a visitor; served as a file (see "Media served as files")                    |
-| `/whaloc-uploads/:token`                                        | GET                 | admin†             | admin                                             |                                                                                             |
+| `/whaloc-upload/:token`                                        | GET                 | admin†             | admin                                             |                                                                                             |
 | `/`, console routes, the console bundle, `/.vite/*`             | GET                 | admin†             | admin; **404** without                            | The admin bundle is never served to a visitor                                               |
 | `/api/ws`                                                       | GET (upgrade)       | admin†             | admin; **401** without                            | The unrestricted stream                                                                     |
 | `/api/public/stats`                                             | GET                 | admin†             | admin; **401** without                            | Live sessions, sockets, log rows, rate-limit keys, admin sign-ins and failure windows, memory |
@@ -56,7 +56,7 @@ origin to check.
 | ---------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
 | `/v{major}.{minor}/*`        | App under test (bearer token)              | Only `MOCKWA_TOKENS` pass (required at boot). `override_callback_uri` and `webhook_configuration` URLs are refused (400): webhook destinations come from configuration |
 | `/whaloc-media/:token`       | Whoever holds the URL                      | None. The token is the credential; a visitor only ever learns the tokens of media it may see                  |
-| `/whaloc-uploads/:token`     | Whoever holds the URL                      | None                                                                                                          |
+| `/whaloc-upload/:token`     | Whoever holds the URL                      | None                                                                                                          |
 | `/health`                    | open                                       | None                                                                                                          |
 
 The console listener serves no Graph route and the Graph listener serves no console route; each
@@ -77,7 +77,7 @@ both modes.
 
 ## Media served as files
 
-`/whaloc-media/:token` and `/whaloc-uploads/:token` serve stored bytes with the type they were
+`/whaloc-media/:token` and `/whaloc-upload/:token` serve stored bytes with the type they were
 stored with. Images (JPEG, PNG, WebP, GIF, AVIF, BMP), audio, video and PDF are inert and carry
 only `nosniff`. Anything else — HTML, SVG, XML, scripts, text, unknown types — also carries
 `Content-Disposition: attachment` and `Content-Security-Policy: default-src 'none'; sandbox`,

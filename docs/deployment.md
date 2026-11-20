@@ -7,7 +7,7 @@ built image; mockwa itself has not been run on a public host.
 
 ## Build the image
 
-Releases are published only from `v*` tags (see README → Quickstart). Until the release you
+Releases are published only from `v*` tags (see [Development → How a release is published](development.md#how-a-release-is-published)). Until the release you
 want exists, build the image from a checkout:
 
 ```sh
