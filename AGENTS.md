@@ -2,7 +2,7 @@
 
 mockwa is a fork of whaloc and emulates the Meta WhatsApp Cloud API. The code still says
 "whaloc" in many places; that is the inherited engine, not a mistake to fix in passing. Product knowledge lives in
-[README.md](README.md); the behavioral contract is [docs/SPEC.md](docs/SPEC.md) — **SPEC wins**
+[README.md](README.md) and the guides in `docs/` (setup and release flow: [docs/development.md](docs/development.md)); the behavioral contract is [docs/SPEC.md](docs/SPEC.md) — **SPEC wins**
 whenever code, docs or a request disagree with it. This file is what you need to work on the
 code without re-deriving the project's rules.
 
@@ -19,7 +19,7 @@ npm run build         # shared → server → web, in that order (see "Build ord
 ```
 
 Scope any script with `--workspace @mockwa/server|shared|web`. The S3 storage specs are opt-in:
-they skip without `WHALOC_TEST_S3_ENDPOINT` (see README → Development for the one-line RustFS).
+they skip without `WHALOC_TEST_S3_ENDPOINT` (see [docs/development.md](docs/development.md#test-s3-storage) for the one-line RustFS).
 npm only — no pnpm/yarn; corepack is not needed.
 
 ## Non-negotiable invariants
