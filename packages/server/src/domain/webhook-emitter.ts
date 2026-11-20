@@ -1,4 +1,5 @@
 import type { HandshakeResult } from "@mockwa/shared";
+import type { DepartedNumbers } from "./departed-numbers.ts";
 import { DEFAULT_RETRY_MAX_AGE_MS, DEFAULT_RETRY_SCHEDULE_MS } from "../config/index.ts";
 import type { JsonObject, Repositories, WebhookDeliveryHeaders, WebhookDeliveryRecord } from "../db/index.ts";
 import type { Logger } from "../logging/index.ts";
@@ -55,6 +56,11 @@ export interface WebhookEmitterOptions {
 	/** A chain stops retrying once its first attempt is this old. */
 	retryMaxAgeMs?: number;
 	requestTimeoutMs?: number;
+	/**
+	 * Public mode: refuses to log a delivery naming a visitor who left while it was in flight,
+	 * so a late response can neither write the visitor's text back nor queue a retry for it.
+	 */
+	departed?: DepartedNumbers;
 }
 
 /** Response bodies are logged for debugging, not archived — 64 KiB is plenty. */
@@ -163,6 +169,7 @@ export class WebhookEmitter {
 	readonly #retryScheduleMs: readonly number[];
 	readonly #retryMaxAgeMs: number;
 	readonly #requestTimeoutMs: number;
+	readonly #departed: DepartedNumbers | undefined;
 	#lastHandshake: HandshakeResult | null = null;
 	#timer: ScheduledTask | null = null;
 	#timerDueAt: number | null = null;
@@ -192,6 +199,7 @@ export class WebhookEmitter {
 		this.#retryScheduleMs = options.retryScheduleMs ?? DEFAULT_RETRY_SCHEDULE_MS;
 		this.#retryMaxAgeMs = options.retryMaxAgeMs ?? DEFAULT_RETRY_MAX_AGE_MS;
 		this.#requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+		this.#departed = options.departed;
 	}
 
 	#headers(app: WebhookApp, body: string): WebhookDeliveryHeaders {
@@ -217,7 +225,7 @@ export class WebhookEmitter {
 		error?: string | null;
 		durationMs?: number | null;
 	}): Promise<WebhookDeliveryRecord> {
-		const record = await this.#repositories.webhookDeliveries.insert({
+		const row = {
 			id: createWebhookDeliveryId(this.#random, this.#scheduler.now().getTime(), this.#nextSequence),
 			eventType: input.eventType,
 			url: input.url,
@@ -232,11 +240,29 @@ export class WebhookEmitter {
 			appKey: input.appKey,
 			...(input.chainId !== undefined && { chainId: input.chainId }),
 			nextAttemptAt: input.nextAttemptAt ?? null,
-		});
+		};
+
+		if (await this.#isForDeparted(input.body)) {
+			return { ...row, chainId: input.chainId ?? row.id, nextAttemptAt: null };
+		}
+
+		const record = await this.#repositories.webhookDeliveries.insert(row);
+
+		// Checked again after the insert: a cleanup that ran between the two checks has already
+		// deleted what it found, so this row would outlive it otherwise.
+		if (await this.#isForDeparted(input.body)) {
+			await this.#repositories.webhookDeliveries.deleteById(record.id);
+
+			return { ...record, nextAttemptAt: null };
+		}
 
 		this.#announce(record);
 
 		return record;
+	}
+
+	async #isForDeparted(body: string): Promise<boolean> {
+		return this.#departed === undefined ? false : this.#departed.isMentionedIn(body);
 	}
 
 	#announce(record: WebhookDeliveryRecord): void {

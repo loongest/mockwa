@@ -3,6 +3,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import type { AppEnv } from "../app-env.ts";
 import type { AccessConfig } from "../config/index.ts";
+import { RateLimiter } from "../domain/rate-limiter.ts";
 
 /**
  * Who may use the console listener (SPEC §5, §7 "Access modes"), as HTTP: client addresses,
@@ -24,6 +25,19 @@ const VISITOR_COOKIE_MAX_AGE_SECONDS = 24 * 3600;
 
 /** How long an admin stays signed in through the login form. */
 export const ADMIN_SESSION_TTL_MS = 12 * 3600 * 1000;
+
+/** Wrong admin tokens one address may present per window before every attempt is refused. */
+export const ADMIN_FAILURES_PER_WINDOW = 10;
+
+/** The window {@link ADMIN_FAILURES_PER_WINDOW} counts over. */
+export const ADMIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
+
+/**
+ * How often expired admin state (cookie sessions, failure windows) is swept, at most. The sweep
+ * rides on ordinary authentication checks, so it needs no timer, and it walks the maps at most
+ * this often however busy the console is.
+ */
+export const ADMIN_PRUNE_INTERVAL_MS = 60 * 1000;
 
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -161,14 +175,50 @@ function sha256(value: string): string {
  * random ID kept in memory (hashed), so a restart signs every browser out and the token itself
  * never sits in a cookie.
  */
+/** What the admin side holds in memory: live cookie sessions, and addresses with recent failures. */
+export interface AdminStateSize {
+	sessions: number;
+	failureAddresses: number;
+}
+
 export class AdminSessions {
 	readonly #token: string | undefined;
 	readonly #now: () => Date;
 	readonly #sessions = new Map<string, number>();
+	readonly #failures: RateLimiter;
+	#prunedAt = -Infinity;
 
 	constructor(options: { token: string | undefined; now: () => Date }) {
 		this.#token = options.token;
 		this.#now = options.now;
+		this.#failures = new RateLimiter({
+			limit: ADMIN_FAILURES_PER_WINDOW,
+			windowMs: ADMIN_FAILURE_WINDOW_MS,
+			now: options.now,
+		});
+	}
+
+	/**
+	 * Expired cookie sessions and failure windows are otherwise only dropped when their browser
+	 * or address comes back, and most never do. Every authentication check calls this; the walk
+	 * itself runs at most once per {@link ADMIN_PRUNE_INTERVAL_MS}.
+	 */
+	#prune(): void {
+		const now = this.#now().getTime();
+
+		if (now - this.#prunedAt < ADMIN_PRUNE_INTERVAL_MS) {
+			return;
+		}
+
+		this.#prunedAt = now;
+
+		for (const [key, expiresAt] of this.#sessions) {
+			if (expiresAt <= now) {
+				this.#sessions.delete(key);
+			}
+		}
+
+		this.#failures.prune();
 	}
 
 	#isSession(id: string | undefined): boolean {
@@ -201,11 +251,34 @@ export class AdminSessions {
 		return this.#token !== undefined && isSafeEqual(candidate, this.#token);
 	}
 
+	/**
+	 * Seconds until `clientIp` may try a token again, after too many wrong ones; `0` when it may
+	 * now. While it is locked out even the right token is refused, or the answer would tell a
+	 * guesser which of its guesses was the right one.
+	 */
+	lockedOutFor(clientIp: string): number {
+		this.#prune();
+
+		return this.#failures.check(clientIp).retryAfterSeconds;
+	}
+
+	recordFailure(clientIp: string): void {
+		this.#prune();
+		this.#failures.take(clientIp);
+	}
+
+	/** What is held in memory right now: live cookie sessions, and addresses with recent failures. */
+	get stateSize(): AdminStateSize {
+		return { sessions: this.#sessions.size, failureAddresses: this.#failures.size };
+	}
+
 	/** A new browser session for a correct token; `null` for a wrong one. */
 	signIn(candidate: string): string | null {
 		if (!this.checkToken(candidate)) {
 			return null;
 		}
+
+		this.#prune();
 
 		const id = randomBytes(32).toString("base64url");
 
@@ -222,6 +295,8 @@ export class AdminSessions {
 
 	/** `bearer` for a request that carried the token, `cookie` for a signed-in browser, else `null`. */
 	authenticate(c: Context<AppEnv>): "bearer" | "cookie" | null {
+		this.#prune();
+
 		const header = c.req.header("authorization");
 		const match = header === undefined ? null : /^Bearer\s+(.+)$/i.exec(header);
 
@@ -310,7 +385,27 @@ export interface AccessGateOptions {
 export function createAccessGate(options: AccessGateOptions): MiddlewareHandler<AppEnv> {
 	return async (c, next) => {
 		const audience = audienceOf(c.req.path, options.access.mode, options.isPhoneAsset);
+		const isPresentingToken = c.req.header("authorization") !== undefined;
+		const clientIp = clientIpOf(c, options.access);
+
+		if (isPresentingToken) {
+			const retryAfter = options.admins.lockedOutFor(clientIp);
+
+			if (retryAfter > 0) {
+				c.header("Retry-After", String(retryAfter));
+
+				return c.json(
+					{ error: { message: "too many wrong admin tokens; wait and try again", code: "admin_auth_rate_limited" } },
+					429,
+				);
+			}
+		}
+
 		const admin = options.admins.authenticate(c);
+
+		if (isPresentingToken && admin !== "bearer") {
+			options.admins.recordFailure(clientIp);
+		}
 
 		c.set("adminAuth", admin);
 

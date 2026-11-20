@@ -26,6 +26,7 @@ import { createTypingRoutes } from "./typing-routes.ts";
 import { createWabaRoutes } from "./waba-routes.ts";
 import { createWebhookRoutes } from "./webhook-routes.ts";
 import { createWsRoutes } from "./ws-routes.ts";
+import type { AdminStateSize } from "./access.ts";
 import { createVisitorPhoneRoutes, createVisitorSessionRoutes } from "./visitor-routes.ts";
 
 export interface ControlRoutesOptions {
@@ -33,6 +34,8 @@ export interface ControlRoutesOptions {
 	logger: Logger;
 	/** `dev` (the default) or `public` (SPEC §7, "Access modes"); decides which phone API is mounted. */
 	access?: AccessConfig;
+	/** The admin side's in-memory state, reported by `GET /api/public/stats`. */
+	adminState?: () => AdminStateSize;
 }
 
 /**
@@ -98,6 +101,7 @@ export function createControlRoutes(options: ControlRoutesOptions): Hono<Control
 			clock: services.clock,
 			events: services.events,
 			logger: options.logger,
+			...(options.adminState !== undefined && { adminState: options.adminState }),
 		};
 
 		routes.route("/", createVisitorSessionRoutes(visitorOptions));

@@ -1081,7 +1081,15 @@ with `MOCKWA_COOKIE_SECURE=auto` they are marked `Secure` only when the request 
 so a local `http://127.0.0.1` demo works. Behind an HTTPS reverse proxy, list the proxy's address
 in `MOCKWA_TRUSTED_PROXIES` (so its `X-Forwarded-For` and `X-Forwarded-Proto` are believed, and
 per-visitor limits see real client addresses) and, unless it forwards `X-Forwarded-Host`, put the
-public origin in `MOCKWA_ALLOWED_ORIGINS`. Public hosting itself is beyond this release.
+public origin in `MOCKWA_ALLOWED_ORIGINS`. [docs/deployment.md](docs/deployment.md) covers the
+proxy's responsibilities, a Compose + Caddy example, admin access, limits, cleanup, graceful
+shutdown and the known limitations.
+
+**Hardening.** Public pages carry a strict Content-Security-Policy and the usual security
+headers; stored files that are not images, audio, video or PDF download instead of rendering;
+oversized bodies are refused unread; repeated wrong admin tokens lock an address out for 15
+minutes; and a visitor's webhook and request-log rows leave with it. Details:
+[SPEC §5](docs/SPEC.md#public-demo-mode-m6) and [docs/access.md](docs/access.md).
 
 ## Development
 

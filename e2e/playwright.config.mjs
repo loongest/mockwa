@@ -18,6 +18,8 @@ import { defineConfig } from "@playwright/test";
  *   instance).
  * - `m6-public` drives the public Virtual Phone and the admin sign-in of the MOCKWA_MODE=public
  *   instance e2e/m6-public.mjs checks, at M6_CONSOLE_URL (each test is a new anonymous visitor).
+ * - `m7-hardening` runs the public phone and the admin console under their Content-Security-Policy
+ *   with hostile message text, on the instance e2e/m7-hardening.mjs checks, at M7_CONSOLE_URL.
  *
  * Every URL is required and has no default (e2e/targets.mjs): each spec file checks its own
  * before any test runs, so a missing one can never reach a developer's own instance.
@@ -68,6 +70,11 @@ export default defineConfig({
 			name: "m6-public",
 			testMatch: "m6-*.spec.mjs",
 			use: { baseURL: process.env.M6_CONSOLE_URL },
+		},
+		{
+			name: "m7-hardening",
+			testMatch: "m7-*.spec.mjs",
+			use: { baseURL: process.env.M7_CONSOLE_URL },
 		},
 	],
 });

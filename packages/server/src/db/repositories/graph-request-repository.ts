@@ -87,6 +87,49 @@ export class GraphRequestRepository {
 		}
 	}
 
+	async deleteById(id: number): Promise<void> {
+		await this.#db.deleteFrom("graph_requests").where("id", "=", id).execute();
+	}
+
+	async count(): Promise<number> {
+		const row = await this.#db
+			.selectFrom("graph_requests")
+			.select(eb => eb.fn.countAll().as("count"))
+			.executeTakeFirstOrThrow();
+
+		return Number(row.count);
+	}
+
+	/**
+	 * Removes the requests that mention any of `needles` in their path, query or bodies (public
+	 * mode: a visitor's numbers, when the visitor leaves). Plain substrings: no `%` or `_`.
+	 */
+	async deleteMentioning(needles: readonly string[]): Promise<number> {
+		if (needles.length === 0) {
+			return 0;
+		}
+
+		const result = await this.#db
+			.deleteFrom("graph_requests")
+			.where(eb => {
+				return eb.or(
+					needles.flatMap(needle => {
+						const pattern = `%${needle}%`;
+
+						return [
+							eb("path", "like", pattern),
+							eb("query", "like", pattern),
+							eb("request_body", "like", pattern),
+							eb("response_body", "like", pattern),
+						];
+					}),
+				);
+			})
+			.executeTakeFirst();
+
+		return Number(result.numDeletedRows);
+	}
+
 	/** Newest first; `before` pages backwards by id. */
 	async list(query: { limit: number; before?: number | undefined; phoneNumberId?: string | undefined }) {
 		let select = this.#db.selectFrom("graph_requests").selectAll().orderBy("id", "desc").limit(query.limit);

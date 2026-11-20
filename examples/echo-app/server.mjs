@@ -23,7 +23,9 @@
 // Environment: PORT (3001), APP_SECRET, VERIFY_TOKEN, GRAPH_API_BASE_URL (with its version
 // segment, e.g. http://127.0.0.1:8888/v25.0), ACCESS_TOKEN (any non-empty token by default),
 // TEMPLATE_NAME / TEMPLATE_LANGUAGE (an approved template whose body takes one parameter, the
-// customer's name; appointment_confirmation / en by default).
+// customer's name; appointment_confirmation / en by default), MAX_DELIVERIES (10000: the
+// newest deliveries kept for GET /deliveries, so a long load test does not grow it forever),
+// QUIET=1 (no log line per valid delivery).
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
@@ -35,6 +37,8 @@ const graphApiBaseUrl = (process.env.GRAPH_API_BASE_URL ?? "").replace(/\/+$/, "
 const accessToken = process.env.ACCESS_TOKEN ?? "echo-app-token";
 const templateName = process.env.TEMPLATE_NAME ?? "appointment_confirmation";
 const templateLanguage = process.env.TEMPLATE_LANGUAGE ?? "en";
+const maxDeliveries = Number(process.env.MAX_DELIVERIES ?? "10000");
+const isQuiet = process.env.QUIET === "1";
 
 /** @type {Array<{receivedAt: string, url: string, signature: string | null, signatureValid: boolean, answeredStatus: number, rawBody: string, body: unknown, reply: unknown}>} */
 const deliveries = [];
@@ -218,6 +222,10 @@ async function handleDelivery(req, res, rawBody) {
 
 	deliveries.push(record);
 
+	if (deliveries.length > maxDeliveries) {
+		deliveries.splice(0, deliveries.length - maxDeliveries);
+	}
+
 	// A real app must not act on a payload it cannot authenticate.
 	if (!signatureValid) {
 		console.log(`[webhook] REJECTED signature=${String(signature)}`);
@@ -251,7 +259,9 @@ async function handleDelivery(req, res, rawBody) {
 		}
 	}
 
-	console.log(`[webhook] valid ${record.rawBody}`);
+	if (!isQuiet) {
+		console.log(`[webhook] valid ${record.rawBody}`);
+	}
 }
 
 async function handleDeliverySafely(req, res, rawBody) {

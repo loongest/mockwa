@@ -1,12 +1,19 @@
 import { Hono, type Context } from "hono";
 import type { AppEnv } from "../app-env.ts";
 import type { AccessConfig } from "../config/index.ts";
-import { isAllowedOrigin, type AdminSessions } from "./access.ts";
+import { bodyLimit } from "hono/body-limit";
+import { clientIpOf, isAllowedOrigin, type AdminSessions } from "./access.ts";
 
 export interface AdminRoutesOptions {
 	access: AccessConfig;
 	admins: AdminSessions;
 }
+
+/** What the page says for each `?error=` it redirects back with; anything else is generic. */
+const SIGN_IN_ERRORS: Readonly<Record<string, string>> = {
+	invalid: "Wrong admin token.",
+	locked: "Too many wrong tokens. Wait a few minutes and try again.",
+};
 
 /**
  * The sign-in page is plain HTML with no script and no style beyond its own `<style>`: it must
@@ -17,7 +24,7 @@ function signInPage(error: string | null): string {
 	const message =
 		error === null
 			? ""
-			: `<p class="error" role="alert">${error === "invalid" ? "Wrong admin token." : "Sign-in refused."}</p>`;
+			: `<p class="error" role="alert">${(Object.hasOwn(SIGN_IN_ERRORS, error) ? SIGN_IN_ERRORS[error] : undefined) ?? "Sign-in refused."}</p>`;
 
 	return `<!doctype html>
 <html lang="en">
@@ -44,6 +51,9 @@ ${message}
 </body>
 </html>`;
 }
+
+/** A token and a form field name; anything bigger is not a sign-in. */
+const LOGIN_BODY_MAX_BYTES = 4096;
 
 /** The headers every admin page carries: nothing loads from anywhere, nothing frames it. */
 const SIGN_IN_HEADERS = {
@@ -96,29 +106,54 @@ export function createAdminRoutes(options: AdminRoutesOptions): Hono<AppEnv> {
 		return c.html(signInPage(error), 200, SIGN_IN_HEADERS);
 	});
 
-	routes.post("/api/admin/login", async c => {
-		const isForm = !(c.req.header("content-type") ?? "").includes("application/json");
+	routes.post(
+		"/api/admin/login",
+		bodyLimit({
+			maxSize: LOGIN_BODY_MAX_BYTES,
+			onError: c => c.json({ error: { message: "the sign-in body is too large", code: "request_too_large" } }, 413),
+		}),
+		async c => {
+			const isForm = !(c.req.header("content-type") ?? "").includes("application/json");
 
-		// Signing a browser in is a write like any other: only from this listener's own page.
-		if (!isAllowedOrigin(c, options.access)) {
-			return isForm
-				? c.redirect("/admin?error=origin", 303)
-				: c.json({ error: { message: "cross-origin request refused", code: "origin_refused" } }, 403);
-		}
+			// Signing a browser in is a write like any other: only from this listener's own page.
+			if (!isAllowedOrigin(c, options.access)) {
+				return isForm
+					? c.redirect("/admin?error=origin", 303)
+					: c.json({ error: { message: "cross-origin request refused", code: "origin_refused" } }, 403);
+			}
 
-		const token = await readToken(c);
-		const id = token === null ? null : options.admins.signIn(token);
+			const clientIp = clientIpOf(c, options.access);
+			const retryAfter = options.admins.lockedOutFor(clientIp);
 
-		if (id === null) {
-			return isForm
-				? c.redirect("/admin?error=invalid", 303)
-				: c.json({ error: { message: "wrong admin token", code: "admin_required" } }, 401);
-		}
+			if (retryAfter > 0) {
+				c.header("Retry-After", String(retryAfter));
 
-		options.admins.setCookie(c, options.access, id);
+				return isForm
+					? c.redirect("/admin?error=locked", 303)
+					: c.json(
+							{
+								error: { message: "too many wrong admin tokens; wait and try again", code: "admin_auth_rate_limited" },
+							},
+							429,
+						);
+			}
 
-		return isForm ? c.redirect("/", 303) : c.body(null, 204);
-	});
+			const token = await readToken(c);
+			const id = token === null ? null : options.admins.signIn(token);
+
+			if (id === null) {
+				options.admins.recordFailure(clientIp);
+
+				return isForm
+					? c.redirect("/admin?error=invalid", 303)
+					: c.json({ error: { message: "wrong admin token", code: "admin_required" } }, 401);
+			}
+
+			options.admins.setCookie(c, options.access, id);
+
+			return isForm ? c.redirect("/", 303) : c.body(null, 204);
+		},
+	);
 
 	routes.post("/api/admin/logout", c => {
 		if (!isAllowedOrigin(c, options.access)) {

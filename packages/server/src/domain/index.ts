@@ -390,3 +390,4 @@ export {
 	type VisitorAuthResult,
 	type VisitorSessionServiceOptions,
 } from "./visitor-sessions.ts";
+export { createDepartedNumbers, type DepartedNumbers } from "./departed-numbers.ts";

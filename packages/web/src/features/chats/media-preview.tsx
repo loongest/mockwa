@@ -3,6 +3,7 @@ import { createContext, use, useEffect, useState } from "react";
 import { describeError } from "../../api/client.ts";
 import { api } from "../../api/endpoints.ts";
 import { formatBytes } from "../../lib/format.ts";
+import { isWebUrl } from "../../lib/safe-url.ts";
 
 /**
  * A media message stores only what the webhook carries — `{id, mime_type, sha256}` — so the
@@ -171,6 +172,10 @@ export function LinkedMedia(props: { type: MessageType; link: string; filename: 
 
 	if (type === "audio") {
 		return <audio className="media__audio" src={link} controls preload="metadata" />;
+	}
+
+	if (!isWebUrl(link)) {
+		return <span className="media__document">{filename ?? link}</span>;
 	}
 
 	return (

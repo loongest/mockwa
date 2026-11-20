@@ -222,6 +222,34 @@ describe("media (SPEC §1.7, §1.8, §2.6, §2.12)", () => {
 			expect(response.headers.get("location")).toBeNull();
 		});
 
+		it("serves an inert type inline, never sniffed", async () => {
+			const node = await uploadAndResolve();
+			const response = await download(node.url);
+
+			expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+			expect(response.headers.get("content-disposition")).toBeNull();
+			expect(response.headers.get("content-security-policy")).toBeNull();
+		});
+
+		// The app under test may upload anything, and these URLs are served on the console's origin
+		// too: a page or an SVG opened from there must not run as the console (SPEC §7).
+		it.each([
+			"text/html",
+			"image/svg+xml",
+			"application/javascript",
+			"application/octet-stream",
+			"text/html; charset=utf-8",
+		])("serves %s as a sandboxed download", async type => {
+			const node = await uploadAndResolve(consumerForm(type));
+			const response = await download(node.url);
+
+			expect(response.status).toBe(200);
+			expect(response.headers.get("content-type")).toBe(type);
+			expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+			expect(response.headers.get("content-disposition")).toBe("attachment");
+			expect(response.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
+		});
+
 		it("needs no Authorization header: the token is the credential", async () => {
 			const node = await uploadAndResolve();
 			const response = await download(node.url);

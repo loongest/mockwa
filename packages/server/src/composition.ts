@@ -41,6 +41,7 @@ import {
 	UploadService,
 	WabaService,
 	WebhookEmitter,
+	createDepartedNumbers,
 	ClockService,
 	ScenarioRunner,
 	createRandomIdStream,
@@ -197,6 +198,11 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 		events,
 		...(scheduler !== undefined && { scheduler }),
 	});
+	// Public mode only: logs that would name a visitor who already left are not written.
+	const departed =
+		config.access.mode === "public"
+			? createDepartedNumbers({ repositories, waIdPrefix: config.access.visitors.waIdPrefix })
+			: undefined;
 	const webhooks = new WebhookEmitter({
 		random,
 		repositories,
@@ -206,6 +212,7 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 		retryScheduleMs: config.webhookRetryScheduleMs,
 		retryMaxAgeMs: config.webhookRetryMaxAgeMs,
 		nextSequence,
+		...(departed !== undefined && { departed }),
 		...(scheduler !== undefined && { scheduler }),
 	});
 	const statusLadder = new StatusLadder({
@@ -409,6 +416,7 @@ export function createDomainServices(options: CreateDomainServicesOptions): Doma
 			},
 			events,
 			logger,
+			...(departed !== undefined && { departed }),
 			...(scheduler !== undefined && { scheduler }),
 		}),
 		visitors: new VisitorSessionService({

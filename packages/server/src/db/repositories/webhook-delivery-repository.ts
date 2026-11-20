@@ -214,6 +214,76 @@ export class WebhookDeliveryRepository {
 		return Number(result.numUpdatedRows);
 	}
 
+	/** Every row, and how many of them wait for a retry. */
+	async count(): Promise<{ total: number; pending: number }> {
+		const total = await this.#db
+			.selectFrom("webhook_deliveries")
+			.select(eb => eb.fn.countAll().as("count"))
+			.executeTakeFirstOrThrow();
+		const pending = await this.#db
+			.selectFrom("webhook_deliveries")
+			.select(eb => eb.fn.countAll().as("count"))
+			.where("next_attempt_at", "is not", null)
+			.executeTakeFirstOrThrow();
+
+		return { total: Number(total.count), pending: Number(pending.count) };
+	}
+
+	async deleteById(id: string): Promise<void> {
+		await this.#db.deleteFrom("webhook_deliveries").where("id", "=", id).execute();
+	}
+
+	/**
+	 * Removes every delivery whose body mentions any of `needles` (public mode: a visitor's
+	 * numbers, when the visitor leaves) — a pending retry too, which cancels it: the conversation
+	 * it reports is gone. Needles are matched as plain substrings, so they must not hold `%` or `_`.
+	 */
+	async deleteMentioning(needles: readonly string[]): Promise<number> {
+		if (needles.length === 0) {
+			return 0;
+		}
+
+		const result = await this.#db
+			.deleteFrom("webhook_deliveries")
+			.where(eb => eb.or(needles.map(needle => eb("request_body", "like", `%${needle}%`))))
+			.executeTakeFirst();
+
+		return Number(result.numDeletedRows);
+	}
+
+	/**
+	 * Keeps the newest `keep` finished deliveries and drops the rest (public mode's retention cap).
+	 * Pending retries are never dropped, and do not count against `keep`.
+	 */
+	async pruneFinished(keep: number): Promise<number> {
+		const cutoff = await this.#db
+			.selectFrom("webhook_deliveries")
+			.select(["created_at", "id"])
+			.where("next_attempt_at", "is", null)
+			.orderBy("created_at", "desc")
+			.orderBy("id", "desc")
+			.offset(keep)
+			.limit(1)
+			.executeTakeFirst();
+
+		if (cutoff === undefined) {
+			return 0;
+		}
+
+		const result = await this.#db
+			.deleteFrom("webhook_deliveries")
+			.where("next_attempt_at", "is", null)
+			.where(eb => {
+				return eb.or([
+					eb("created_at", "<", cutoff.created_at),
+					eb.and([eb("created_at", "=", cutoff.created_at), eb("id", "<=", cutoff.id)]),
+				]);
+			})
+			.executeTakeFirst();
+
+		return Number(result.numDeletedRows);
+	}
+
 	/** Wipes the table; `POST /api/reset` calls it through {@link deleteAllRows}. */
 	async deleteAll(): Promise<number> {
 		const result = await this.#db.deleteFrom("webhook_deliveries").executeTakeFirst();

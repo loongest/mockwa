@@ -4,6 +4,7 @@ import type { DomainServices } from "./composition.ts";
 import type { AppConfig } from "./config/index.ts";
 import { createControlRoutes, createHealthRoutes } from "./control-api/index.ts";
 import { AdminSessions, createAccessGate } from "./control-api/access.ts";
+import { createSecurityHeaders } from "./security-headers.ts";
 import { createAdminRoutes } from "./control-api/admin-routes.ts";
 import { createVisitorMediaGuard } from "./control-api/visitor-routes.ts";
 import { MEDIA_DOWNLOAD_PATH } from "./domain/index.ts";
@@ -106,8 +107,14 @@ export function createConsoleApp(options: CreateAppOptions): Hono<AppEnv> {
 	const { access } = options.config;
 	const isPublic = access.mode === "public";
 
+	if (isPublic) {
+		app.use(createSecurityHeaders());
+	}
+
+	let admins: AdminSessions | undefined;
+
 	if (isPublic || access.adminToken !== undefined) {
-		const admins = new AdminSessions({ token: access.adminToken, now: () => new Date() });
+		admins = new AdminSessions({ token: access.adminToken, now: () => options.services.visitors.now() });
 		const phoneAssets = isPublic ? phoneAssetsOf(options.config.webDir) : new Set<string>();
 
 		app.use(createAccessGate({ access, admins, isPhoneAsset: assetPath => phoneAssets.has(assetPath) }));
@@ -121,7 +128,17 @@ export function createConsoleApp(options: CreateAppOptions): Hono<AppEnv> {
 		);
 	}
 
-	app.route("/api", createControlRoutes({ services: options.services, logger: options.logger, access }));
+	const adminState = admins === undefined ? undefined : () => admins.stateSize;
+
+	app.route(
+		"/api",
+		createControlRoutes({
+			services: options.services,
+			logger: options.logger,
+			access,
+			...(adminState !== undefined && { adminState }),
+		}),
+	);
 	mountMediaDownloads(app, options.services);
 
 	// Last, so every surface above keeps its paths: the UI's SPA fallback only answers what
