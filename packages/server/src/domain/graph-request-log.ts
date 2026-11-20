@@ -7,6 +7,7 @@ import {
 	type LoggedBody,
 	type LoggedFormField,
 } from "@mockwa/shared";
+import type { DepartedNumbers } from "./departed-numbers.ts";
 import { z } from "zod";
 import type { GraphRequestRecord, Repositories } from "../db/index.ts";
 import type { Logger } from "../logging/index.ts";
@@ -65,6 +66,8 @@ export interface GraphRequestLogOptions {
 	scheduler?: Scheduler;
 	logger: Logger;
 	limit?: number;
+	/** Public mode: a request naming a visitor who already left is not logged (SPEC §5). */
+	departed?: DepartedNumbers;
 }
 
 function isSecretName(name: string): boolean {
@@ -283,6 +286,7 @@ export class GraphRequestLog {
 	readonly #events: EventPublisher | undefined;
 	readonly #scheduler: Scheduler;
 	readonly #logger: Logger;
+	readonly #departed: DepartedNumbers | undefined;
 	readonly limit: number;
 
 	constructor(options: GraphRequestLogOptions) {
@@ -292,6 +296,11 @@ export class GraphRequestLog {
 		this.#scheduler = options.scheduler ?? createSystemScheduler();
 		this.#logger = options.logger;
 		this.limit = options.limit ?? GRAPH_REQUEST_LOG_LIMIT;
+		this.#departed = options.departed;
+	}
+
+	async #isForDeparted(texts: readonly string[]): Promise<boolean> {
+		return this.#departed === undefined ? false : this.#departed.isMentionedIn(texts.join("\n"));
 	}
 
 	async #phoneNumberIdOf(path: string): Promise<string | null> {
@@ -308,7 +317,7 @@ export class GraphRequestLog {
 		const requestBody = toLoggedBody(input.requestBody);
 		const responseBody = toLoggedBody(input.responseBody, "response");
 		const token = input.accessToken;
-		const record = await this.#repositories.graphRequests.insert({
+		const row = {
 			receivedAt: input.receivedAt.toISOString(),
 			durationMs: Math.max(0, Math.round(input.durationMs)),
 			method: input.method,
@@ -322,7 +331,21 @@ export class GraphRequestLog {
 			requestHeaders: JSON.stringify(maskHeaders(input.headers)),
 			requestBody: JSON.stringify(requestBody),
 			responseBody: JSON.stringify(responseBody),
-		});
+		};
+		const texts = [row.path, row.query, row.requestBody, row.responseBody];
+
+		if (await this.#isForDeparted(texts)) {
+			return;
+		}
+
+		const record = await this.#repositories.graphRequests.insert(row);
+
+		// Again after the insert: a cleanup between the two checks has already run its delete.
+		if (await this.#isForDeparted(texts)) {
+			await this.#repositories.graphRequests.deleteById(record.id);
+
+			return;
+		}
 
 		await this.#repositories.graphRequests.prune(this.limit);
 		this.#events?.publish({ type: "graph_request.logged", payload: { request: toGraphRequestSummary(record) } });

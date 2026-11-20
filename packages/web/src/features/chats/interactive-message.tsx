@@ -4,6 +4,7 @@ import { Dialog } from "../../components/dialog.tsx";
 import { asArray, asRecord, asString, readString } from "../../lib/json.ts";
 import { buildMenuChoiceRequest, type MenuChoice } from "./composer-payload.ts";
 import { useQuotedReply } from "./use-quoted-reply.ts";
+import { isWebUrl } from "../../lib/safe-url.ts";
 
 /**
  * An `interactive` message (SPEC §5). Inbound, it is the reply the user picked; outbound, it is
@@ -148,12 +149,6 @@ function ListMenu(props: { menu: Message; label: string; sections: unknown[] }) 
 }
 
 /** Only an absolute http(s) URL becomes a live link; any other scheme could act on the tester's machine. */
-function isWebUrl(url: string): boolean {
-	const protocol = URL.parse(url)?.protocol;
-
-	return protocol === "http:" || protocol === "https:";
-}
-
 /** A `cta_url` produces no inbound message on WhatsApp either: its button only opens the link. */
 function CtaUrl(props: { label: string; url: string }) {
 	const content = (

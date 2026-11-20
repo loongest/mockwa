@@ -294,7 +294,10 @@ describe("public mode", () => {
 			const bytes = await ana.request(descriptor.url);
 
 			expect(bytes.status).toBe(200);
-			expect(bytes.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
+			// An image renders inline, never sniffed, and never cached for the next person.
+			expect(bytes.headers.get("x-content-type-options")).toBe("nosniff");
+			expect(bytes.headers.get("cache-control")).toBe("private, no-store");
+			expect(bytes.headers.get("content-disposition")).toBeNull();
 			expect(new Uint8Array(await bytes.arrayBuffer())).toEqual(PNG_BYTES);
 		});
 

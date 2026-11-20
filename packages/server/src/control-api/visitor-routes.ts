@@ -44,6 +44,7 @@ import {
 	isSafeEqual,
 	setVisitorCookie,
 	visitorTokenOf,
+	type AdminStateSize,
 } from "./access.ts";
 import { parseOrThrow, readJsonBody, type ControlEnv } from "./control-env.ts";
 import { readUploadForm } from "./upload-form.ts";
@@ -91,6 +92,22 @@ export const VISITOR_MEDIA_TYPES: Readonly<Record<string, (bytes: Uint8Array) =>
 	"application/pdf": bytes => Buffer.from(bytes.subarray(0, 5)).toString("latin1") === "%PDF-",
 };
 
+/**
+ * The most a visitor's JSON write may carry: a 4,096-character text in UTF-8 and its envelope fit
+ * many times over. Read before parsing, so a huge body is refused without being buffered.
+ */
+const VISITOR_JSON_MAX_BYTES = 32 * 1024;
+
+const jsonBodyLimit = bodyLimit({
+	maxSize: VISITOR_JSON_MAX_BYTES,
+	onError: () => {
+		throw new ControlPlaneError(`the request body is larger than ${String(VISITOR_JSON_MAX_BYTES)} bytes`, {
+			status: 413,
+			code: "request_too_large",
+		});
+	},
+});
+
 /** Room for the multipart envelope around the file itself. */
 const MULTIPART_OVERHEAD_BYTES = 16 * 1024;
 
@@ -103,6 +120,7 @@ export interface VisitorRoutesOptions {
 	clock: ClockService;
 	events: EventBus;
 	logger: Logger;
+	adminState?: () => AdminStateSize;
 }
 
 function sessionView(
@@ -157,7 +175,7 @@ export function createVisitorSessionRoutes(options: VisitorRoutesOptions): Hono<
 		return c.json(visitorSessionResponseSchema.parse({ data: sessionView(sessions, auth.session, identities) }));
 	});
 
-	routes.post("/public/session", async c => {
+	routes.post("/public/session", jsonBodyLimit, async c => {
 		if (!isAllowedOrigin(c, access)) {
 			throw new ControlPlaneError("cross-origin request refused", { status: 403, code: "origin_refused" });
 		}
@@ -181,7 +199,7 @@ export function createVisitorSessionRoutes(options: VisitorRoutesOptions): Hono<
 	});
 
 	// Leaving the demo: the same cleanup the TTL would do, now.
-	routes.delete("/public/session", async c => {
+	routes.delete("/public/session", jsonBodyLimit, async c => {
 		const auth = await sessions.authenticate(visitorTokenOf(c));
 
 		if (auth.status === "valid") {
@@ -225,6 +243,25 @@ export function createVisitorPhoneRoutes(options: VisitorRoutesOptions): Hono<Co
 	const { sessions, access, phone } = options;
 	const chat = "/phone/identities/:waId/chats/:phoneNumberId";
 	const sockets = new Map<string, Set<WSContext>>();
+	/** Upgrades checked against the quota but not open yet, per session. */
+	const opening = new Map<string, number>();
+
+	/** Gives one reservation back; `false` when there was none — the session ended meanwhile. */
+	const didRelease = (sessionId: string): boolean => {
+		const held = opening.get(sessionId);
+
+		if (held === undefined) {
+			return false;
+		}
+
+		if (held <= 1) {
+			opening.delete(sessionId);
+		} else {
+			opening.set(sessionId, held - 1);
+		}
+
+		return true;
+	};
 
 	sessions.onEnd(sessionId => {
 		const open =
@@ -237,8 +274,10 @@ export function createVisitorPhoneRoutes(options: VisitorRoutesOptions): Hono<Co
 
 		if (sessionId === null) {
 			sockets.clear();
+			opening.clear();
 		} else {
 			sockets.delete(sessionId);
+			opening.delete(sessionId);
 		}
 
 		for (const ws of open) {
@@ -305,6 +344,22 @@ export function createVisitorPhoneRoutes(options: VisitorRoutesOptions): Hono<Co
 
 	routes.use("/phone/*", authenticate);
 
+	// Not a visitor path: the access gate keeps it the admin's (docs/access.md).
+	routes.get("/public/stats", async c => {
+		const memory = process.memoryUsage();
+
+		return c.json({
+			data: {
+				...(await sessions.stats()),
+				sockets: sockets.values().reduce((total, set) => total + set.size, 0),
+				socketsOpening: opening.values().reduce((total, count) => total + count, 0),
+				eventListeners: options.events.listenerCount?.() ?? null,
+				admin: options.adminState?.() ?? null,
+				memory: { rss: memory.rss, heapUsed: memory.heapUsed, external: memory.external },
+			},
+		});
+	});
+
 	routes.get("/phone/identities", async c => {
 		const identities = await asVisitor(c, undefined, visitor => sessions.identities(visitor.sessionId));
 
@@ -349,7 +404,7 @@ export function createVisitorPhoneRoutes(options: VisitorRoutesOptions): Hono<Co
 		);
 	});
 
-	routes.post(`${chat}/messages`, async c => {
+	routes.post(`${chat}/messages`, jsonBodyLimit, async c => {
 		const waId = c.req.param("waId");
 		const phoneNumberId = c.req.param("phoneNumberId");
 		const body = await readJsonBody(c);
@@ -408,7 +463,7 @@ export function createVisitorPhoneRoutes(options: VisitorRoutesOptions): Hono<Co
 		return c.json(inboundResponseSchema.parse({ data: created }), 201);
 	});
 
-	routes.post(`${chat}/read`, async c => {
+	routes.post(`${chat}/read`, jsonBodyLimit, async c => {
 		const waId = c.req.param("waId");
 		const read = await asVisitor(c, waId, async () => phone.markChatRead(waId, c.req.param("phoneNumberId")));
 
@@ -494,15 +549,33 @@ export function createVisitorPhoneRoutes(options: VisitorRoutesOptions): Hono<Co
 			await asVisitor(c, c.req.param("waId"), async () => {
 				await Promise.resolve();
 
-				if ((sockets.get(visitor.sessionId)?.size ?? 0) >= MAX_SOCKETS_PER_SESSION) {
+				const held = (sockets.get(visitor.sessionId)?.size ?? 0) + (opening.get(visitor.sessionId) ?? 0);
+
+				if (held >= MAX_SOCKETS_PER_SESSION) {
 					throw new ControlPlaneError(`at most ${String(MAX_SOCKETS_PER_SESSION)} live connections per demo session`, {
 						status: 429,
 						code: "socket_quota_exceeded",
 						retryAfterSeconds: 5,
 					});
 				}
+
+				// Counted from here, not from `onOpen`: upgrades racing each other all pass the
+				// check above before any of them has opened.
+				opening.set(visitor.sessionId, (opening.get(visitor.sessionId) ?? 0) + 1);
 			});
-			await next();
+
+			try {
+				await next();
+			} finally {
+				// The adapter answers an accepted upgrade with a bare 200 and opens the socket
+				// afterwards: that hands the reservation to `onOpen`. Anything else never opens.
+				// (An upgrade the client then abandons keeps its slot until the session ends.)
+				const isHandedOff = c.res.status === 200 && c.req.header("upgrade")?.toLowerCase() === "websocket";
+
+				if (!isHandedOff) {
+					didRelease(visitor.sessionId);
+				}
+			}
 		},
 		upgradeWebSocket((c: Context<ControlEnv>) => {
 			const waId = c.req.param("waId") ?? "";
@@ -521,6 +594,13 @@ export function createVisitorPhoneRoutes(options: VisitorRoutesOptions): Hono<Co
 
 			return {
 				onOpen: (_event, ws) => {
+					// The session ended between the upgrade and now: its cleanup already ran.
+					if (!didRelease(sessionId)) {
+						ws.close(4401, "session ended");
+
+						return;
+					}
+
 					socket = ws;
 					sockets.set(sessionId, (sockets.get(sessionId) ?? new Set()).add(ws));
 					unsubscribe = options.events.subscribe(event => {
@@ -569,10 +649,9 @@ export function createVisitorMediaGuard(options: {
 			return c.text("Not Found", 404);
 		}
 
-		c.header("X-Content-Type-Options", "nosniff");
+		// Another visitor on a shared machine must not find these bytes in a cache. Whether they
+		// may render at all is the byte route's call (`mediaSafetyHeaders`), as for everyone.
 		c.header("Cache-Control", "private, no-store");
-		// Bytes the app under test sent may be any type; on the visitor's origin they never run.
-		c.header("Content-Security-Policy", "default-src 'none'; sandbox");
 		await next();
 
 		return;

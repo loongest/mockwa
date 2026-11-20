@@ -69,6 +69,24 @@ export class RateLimiter {
 		return result;
 	}
 
+	/**
+	 * Drops every key whose hits have all left the window. A key is otherwise only tidied when it
+	 * is asked about again, and a visitor or an address that never comes back never is: without
+	 * this, the map grows with every key it has ever seen.
+	 */
+	prune(): void {
+		const now = this.#now().getTime();
+
+		for (const key of this.#hits.keys()) {
+			this.#recent(key, now);
+		}
+	}
+
+	/** How many keys are held: what {@link prune} keeps bounded. */
+	get size(): number {
+		return this.#hits.size;
+	}
+
 	forget(key: string): void {
 		this.#hits.delete(key);
 	}

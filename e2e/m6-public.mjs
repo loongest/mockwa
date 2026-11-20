@@ -341,6 +341,26 @@ function sessionsFromAddress(address, count) {
 	return JSON.parse(docker("exec", CONTAINER, "node", "--input-type=module", "-e", script));
 }
 
+/**
+ * One request per `[method, path]` with a wrong admin token, each from its own documentation
+ * address (203.0.113.x), made inside the container where the trusted proxy may name the client.
+ */
+function wrongTokenFromEachAddress(routes) {
+	const script = `
+		const answers = [];
+		for (const [index, [method, path]] of ${JSON.stringify(routes)}.entries()) {
+			const response = await fetch("http://127.0.0.1:8025" + path, {
+				method,
+				headers: { authorization: "Bearer not-the-admin-token-000", "x-forwarded-for": "203.0.113." + (index + 1) },
+			});
+			answers.push([path, response.status]);
+		}
+		console.log(JSON.stringify(answers));
+	`;
+
+	return JSON.parse(docker("exec", CONTAINER, "node", "--input-type=module", "-e", script));
+}
+
 /** The seed's one business number, as the admin sees it. */
 const PHONE_NUMBER_ID = await (async () => {
 	const { status, body } = await admin("/api/phone-numbers");
@@ -630,13 +650,18 @@ await check("AC-16: without the admin token every admin surface answers 401 (API
 	for (const [method, path] of adminApi) {
 		const anonymous = await fetch(`${CONSOLE_URL}${path}`, { method });
 		const asVisitor = await ana.request(path, { method });
-		const wrongToken = await fetch(`${CONSOLE_URL}${path}`, {
-			method,
-			headers: { authorization: "Bearer not-the-admin-token-000" },
-		});
 
-		assert.deepEqual([path, anonymous.status, asVisitor.status, wrongToken.status], [path, 401, 401, 401]);
+		assert.deepEqual([path, anonymous.status, asVisitor.status], [path, 401, 401]);
 	}
+
+	// A wrong token on every path, each from its own address: since M7, 10 wrong tokens from one
+	// address lock it out for 15 minutes, which would also refuse this script's own admin calls.
+	const wrongTokens = wrongTokenFromEachAddress(adminApi);
+
+	assert.deepEqual(
+		wrongTokens,
+		adminApi.map(([, path]) => [path, 401]),
+	);
 
 	// The console's pages and its own bundle are not served at all.
 	const adminAssets = assetsIn(await textOf(`${CONSOLE_URL}/`, { headers: ADMIN }));

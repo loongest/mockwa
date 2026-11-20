@@ -20,6 +20,12 @@ const TOUCH_INTERVAL_MS = 5000;
 /** How often the cleanup job looks for idle sessions, at most; a short TTL looks more often. */
 const MAX_SWEEP_INTERVAL_MS = 60_000;
 
+/**
+ * Finished webhook deliveries kept in public mode, newest first (SPEC §5): enough for the admin
+ * to debug the app under test, bounded however long the demo runs. Pending retries are extra.
+ */
+export const PUBLIC_WEBHOOK_LOG_MAX = 2000;
+
 /** Why an authenticated request was refused; the phone shows a different message for each. */
 export type VisitorAuthResult =
 	| { status: "valid"; session: PublicSessionRecord }
@@ -133,6 +139,17 @@ export function toVisitorEvent(event: WsEvent): WsEvent {
  * ends the session cannot interleave, so cleanup never races a write into rows it is deleting,
  * and a write that arrives after the cleanup finds no session at all.
  */
+export interface VisitorStats {
+	sessions: number;
+	identities: number;
+	uploads: number;
+	webhookDeliveries: number;
+	pendingRetries: number;
+	graphRequests: number;
+	sessionLocks: number;
+	rateLimitKeys: number;
+}
+
 export class VisitorSessionService {
 	readonly #config: VisitorConfig;
 	readonly #repositories: Repositories;
@@ -146,6 +163,7 @@ export class VisitorSessionService {
 	readonly #messagesByIp: RateLimiter;
 	readonly #createsByIp: RateLimiter;
 	#sweepTimer: { cancel: () => void } | null = null;
+	#creating: Promise<void> = Promise.resolve();
 
 	constructor(options: VisitorSessionServiceOptions) {
 		this.#config = options.config;
@@ -193,6 +211,19 @@ export class VisitorSessionService {
 		return now.getTime() - Date.parse(session.lastSeenAt) >= this.#config.sessionTtlMs;
 	}
 
+	/**
+	 * The copies of a visitor's conversation that live outside its rows: the webhook deliveries
+	 * and Graph requests that name its numbers. They go with the visitor, as its messages do.
+	 */
+	async #forgetLogsOf(waIds: readonly string[]): Promise<void> {
+		if (waIds.length === 0) {
+			return;
+		}
+
+		await this.#repositories.webhookDeliveries.deleteMentioning(waIds);
+		await this.#repositories.graphRequests.deleteMentioning(waIds);
+	}
+
 	#notifyEnd(sessionId: string | null): void {
 		for (const listener of this.#endListeners) {
 			try {
@@ -203,63 +234,7 @@ export class VisitorSessionService {
 		}
 	}
 
-	get config(): VisitorConfig {
-		return this.#config;
-	}
-
-	/** Runs `work` after every earlier piece of work for the same session has finished. */
-	async withSession<T>(sessionId: string, work: () => Promise<T>): Promise<T> {
-		const previous = this.#locks.get(sessionId) ?? Promise.resolve();
-		// `previous` never rejects: it is the settled tail of the queue.
-		const current = (async () => {
-			await previous;
-
-			return work();
-		})();
-		const settled = (async () => {
-			try {
-				await current;
-			} catch {
-				// The caller of `withSession` sees the error; the queue only needs to move on.
-			}
-		})();
-
-		this.#locks.set(sessionId, settled);
-
-		try {
-			return await current;
-		} finally {
-			if (this.#locks.get(sessionId) === settled) {
-				this.#locks.delete(sessionId);
-			}
-		}
-	}
-
-	/**
-	 * Called with a session's ID just before its rows go, so its sockets close first; with `null`
-	 * when every session ended at once (a reset or an import).
-	 */
-	onEnd(listener: (sessionId: string | null) => void): () => void {
-		this.#endListeners.add(listener);
-
-		return () => {
-			this.#endListeners.delete(listener);
-		};
-	}
-
-	/** When a session that is not used again ends. */
-	expiresAt(session: PublicSessionRecord): string {
-		const expiresAt = new Date(Date.parse(session.lastSeenAt) + this.#config.sessionTtlMs);
-
-		return expiresAt.toISOString();
-	}
-
-	/**
-	 * A new visitor: fresh identities from the template, and the cookie secret that proves it.
-	 * Refused with a 429 when this address already holds its share of live sessions, has
-	 * created too many in the last minute, or the instance is full.
-	 */
-	async create(clientIp: string): Promise<CreatedVisitorSession> {
+	async #create(clientIp: string): Promise<CreatedVisitorSession> {
 		await this.sweep();
 
 		const creates = this.#createsByIp.check(clientIp);
@@ -319,6 +294,88 @@ export class VisitorSessionService {
 				}
 			}
 		}
+	}
+
+	/** The instance's time as this service sees it: what the admin lockout counts in too. */
+	now(): Date {
+		return this.#scheduler.now();
+	}
+
+	get config(): VisitorConfig {
+		return this.#config;
+	}
+
+	/** Runs `work` after every earlier piece of work for the same session has finished. */
+	async withSession<T>(sessionId: string, work: () => Promise<T>): Promise<T> {
+		const previous = this.#locks.get(sessionId) ?? Promise.resolve();
+		// `previous` never rejects: it is the settled tail of the queue.
+		const current = (async () => {
+			await previous;
+
+			return work();
+		})();
+		const settled = (async () => {
+			try {
+				await current;
+			} catch {
+				// The caller of `withSession` sees the error; the queue only needs to move on.
+			}
+		})();
+
+		this.#locks.set(sessionId, settled);
+
+		try {
+			return await current;
+		} finally {
+			if (this.#locks.get(sessionId) === settled) {
+				this.#locks.delete(sessionId);
+			}
+		}
+	}
+
+	/**
+	 * Called with a session's ID just before its rows go, so its sockets close first; with `null`
+	 * when every session ended at once (a reset or an import).
+	 */
+	onEnd(listener: (sessionId: string | null) => void): () => void {
+		this.#endListeners.add(listener);
+
+		return () => {
+			this.#endListeners.delete(listener);
+		};
+	}
+
+	/** When a session that is not used again ends. */
+	expiresAt(session: PublicSessionRecord): string {
+		const expiresAt = new Date(Date.parse(session.lastSeenAt) + this.#config.sessionTtlMs);
+
+		return expiresAt.toISOString();
+	}
+
+	/**
+	 * A new visitor: fresh identities from the template, and the cookie secret that proves it.
+	 * Refused with a 429 when this address already holds its share of live sessions, has
+	 * created too many in the last minute, or the instance is full.
+	 */
+	async create(clientIp: string): Promise<CreatedVisitorSession> {
+		// One creation at a time: the quotas below read counts and then add to them, and two
+		// requests from one address interleaving there would both see room for one more.
+		const previous = this.#creating;
+		const current = (async () => {
+			await previous;
+
+			return this.#create(clientIp);
+		})();
+
+		this.#creating = (async () => {
+			try {
+				await current;
+			} catch {
+				// The caller sees the refusal; the next creation only waits for this one to settle.
+			}
+		})();
+
+		return current;
 	}
 
 	/**
@@ -456,6 +513,7 @@ export class VisitorSessionService {
 			const deleted = await this.#repositories.publicSessions.delete(sessionId);
 
 			this.#messagesBySession.forget(sessionId);
+			await this.#forgetLogsOf(deleted.waIds);
 			await deleteStoredMedia({
 				storageKeys: deleted.mediaStorageKeys,
 				mediaStorage: this.#mediaStorage,
@@ -486,10 +544,17 @@ export class VisitorSessionService {
 			await this.end(sessionId, "expired");
 		}
 
+		this.#messagesBySession.prune();
+		this.#messagesByIp.prune();
+		this.#createsByIp.prune();
+
 		const orphans = await this.#repositories.publicSessions.listOrphanedVisitorContacts();
+
+		await this.#repositories.webhookDeliveries.pruneFinished(PUBLIC_WEBHOOK_LOG_MAX);
 
 		if (orphans.length > 0) {
 			await this.#repositories.publicSessions.deleteContacts(orphans);
+			await this.#forgetLogsOf(orphans);
 			this.#logger.info({ identities: orphans }, "removed visitor identities no session owns");
 		}
 	}
@@ -508,6 +573,26 @@ export class VisitorSessionService {
 		}
 
 		this.#messagesBySession.clear();
+	}
+
+	/**
+	 * What public mode is holding right now (`GET /api/public/stats`, admin only): rows that
+	 * should follow the visitors, and in-memory maps that should shrink when they leave.
+	 */
+	async stats(): Promise<VisitorStats> {
+		const owned = await this.#repositories.publicSessions.countOwned();
+		const deliveries = await this.#repositories.webhookDeliveries.count();
+
+		return {
+			sessions: await this.#repositories.publicSessions.count(),
+			identities: owned.identities,
+			uploads: owned.media,
+			webhookDeliveries: deliveries.total,
+			pendingRetries: deliveries.pending,
+			graphRequests: await this.#repositories.graphRequests.count(),
+			sessionLocks: this.#locks.size,
+			rateLimitKeys: this.#messagesBySession.size + this.#messagesByIp.size + this.#createsByIp.size,
+		};
 	}
 
 	/** Starts the cleanup job; its timer never keeps the process alive. */

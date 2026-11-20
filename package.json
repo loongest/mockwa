@@ -30,7 +30,7 @@
 		"mockwa": "node --experimental-transform-types --disable-warning=ExperimentalWarning --conditions=development packages/server/src/cli/mockwa.ts",
 		"start": "npm run start --workspace @mockwa/server",
 		"test": "npm run test --workspaces --if-present && npm run test:e2e-targets",
-		"test:e2e-targets": "node --test e2e/targets.test.mjs",
+		"test:e2e-targets": "node --test e2e/targets.test.mjs e2e/load-verdict.test.mjs",
 		"typecheck": "npm run typecheck --workspaces --if-present"
 	},
 	"devDependencies": {

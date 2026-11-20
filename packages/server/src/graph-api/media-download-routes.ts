@@ -20,6 +20,33 @@ export interface MediaDownloadRoutesOptions {
 	injection: InjectionService;
 }
 
+/**
+ * Types a browser shows without running anything: raster images, audio, video and PDF. These are
+ * served inline so `<img>`, `<video>` and a link opened in a tab keep working.
+ */
+const INERT_MIME_TYPE = /^(?:image\/(?:jpeg|png|webp|gif|avif|bmp)|audio\/[\w.+-]+|video\/[\w.+-]+|application\/pdf)$/i;
+
+/**
+ * The headers that keep stored bytes from acting as a page (SPEC §7, "Browser hardening"). The
+ * app under test may upload any type — `text/html`, `image/svg+xml`, script — and these URLs are
+ * served on the console's origin too, so anything that is not inert is a download in a sandbox:
+ * opened in a tab it can neither run script nor reach the origin's cookies or API. `nosniff`
+ * stops a browser from second-guessing the stored type in either direction.
+ */
+export function mediaSafetyHeaders(mimeType: string): Record<string, string> {
+	const essence = mimeType.split(";", 1)[0]?.trim() ?? "";
+
+	if (INERT_MIME_TYPE.test(essence)) {
+		return { "X-Content-Type-Options": "nosniff" };
+	}
+
+	return {
+		"X-Content-Type-Options": "nosniff",
+		"Content-Disposition": "attachment",
+		"Content-Security-Policy": "default-src 'none'; sandbox",
+	};
+}
+
 /** Everything a byte response needs, whichever store the object came out of. */
 interface ServedObject {
 	size: number;
@@ -56,9 +83,11 @@ export function createMediaDownloadRoutes(options: MediaDownloadRoutesOptions): 
 	async function serve(c: Context<GraphEnv>, object: ServedObject): Promise<Response> {
 		const { size } = object;
 		const range = parseByteRange(c.req.header("range"), size);
+		const safety = mediaSafetyHeaders(object.mimeType);
 
 		if (range.kind === "unsatisfiable") {
 			return c.body(null, 416, {
+				...safety,
 				"Accept-Ranges": "bytes",
 				"Content-Range": unsatisfiableContentRangeHeader(size),
 			});
@@ -69,6 +98,7 @@ export function createMediaDownloadRoutes(options: MediaDownloadRoutesOptions): 
 		const stream = await object.open(range.kind === "range" ? range : undefined);
 
 		return c.body(Readable.toWeb(stream), range.kind === "range" ? 206 : 200, {
+			...safety,
 			"Accept-Ranges": "bytes",
 			"Content-Type": object.mimeType,
 			"Content-Length": String(contentLength),

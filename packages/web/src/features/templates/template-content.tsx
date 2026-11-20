@@ -11,6 +11,7 @@ import {
 	type HeaderMediaParameter,
 	type TemplateFill,
 } from "./template-fill.ts";
+import { isOpenableUrl } from "../../lib/safe-url.ts";
 
 /**
  * A template's components rendered the way WhatsApp lays them out: header, body, footer,
@@ -220,7 +221,7 @@ function ButtonRow(props: { icon: string; label: string; href?: string; detail?:
 		</>
 	);
 
-	return props.href === undefined ? (
+	return props.href === undefined || !isOpenableUrl(props.href) ? (
 		<span className="template__button">{content}</span>
 	) : (
 		<a className="template__button" href={props.href} target="_blank" rel="noreferrer" title={props.href}>

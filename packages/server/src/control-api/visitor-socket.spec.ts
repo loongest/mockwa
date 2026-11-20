@@ -204,4 +204,45 @@ describe("visitor sockets", () => {
 		expect(left.status).toBe(204);
 		expect(await socket.closed).toBe(4401);
 	});
+
+	it("holds a session to its socket quota when the upgrades race, and frees the slots on close", async () => {
+		const ana = await startVisitor();
+		const path = `/api/phone/identities/${ana.waId}/ws`;
+		const headers = { cookie: ana.cookie, origin: `http://${host}` };
+		const results = await Promise.all(Array.from({ length: 20 }, async () => open(path, headers)));
+		const opened = results.filter((result): result is Opened => typeof result !== "number");
+
+		expect(opened).toHaveLength(8);
+		expect(results.filter(result => result === 429)).toHaveLength(12);
+
+		const stats = async (): Promise<{ sockets: number; socketsOpening: number; eventListeners: number }> => {
+			const response = await fetch(`http://${host}/api/public/stats`, { headers: ADMIN_HEADERS });
+			const body = (await response.json()) as {
+				data: { sockets: number; socketsOpening: number; eventListeners: number };
+			};
+
+			return body.data;
+		};
+
+		const socketCount = async (): Promise<number> => {
+			const current = await stats();
+
+			return current.sockets;
+		};
+
+		await expect.poll(socketCount).toBe(8);
+
+		const settled = await stats();
+
+		expect(settled.socketsOpening).toBe(0);
+
+		for (const client of clients.splice(0)) {
+			client.close();
+		}
+
+		await expect.poll(socketCount).toBe(0);
+
+		// Every slot is back: a new socket opens again.
+		expect(typeof (await open(path, headers))).not.toBe("number");
+	});
 });

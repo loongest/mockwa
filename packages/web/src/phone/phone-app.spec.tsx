@@ -281,6 +281,42 @@ describe("the virtual phone", () => {
 		});
 	});
 
+	// AC-19: whatever the app under test sends, the phone shows it as text and never as markup.
+	it("renders hostile message text literally, without creating elements or running script", async () => {
+		await openAnasChat();
+
+		const socket = FakeWebSocket.instances.at(-1)!;
+		const hostile = [
+			`<img src=x onerror="globalThis.__pwned=1">`,
+			`<script>globalThis.__pwned=2</script>`,
+			`"><svg onload=alert(1)>`,
+			`javascript:alert(3)`,
+		].join(" ");
+
+		act(() => {
+			socket.push({
+				type: "message.created",
+				payload: {
+					message: makeMessage({
+						id: "wamid.hostile",
+						contactWaId: ANA,
+						status: "sent",
+						timestamp: "2026-08-31T12:00:10.000Z",
+						payload: { text: { body: hostile } },
+					}),
+				},
+			});
+		});
+
+		const bubble = await screen.findByText(hostile);
+
+		expect(bubble.textContent).toBe(hostile);
+		expect(document.querySelector("[data-testid='phone-thread'] img[src='x']")).toBeNull();
+		expect(document.querySelector("[data-testid='phone-thread'] script")).toBeNull();
+		expect(document.querySelector("[data-testid='phone-thread'] svg[onload]")).toBeNull();
+		expect((globalThis as { __pwned?: number }).__pwned).toBeUndefined();
+	});
+
 	it("sends a tapped reply button as this phone", async () => {
 		history = [
 			makeMessage({

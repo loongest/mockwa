@@ -16,6 +16,8 @@ export type EventListener = (event: WsEvent) => void;
 export interface EventBus extends EventPublisher {
 	/** Registers a listener; call the returned function to stop receiving events. */
 	subscribe: (listener: EventListener) => () => void;
+	/** How many listeners are registered: a leak shows up here first. */
+	listenerCount?: () => number;
 }
 
 export interface CreateEventBusOptions {
@@ -43,6 +45,7 @@ export function createEventBus(options: CreateEventBusOptions = {}): EventBus {
 				listeners.delete(listener);
 			};
 		},
+		listenerCount: () => listeners.size,
 	};
 }
 

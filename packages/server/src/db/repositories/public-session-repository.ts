@@ -203,6 +203,20 @@ export class PublicSessionRepository {
 		return Number(row.count);
 	}
 
+	/** Identities held by live sessions, and the uploads they own: the admin's view of the load. */
+	async countOwned(): Promise<{ identities: number; media: number }> {
+		const identities = await this.#db
+			.selectFrom("public_session_identities")
+			.select(eb => eb.fn.countAll().as("count"))
+			.executeTakeFirstOrThrow();
+		const media = await this.#db
+			.selectFrom("public_session_media")
+			.select(eb => eb.fn.countAll().as("count"))
+			.executeTakeFirstOrThrow();
+
+		return { identities: Number(identities.count), media: Number(media.count) };
+	}
+
 	async countByIp(clientIp: string): Promise<number> {
 		const row = await this.#db
 			.selectFrom("public_sessions")
@@ -292,6 +306,23 @@ export class PublicSessionRepository {
 			await trx.deleteFrom("service_window_expiries").where("contact_wa_id", "in", waIds).execute();
 			await trx.deleteFrom("contacts").where("wa_id", "in", waIds).execute();
 		});
+	}
+
+	/** Of `waIds`, those once handed to a visitor that no live session owns any more. */
+	async departedAmong(waIds: readonly string[]): Promise<string[]> {
+		if (waIds.length === 0) {
+			return [];
+		}
+
+		const rows = await this.#db
+			.selectFrom("public_wa_ids")
+			.leftJoin("public_session_identities", "public_session_identities.wa_id", "public_wa_ids.wa_id")
+			.select("public_wa_ids.wa_id")
+			.where("public_wa_ids.wa_id", "in", waIds)
+			.where("public_session_identities.session_id", "is", null)
+			.execute();
+
+		return rows.map(row => row.wa_id);
 	}
 
 	async isAllocated(waId: string): Promise<boolean> {

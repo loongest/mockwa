@@ -3,6 +3,7 @@ import { Hono, type MiddlewareHandler } from "hono";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { AppEnv } from "./app-env.ts";
+import { CONSOLE_CONTENT_SECURITY_POLICY } from "./security-headers.ts";
 
 export interface WebUiRoutesOptions {
 	/** Absolute path to the built Vite bundle (`packages/web/dist`). */
@@ -151,10 +152,23 @@ function cached(
 export function createWebUiRoutes(options: WebUiRoutesOptions): Hono<AppEnv> {
 	const routes = new Hono<AppEnv>();
 	const file = cached(serveStatic<AppEnv>({ root: options.webDir }), cacheControlFor);
-	const index = cached(
+	const consoleFile = cached(
 		serveStatic<AppEnv>({ root: options.webDir, path: "index.html" }),
 		() => REVALIDATE_CACHE_CONTROL,
 	);
+	// Public mode: only a signed-in admin ever gets here (the access gate), under its own policy.
+	const index: MiddlewareHandler<AppEnv> =
+		options.isPublic === true
+			? async (c, next) => {
+					const response = await consoleFile(c, next);
+
+					if (response instanceof Response) {
+						response.headers.set("Content-Security-Policy", CONSOLE_CONTENT_SECURITY_POLICY);
+					}
+
+					return response;
+				}
+			: consoleFile;
 	const phoneFile = cached(
 		serveStatic<AppEnv>({ root: options.webDir, path: "phone.html" }),
 		() => REVALIDATE_CACHE_CONTROL,
@@ -182,7 +196,21 @@ export function createWebUiRoutes(options: WebUiRoutesOptions): Hono<AppEnv> {
 		routes.get("/.vite/*", c => c.text("Not Found", 404));
 	}
 
-	routes.use("*", file);
+	// `/` itself is answered here, as the directory's index.html: the console page all the same.
+	const staticFile: MiddlewareHandler<AppEnv> =
+		options.isPublic === true
+			? async (c, next) => {
+					const response = await file(c, next);
+
+					if (response instanceof Response && response.headers.get("content-type")?.startsWith("text/html") === true) {
+						response.headers.set("Content-Security-Policy", CONSOLE_CONTENT_SECURITY_POLICY);
+					}
+
+					return response;
+				}
+			: file;
+
+	routes.use("*", staticFile);
 	// The virtual phone is a page of its own, not a route of the console's SPA (SPEC §5).
 	routes.get("/phone", phone);
 	routes.get("/phone/*", phone);

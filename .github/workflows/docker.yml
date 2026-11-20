@@ -339,6 +339,39 @@ jobs:
           done
           test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m6)" = "healthy"
 
+      # An eighth instance in public demo mode (M7) with the **default** limits, so the hardening
+      # checks exercise what a real instance ships with. 127.0.0.1 is the trusted proxy, so the
+      # in-container checks may name a client address.
+      - name: Start the M7 hardening image and its echo app 🧪
+        run: |
+          set -euo pipefail
+          PORT=3009 APP_SECRET=m7-app-secret VERIFY_TOKEN=m7-verify-token ACCESS_TOKEN=m7-app-token \
+            GRAPH_API_BASE_URL=http://127.0.0.1:62888/v25.0 \
+            nohup node examples/echo-app/server.mjs > echo-app-m7.log 2>&1 &
+          docker volume create mockwa-ci-m7-data
+          docker run -d --name mockwa-ci-m7 \
+            --add-host=host.docker.internal:host-gateway \
+            -p 127.0.0.1:62888:8888 -p 127.0.0.1:62025:8025 \
+            -v mockwa-ci-m7-data:/data \
+            -v "$PWD/e2e/fixtures/m1-seed.json:/seed/m1-seed.json:ro" \
+            -e MOCKWA_SEED_FILE=/seed/m1-seed.json \
+            -e MOCKWA_DB_PATH=/data/mockwa.db \
+            -e MOCKWA_MODE=public \
+            -e MOCKWA_ADMIN_TOKEN=m7-admin-token-0123456789 \
+            -e MOCKWA_TOKENS=m7-app-token \
+            -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3009/webhook \
+            -e MOCKWA_APP_SECRET=m7-app-secret \
+            -e MOCKWA_WEBHOOK_VERIFY_TOKEN=m7-verify-token \
+            -e MOCKWA_TRUSTED_PROXIES=127.0.0.1 \
+            mockwa:ci
+          for _ in $(seq 1 60); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m7)"
+            [ "$status" = "healthy" ] && break
+            [ "$status" = "unhealthy" ] && break
+            sleep 1
+          done
+          test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m7)" = "healthy"
+
       - name: M0 smoke checks (AC-01, AC-02, signed webhooks) ✅
         run: node e2e/m0-smoke.mjs
         env:
@@ -387,7 +420,15 @@ jobs:
           M6_ECHO_URL: http://127.0.0.1:3008
           M6_CONTAINER: mockwa-ci-m6
 
-      - name: Playwright against the console, the virtual phone, the M2 webhook views, M3, M4, M5 and M6 🎭
+      - name: M7 hardening checks (AC-19 headers and cookies, forged references, limits, lockout, log hygiene) ✅
+        run: node e2e/m7-hardening.mjs
+        env:
+          M7_GRAPH_URL: http://127.0.0.1:62888
+          M7_CONSOLE_URL: http://127.0.0.1:62025
+          M7_ECHO_URL: http://127.0.0.1:3009
+          M7_CONTAINER: mockwa-ci-m7
+
+      - name: Playwright against the console, the virtual phone, the M2 webhook views, M3, M4, M5, M6 and M7 🎭
         run: npx playwright test -c e2e/playwright.config.mjs --trace off
         env:
           GRAPH_URL: http://127.0.0.1:8888
@@ -402,6 +443,7 @@ jobs:
           M5_CONSOLE_URL: http://127.0.0.1:60025
           M5_GRAPH_URL: http://127.0.0.1:60888
           M6_CONSOLE_URL: http://127.0.0.1:61025
+          M7_CONSOLE_URL: http://127.0.0.1:62025
 
       - name: Logs on failure 📜
         if: failure()
@@ -421,12 +463,14 @@ jobs:
           cat echo-app-m5.log || true
           docker logs mockwa-ci-m6 || true
           cat echo-app-m6.log || true
+          docker logs mockwa-ci-m7 || true
+          cat echo-app-m7.log || true
 
       - name: Stop the image 🧹
         if: always()
         run: |
-          docker rm --force mockwa-ci mockwa-ci-m1 mockwa-ci-m2 mockwa-ci-m3 mockwa-ci-m4 mockwa-ci-m5 mockwa-ci-m6 || true
-          docker volume rm mockwa-ci-m2-data mockwa-ci-m3-data mockwa-ci-m4-data mockwa-ci-m6-data || true
+          docker rm --force mockwa-ci mockwa-ci-m1 mockwa-ci-m2 mockwa-ci-m3 mockwa-ci-m4 mockwa-ci-m5 mockwa-ci-m6 mockwa-ci-m7 || true
+          docker volume rm mockwa-ci-m2-data mockwa-ci-m3-data mockwa-ci-m4-data mockwa-ci-m6-data mockwa-ci-m7-data || true
 
       - name: Login to GitHub Container Registry 🔑
         if: env.PUBLISH == 'true'

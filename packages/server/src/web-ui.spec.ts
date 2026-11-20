@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { statusOf, textOf } from "./testing/expectations.ts";
 import { createTestApp, type TestApp } from "./testing/test-app.ts";
 import { ADMIN_HEADERS, PUBLIC_ENV } from "./testing/visitor-client.ts";
+import { CONSOLE_CONTENT_SECURITY_POLICY } from "./security-headers.ts";
 import { isReservedPath, PHONE_CONTENT_SECURITY_POLICY } from "./web-ui.ts";
 
 const INDEX_HTML = '<!doctype html><title>whaloc</title><div id="root"></div>';
@@ -194,5 +195,36 @@ describe("the static web UI in public mode (SPEC §7)", () => {
 	it("serves the console to the admin", async () => {
 		expect(await textOf(fixture.consoleApp.request("/", { headers: ADMIN_HEADERS }))).toBe(INDEX_HTML);
 		expect(await statusOf(fixture.consoleApp.request("/assets/console-1.js", { headers: ADMIN_HEADERS }))).toBe(200);
+	});
+
+	it.each(["/", "/settings", "/w/1/p/2/chats"])(
+		"serves the console page %s under a strict policy (AC-19)",
+		async page => {
+			const response = await fixture.consoleApp.request(page, { headers: ADMIN_HEADERS });
+
+			expect(response.status).toBe(200);
+			expect(response.headers.get("content-security-policy")).toBe(CONSOLE_CONTENT_SECURITY_POLICY);
+			expect(response.headers.get("x-frame-options")).toBe("DENY");
+			expect(response.headers.get("cross-origin-opener-policy")).toBe("same-origin");
+			expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+		},
+	);
+
+	it("keeps both pages' policies free of inline and evaluated script", () => {
+		for (const policy of [PHONE_CONTENT_SECURITY_POLICY, CONSOLE_CONTENT_SECURITY_POLICY]) {
+			const script = policy.split("; ").find(directive => directive.startsWith("script-src"));
+
+			expect(script).toBe("script-src 'self'");
+			expect(policy).toContain("object-src 'none'");
+			expect(policy).toContain("frame-ancestors 'none'");
+			expect(policy).toContain("base-uri 'none'");
+		}
+	});
+
+	it("serves the phone's files nosniff and same-origin only", async () => {
+		const response = await fixture.consoleApp.request("/assets/phone-1.js");
+
+		expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+		expect(response.headers.get("cross-origin-resource-policy")).toBe("same-origin");
 	});
 });
