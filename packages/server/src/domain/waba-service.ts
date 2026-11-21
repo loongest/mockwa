@@ -1,4 +1,4 @@
-import type { ChangeEvent, WabaCreateRequest, WabaUpdateRequest } from "@mockwa/shared";
+import type { ChangeEvent, WabaCreateRequest, WabaUpdateRequest } from "@wasandbox/shared";
 import type { Repositories, WabaRecord } from "../db/index.ts";
 import { toWabaDto } from "./control-dto.ts";
 import { controlNotFound } from "./control-plane-error.ts";
@@ -10,7 +10,7 @@ import type { PhoneNumberService } from "./phone-number-service.ts";
 /**
  * WhatsApp Business Accounts at runtime (SPEC §5).
  *
- * `MOCKWA_SEED` describes the world whaloc boots with; this is how a dev adds a second WABA to
+ * `WASANDBOX_SEED` describes the world whaloc boots with; this is how a dev adds a second WABA to
  * an already-running container — the case the seed cannot cover, and the one an app that manages
  * several accounts needs to be tested against.
  *

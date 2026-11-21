@@ -14,7 +14,7 @@ import {
 	type TokenState,
 	type Waba,
 	type WsEvent,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { resolveScope, isSameScope } from "./scope.ts";
 import type { Action, AppState } from "./types.ts";
 

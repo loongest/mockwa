@@ -1,4 +1,4 @@
-import type { HandshakeResult } from "@mockwa/shared";
+import type { HandshakeResult } from "@wasandbox/shared";
 import type { DepartedNumbers } from "./departed-numbers.ts";
 import { DEFAULT_RETRY_MAX_AGE_MS, DEFAULT_RETRY_SCHEDULE_MS } from "../config/index.ts";
 import type { JsonObject, Repositories, WebhookDeliveryHeaders, WebhookDeliveryRecord } from "../db/index.ts";
@@ -19,7 +19,7 @@ import { createSystemScheduler, type ScheduledTask, type Scheduler } from "./sch
  * - **Each app gets its own copy**, routed by Meta's rules ({@link AppService.route}) and
  *   signed with that app's secret.
  * - **Every attempt is logged**, including the ones that never happened because an app has no
- *   URL. The delivery log is a first-class feature: pointing mockwa at nothing and still seeing
+ *   URL. The delivery log is a first-class feature: pointing WaSandbox at nothing and still seeing
  *   what it would have sent is how the console is useful before an integration exists.
  * - **Retries are Meta's and they are persisted.** Only an HTTP 200 is a success; anything else
  *   — a 4xx, a 204, a timeout — is retried on a fixed schedule until the chain is 7 days old.
@@ -80,7 +80,7 @@ const MAX_IDLE_FIRES = 1;
 /** The `url` a skipped delivery is stored with; `toWebhookDeliveryDto` reads it as `skipped`. */
 export const SKIPPED_DELIVERY_URL = "";
 
-export const SKIPPED_DELIVERY_ERROR = "MOCKWA_WEBHOOK_URL is not set: nothing was sent, the payload is logged only";
+export const SKIPPED_DELIVERY_ERROR = "WASANDBOX_WEBHOOK_URL is not set: nothing was sent, the payload is logged only";
 
 /** Event type of a `POST /api/webhook/raw` escape-hatch delivery (SPEC §5). */
 export const RAW_EVENT_TYPE = "raw";
@@ -756,16 +756,16 @@ export class WebhookEmitter {
 	}
 
 	/**
-	 * The `hub.challenge` handshake against the default app, initiated by mockwa (SPEC §1.13):
+	 * The `hub.challenge` handshake against the default app, initiated by WaSandbox (SPEC §1.13):
 	 * `GET <webhookUrl>` with `hub.mode=subscribe`, the configured verify token and a random
 	 * challenge, which the receiver must echo back verbatim. Run on demand from the control
-	 * plane, and at boot when `MOCKWA_VERIFY_ON_START` is set.
+	 * plane, and at boot when `WASANDBOX_VERIFY_ON_START` is set.
 	 */
 	async handshake(): Promise<HandshakeResult> {
 		const app = this.#apps.defaultApp;
 		const result = await this.#handshakeWith(app.callbackUrl, app.verifyToken, {
-			url: "MOCKWA_WEBHOOK_URL is not set",
-			token: "MOCKWA_WEBHOOK_VERIFY_TOKEN is not set",
+			url: "WASANDBOX_WEBHOOK_URL is not set",
+			token: "WASANDBOX_WEBHOOK_VERIFY_TOKEN is not set",
 		});
 
 		this.#lastHandshake = result;

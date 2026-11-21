@@ -1,4 +1,4 @@
-import { BUSINESS_PROFILE_LIMITS, BUSINESS_VERTICALS, type BusinessProfile } from "@mockwa/shared";
+import { BUSINESS_PROFILE_LIMITS, BUSINESS_VERTICALS, type BusinessProfile } from "@wasandbox/shared";
 import { z } from "zod";
 
 /**

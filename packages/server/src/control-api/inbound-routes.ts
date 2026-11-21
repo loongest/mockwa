@@ -1,4 +1,9 @@
-import { inboundMediaResponseSchema, inboundRequestSchema, inboundResponseSchema, metaIdSchema } from "@mockwa/shared";
+import {
+	inboundMediaResponseSchema,
+	inboundRequestSchema,
+	inboundResponseSchema,
+	metaIdSchema,
+} from "@wasandbox/shared";
 import { Hono } from "hono";
 import { toMessageDto, type InboundService, type MediaService } from "../domain/index.ts";
 import { parseOrThrow, readBody, type ControlEnv } from "./control-env.ts";

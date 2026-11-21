@@ -24,7 +24,7 @@ export function parseDuration(value: string): number | undefined {
 /**
  * The delay before each retry, in order; the last one repeats until the chain is
  * {@link DEFAULT_RETRY_MAX_AGE_MS} old. Meta only says it retries "with decreasing frequency"
- * for up to 7 days, so the steps are mockwa's choice: quick enough to see a fix land within
+ * for up to 7 days, so the steps are WaSandbox's choice: quick enough to see a fix land within
  * seconds, sparse enough that a receiver left broken overnight gets a handful of attempts.
  */
 export const DEFAULT_RETRY_SCHEDULE_MS: readonly number[] = [
@@ -76,7 +76,7 @@ const httpUrl = z.url({ protocol: /^https?$/, error: "must be an http(s) URL" })
 
 const appIdSchema = z.string().regex(/^\d{1,32}$/, "must be a string of 1-32 digits");
 
-/** One `MOCKWA_APPS` entry. An omitted id is derived from the name, so it is stable. */
+/** One `WASANDBOX_APPS` entry. An omitted id is derived from the name, so it is stable. */
 export const seedAppSchema = z.object({
 	id: appIdSchema.optional(),
 	name: z.string().trim().min(1).max(80),

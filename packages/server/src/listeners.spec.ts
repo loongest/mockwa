@@ -18,10 +18,10 @@ describe("the Graph API and console listeners", () => {
 
 	beforeEach(async () => {
 		// A real (if tiny) UI bundle, so a 404 on the console is a refusal and not a missing build.
-		webDir = await mkdtemp(path.join(tmpdir(), "mockwa-test-web-"));
+		webDir = await mkdtemp(path.join(tmpdir(), "wasandbox-test-web-"));
 		await mkdir(path.join(webDir, "assets"));
-		await writeFile(path.join(webDir, "index.html"), '<!doctype html><title>mockwa</title><div id="root"></div>');
-		fixture = await createTestApp({ MOCKWA_WEB_DIR: webDir });
+		await writeFile(path.join(webDir, "index.html"), '<!doctype html><title>WaSandbox</title><div id="root"></div>');
+		fixture = await createTestApp({ WASANDBOX_WEB_DIR: webDir });
 	});
 
 	afterEach(async () => {

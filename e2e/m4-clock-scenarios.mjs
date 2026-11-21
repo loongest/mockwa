@@ -1,18 +1,18 @@
-// Milestone M4 acceptance checks (virtual clock and scenarios) against a running mockwa —
+// Milestone M4 acceptance checks (virtual clock and scenarios) against a running WaSandbox —
 // normally the built Docker image — and the example echo app playing the app under test.
-// Dependency-free apart from the `docker` CLI, which runs `mockwa scenario` inside the
+// Dependency-free apart from the `docker` CLI, which runs `wasandbox scenario` inside the
 // container and restarts it:
 //
 //   node e2e/m4-clock-scenarios.mjs
 //
-// The instance runs MOCKWA_CLOCK=virtual from M4_CLOCK_START, the default seed, a file
+// The instance runs WASANDBOX_CLOCK=virtual from M4_CLOCK_START, the default seed, a file
 // database on a volume, and slow status rungs so a few minutes of virtual time hold several
-// events: MOCKWA_STATUS_DELAYS=sent:0,delivered:120000,read:240000 (delivered at +2m, read
+// events: WASANDBOX_STATUS_DELAYS=sent:0,delivered:120000,read:240000 (delivered at +2m, read
 // 4m after that). examples/scenarios is mounted at /scenarios and e2e/fixtures at /fixtures.
 // See .github/workflows/docker.yml.
 //
 // Waits on the echo app are bounded in real time (it answers over HTTP, on its own clock):
-// mockwa's virtual clock does not move the app's clock, and nothing here assumes it does.
+// WaSandbox's virtual clock does not move the app's clock, and nothing here assumes it does.
 //
 // Environment, required (e2e/targets.mjs): M4_GRAPH_URL, M4_CONSOLE_URL and M4_ECHO_URL, each
 // with an explicit port, and M4_CONTAINER (the container the CLI runs in and the restart check
@@ -120,9 +120,9 @@ function dockerRun(...args) {
 	return execFileSync("docker", args, { encoding: "utf8" }).trim();
 }
 
-/** `mockwa …` inside the container: its exit code and what it printed. */
-function mockwaCli(...args) {
-	const run = spawnSync("docker", ["exec", CONTAINER, "mockwa", ...args], { encoding: "utf8", timeout: 120_000 });
+/** `wasandbox …` inside the container: its exit code and what it printed. */
+function wasandboxCli(...args) {
+	const run = spawnSync("docker", ["exec", CONTAINER, "wasandbox", ...args], { encoding: "utf8", timeout: 120_000 });
 
 	return { status: run.status, stdout: run.stdout, stderr: run.stderr };
 }
@@ -137,12 +137,12 @@ function epochSeconds(offsetMs) {
 	return String(Math.floor((Date.parse(START) + offsetMs) / 1000));
 }
 
-/** Recomputed here, independently of both mockwa and the echo app. */
+/** Recomputed here, independently of both WaSandbox and the echo app. */
 function signatureFor(rawBody) {
 	return `sha256=${createHmac("sha256", APP_SECRET).update(rawBody, "utf8").digest("hex")}`;
 }
 
-// --- mockwa and echo app helpers ------------------------------------------------------------
+// --- WaSandbox and echo app helpers ------------------------------------------------------------
 
 async function clock() {
 	const { status, body } = await getJson(`${CONSOLE_URL}/api/clock`);
@@ -247,7 +247,7 @@ async function waitForStatus(wamid, name) {
 	});
 }
 
-async function mockwaDeliveries(limit = 200) {
+async function wasandboxDeliveries(limit = 200) {
 	const { status, body } = await getJson(`${CONSOLE_URL}/api/webhook-deliveries?limit=${String(limit)}`);
 
 	assert.equal(status, 200, JSON.stringify(body));
@@ -372,7 +372,7 @@ await check(
 			"read arrived early",
 		);
 
-		const log = await mockwaDeliveries(20);
+		const log = await wasandboxDeliveries(20);
 		const retry = log.find(row => row.attempt === 2);
 
 		assert.equal(retry?.createdAt, at(2 * MINUTE + 10 * SECOND));
@@ -416,7 +416,7 @@ await check("a cancelled retry leaves the queue and never fires", async () => {
 	await inbound(CANCELLED, "cancel me");
 
 	const first = await waitFor("the failed delivery", async () => {
-		const log = await mockwaDeliveries(20);
+		const log = await wasandboxDeliveries(20);
 
 		return log.find(row => row.outcome === "retrying") ?? false;
 	});
@@ -483,7 +483,7 @@ async function runBooking(run) {
 	await fetch(`${ECHO_URL}/deliveries`, { method: "DELETE" });
 
 	const output = `/tmp/m4-booking-${String(run)}.json`;
-	const cli = mockwaCli(
+	const cli = wasandboxCli(
 		"scenario",
 		"run",
 		"/scenarios/booking-conversation.json",
@@ -496,7 +496,7 @@ async function runBooking(run) {
 	assert.equal(cli.status, 0, `${cli.stdout}\n${cli.stderr}`);
 
 	const [result] = JSON.parse(dockerRun("exec", CONTAINER, "cat", output));
-	const log = await mockwaDeliveries();
+	const log = await wasandboxDeliveries();
 	const received = await echoDeliveries();
 
 	return {
@@ -540,7 +540,7 @@ await check(
 );
 
 await check("the service-window example passes through the CLI", async () => {
-	const cli = mockwaCli("scenario", "run", "/scenarios/service-window.json", "--url", INNER_CONSOLE_URL);
+	const cli = wasandboxCli("scenario", "run", "/scenarios/service-window.json", "--url", INNER_CONSOLE_URL);
 
 	assert.equal(cli.status, 0, `${cli.stdout}\n${cli.stderr}`);
 	assert.match(cli.stdout, /PASS service window/);
@@ -552,7 +552,15 @@ await check(
 	"AC-12: an unmet expectation names the step, expected vs observed; exit 1 and valid JUnit XML",
 	async () => {
 		const report = "/tmp/m4-unmet.xml";
-		const cli = mockwaCli("scenario", "run", "/fixtures/m4-unmet.json", "--url", INNER_CONSOLE_URL, "--junit", report);
+		const cli = wasandboxCli(
+			"scenario",
+			"run",
+			"/fixtures/m4-unmet.json",
+			"--url",
+			INNER_CONSOLE_URL,
+			"--junit",
+			report,
+		);
 
 		assert.equal(cli.status, 1, `${cli.stdout}\n${cli.stderr}`);
 		assert.match(cli.stdout, /FAIL unmet expectation/);
@@ -565,10 +573,10 @@ await check(
 		const xml = dockerRun("exec", CONTAINER, "cat", report);
 
 		assertWellFormedXml(xml);
-		assert.match(xml, /<testsuites name="mockwa scenarios" tests="3" failures="1" errors="0" skipped="1"/);
+		assert.match(xml, /<testsuites name="wasandbox scenarios" tests="3" failures="1" errors="0" skipped="1"/);
 		assert.match(
 			xml,
-			/<testcase classname="mockwa\.scenario\.unmet expectation" name="2\. the app greets Dina by name"/,
+			/<testcase classname="wasandbox\.scenario\.unmet expectation" name="2\. the app greets Dina by name"/,
 		);
 		assert.match(xml, /<failure message="[^"]+" type="expect">/);
 		assert.match(xml, /&quot;text&quot;: &quot;Hello, Dina!&quot;/);
@@ -578,7 +586,7 @@ await check(
 
 await check("the CLI exits 2 for a file it cannot use, and resets nothing", async () => {
 	const before = await clock();
-	const cli = mockwaCli("scenario", "run", "/scenarios/missing.json", "--url", INNER_CONSOLE_URL);
+	const cli = wasandboxCli("scenario", "run", "/scenarios/missing.json", "--url", INNER_CONSOLE_URL);
 
 	assert.equal(cli.status, 2, `${cli.stdout}\n${cli.stderr}`);
 	assert.match(cli.stderr, /missing\.json: cannot read it/);
@@ -596,7 +604,7 @@ await check(
 		await failDeliveries({ status: 500 });
 		await inbound(RESTARTED, "across a restart");
 		await waitFor("the failed delivery", async () => {
-			const log = await mockwaDeliveries(20);
+			const log = await wasandboxDeliveries(20);
 
 			return log.some(row => row.outcome === "retrying");
 		});

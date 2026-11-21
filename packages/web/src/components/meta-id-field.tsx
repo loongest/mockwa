@@ -1,4 +1,4 @@
-import { metaIdSchema } from "@mockwa/shared";
+import { metaIdSchema } from "@wasandbox/shared";
 
 /**
  * The optional **Meta ID** both create dialogs offer (SPEC §5).

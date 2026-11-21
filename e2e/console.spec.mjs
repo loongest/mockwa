@@ -22,7 +22,7 @@ test("the console on 8025 shows a conversation the Graph API on 8888 carried", a
 
 	await page.goto("/");
 
-	await expect(page.locator(".topbar__brand-name")).toHaveText("mockwa");
+	await expect(page.locator(".topbar__brand-name")).toHaveText("wasandbox");
 	// The badge only says "live" once the WebSocket on 8025 is open.
 	await expect(page.locator(".connection")).toHaveText("live");
 

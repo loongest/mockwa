@@ -1,4 +1,4 @@
-import type { MediaDescriptor, MessageType } from "@mockwa/shared";
+import type { MediaDescriptor, MessageType } from "@wasandbox/shared";
 import { createContext, use, useEffect, useState } from "react";
 import { describeError } from "../../api/client.ts";
 import { api } from "../../api/endpoints.ts";
@@ -72,7 +72,7 @@ export function useMediaDescriptor(id: string | null): MediaState {
 }
 
 /**
- * The descriptor's URL is built from `MOCKWA_PUBLIC_URL`, which usually names a host only
+ * The descriptor's URL is built from `WASANDBOX_PUBLIC_URL`, which usually names a host only
  * other containers can reach; the browser wants the same path on its own origin.
  *
  * It takes anything with a `url`, because an upload handle's descriptor (SPEC §2.21) has the

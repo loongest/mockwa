@@ -23,11 +23,11 @@ export interface CreateAppOptions {
 	services: DomainServices;
 }
 
-/** The two listeners mockwa runs (SPEC §8), both over the same engine. */
-export interface MockwaApps {
-	/** `MOCKWA_GRAPH_PORT` (8888): the Meta-shaped surface the app under test calls. */
+/** The two listeners WaSandbox runs (SPEC §8), both over the same engine. */
+export interface WasandboxApps {
+	/** `WASANDBOX_GRAPH_PORT` (8888): the Meta-shaped surface the app under test calls. */
 	graph: Hono<AppEnv>;
-	/** `MOCKWA_CONSOLE_PORT` (8025): the control plane, its WebSocket and the web UI. */
+	/** `WASANDBOX_CONSOLE_PORT` (8025): the control plane, its WebSocket and the web UI. */
 	console: Hono<AppEnv>;
 }
 
@@ -43,7 +43,7 @@ function createListenerApp(logger: Logger): Hono<AppEnv> {
 		c.var.logger.error({ err: error }, "unhandled error while serving request");
 
 		// Both surfaces register their own error handler; this one only sees what escaped
-		// them, which is a bug in mockwa.
+		// them, which is a bug in wasandbox.
 		return c.json({ error: { message: "Internal Server Error" } }, 500);
 	});
 
@@ -52,7 +52,7 @@ function createListenerApp(logger: Logger): Hono<AppEnv> {
 
 /**
  * The media byte endpoint, mounted on both listeners. The Graph listener is where the URLs in
- * media descriptors point (`MOCKWA_PUBLIC_URL`); the console serves the same bytes because the
+ * media descriptors point (`WASANDBOX_PUBLIC_URL`); the console serves the same bytes because the
  * UI loads previews from its own origin (SPEC §8). The URLs carry an unguessable token and no
  * bearer token, so the second mount exposes nothing the first does not.
  */
@@ -97,7 +97,7 @@ export function createGraphApp(options: CreateAppOptions): Hono<AppEnv> {
 /**
  * Port 8025: the control plane (REST + WebSocket), media previews and the static web UI.
  *
- * In public mode, or in dev mode with `MOCKWA_ADMIN_TOKEN` set, an access gate stands in front
+ * In public mode, or in dev mode with `WASANDBOX_ADMIN_TOKEN` set, an access gate stands in front
  * of everything (SPEC §7, "Access modes"; the route inventory is docs/access.md): visitors reach
  * the phone and its API, the admin reaches the rest. With neither, nothing is mounted in front
  * and the console is as open as it always was.
@@ -149,7 +149,7 @@ export function createConsoleApp(options: CreateAppOptions): Hono<AppEnv> {
 	} else {
 		options.logger.warn(
 			{ webDir: options.config.webDir },
-			"no web UI bundle found: run `npm run build --workspace @mockwa/web`, or use the Vite dev server",
+			"no web UI bundle found: run `npm run build --workspace @wasandbox/web`, or use the Vite dev server",
 		);
 	}
 
@@ -157,6 +157,6 @@ export function createConsoleApp(options: CreateAppOptions): Hono<AppEnv> {
 }
 
 /** Composes both listeners over one set of domain services. */
-export function createApps(options: CreateAppOptions): MockwaApps {
+export function createApps(options: CreateAppOptions): WasandboxApps {
 	return { graph: createGraphApp(options), console: createConsoleApp(options) };
 }

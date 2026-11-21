@@ -1,4 +1,4 @@
-import { scenarioRunResponseSchema, scenarioValidateResponseSchema } from "@mockwa/shared";
+import { scenarioRunResponseSchema, scenarioValidateResponseSchema } from "@wasandbox/shared";
 import { Hono } from "hono";
 import { describeScenarioIssues, scenarioSchema, type Scenario } from "../config/index.ts";
 import { controlBadRequest, toJUnitXml, type ScenarioRunner } from "../domain/index.ts";

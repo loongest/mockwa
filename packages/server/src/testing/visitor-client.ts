@@ -1,4 +1,4 @@
-import { visitorSessionResponseSchema, type Contact, type VisitorSession } from "@mockwa/shared";
+import { visitorSessionResponseSchema, type Contact, type VisitorSession } from "@wasandbox/shared";
 import type { Hono } from "hono";
 import type { AppEnv } from "../app-env.ts";
 import type { Scheduler } from "../domain/index.ts";
@@ -19,9 +19,9 @@ export const TEST_GRAPH_TOKEN = "test-token";
 export const TEST_ORIGIN = "http://localhost";
 
 export const PUBLIC_ENV: Readonly<Record<string, string>> = {
-	MOCKWA_MODE: "public",
-	MOCKWA_ADMIN_TOKEN: TEST_ADMIN_TOKEN,
-	MOCKWA_TOKENS: TEST_GRAPH_TOKEN,
+	WASANDBOX_MODE: "public",
+	WASANDBOX_ADMIN_TOKEN: TEST_ADMIN_TOKEN,
+	WASANDBOX_TOKENS: TEST_GRAPH_TOKEN,
 };
 
 export const ADMIN_HEADERS = { authorization: `Bearer ${TEST_ADMIN_TOKEN}` } as const;
@@ -125,7 +125,7 @@ export class TestVisitor {
 		const headers: Record<string, string> = { ...init.headers };
 
 		if (this.cookie !== undefined) {
-			headers["cookie"] = `mockwa_visitor=${this.cookie}`;
+			headers["cookie"] = `wasandbox_visitor=${this.cookie}`;
 		}
 
 		if (init.origin !== null) {
@@ -150,7 +150,7 @@ export class TestVisitor {
 			{ method, headers, ...(body !== undefined && { body }) },
 			fromAddress(this.#address),
 		);
-		const cookie = cookieOf(response, "mockwa_visitor");
+		const cookie = cookieOf(response, "wasandbox_visitor");
 
 		if (cookie !== undefined) {
 			this.cookie = cookie === "" ? undefined : cookie;

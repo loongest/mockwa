@@ -1,4 +1,4 @@
-import { healthResponseSchema } from "@mockwa/shared";
+import { healthResponseSchema } from "@wasandbox/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestApp, type TestApp } from "./testing/test-app.ts";
 

@@ -1,4 +1,4 @@
-import type { InjectionPreset, InjectionTarget, InjectionTriggerKind } from "@mockwa/shared";
+import type { InjectionPreset, InjectionTarget, InjectionTriggerKind } from "@wasandbox/shared";
 import type { Generated } from "kysely";
 import type { QualityRating, TemplateCategory, TemplateParameterFormat, ThroughputLevel } from "../config/index.ts";
 
@@ -142,9 +142,9 @@ export interface ContactTable {
 	 * when set: it is what a send addressed by `recipient` resolves a contact through.
 	 */
 	user_id: string | null;
-	/** mockwa: a free-form label for the virtual phone (`CUSTOMER`, `TECHNICIAN`, …), `null` when unset. */
+	/** wasandbox: a free-form label for the virtual phone (`CUSTOMER`, `TECHNICIAN`, …), `null` when unset. */
 	role: string | null;
-	/** mockwa: how the virtual phone shows the number (`+60 12-345 6789`), `null` = `+<wa_id>`. */
+	/** wasandbox: how the virtual phone shows the number (`+60 12-345 6789`), `null` = `+<wa_id>`. */
 	display_number: string | null;
 	created_at: string;
 	updated_at: string;
@@ -240,7 +240,7 @@ export interface WebhookDeliveryTable {
 	next_attempt_at: string | null;
 }
 
-/** An app registered with mockwa (SPEC §3, "Apps and routing"); the default app is not a row. */
+/** An app registered with WaSandbox (SPEC §3, "Apps and routing"); the default app is not a row. */
 export interface AppTable {
 	/** Digit-only, like a Meta app id. */
 	id: string;
@@ -311,7 +311,7 @@ export interface InjectionRuleTable {
  * The registered bearer tokens that are currently "expired" (SPEC §1.9).
  *
  * Keyed by the token's derived id — a truncated SHA-256 — so a persisted database never holds a
- * credential: the registry itself lives in `MOCKWA_TOKENS`, and this table only remembers which
+ * credential: the registry itself lives in `WASANDBOX_TOKENS`, and this table only remembers which
  * of those tokens the control plane invalidated. A token missing from the table is valid.
  */
 export interface ExpiredTokenTable {
@@ -402,7 +402,7 @@ export interface GraphRequestTable {
 	response_body: string;
 }
 
-/** mockwa M6: one anonymous visitor (SPEC §5, "Public demo mode"), migration 0014. */
+/** WaSandbox M6: one anonymous visitor (SPEC §5, "Public demo mode"), migration 0014. */
 export interface PublicSessionTable {
 	/** SHA-256 of the cookie's secret, hex; the secret itself is never stored. */
 	id: string;

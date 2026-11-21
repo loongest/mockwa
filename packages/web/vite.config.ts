@@ -3,12 +3,12 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 
 /**
- * The mockwa listeners the dev server proxies to (SPEC §8): the console port owns `/api` and
+ * The WaSandbox listeners the dev server proxies to (SPEC §8): the console port owns `/api` and
  * serves the UI in production; the Graph API lives on its own port.
  */
 const serverUrl =
-	process.env["MOCKWA_DEV_SERVER_URL"] ?? process.env["WHALOC_DEV_SERVER_URL"] ?? "http://localhost:8025";
-const graphUrl = process.env["MOCKWA_DEV_GRAPH_URL"] ?? "http://localhost:8888";
+	process.env["WASANDBOX_DEV_SERVER_URL"] ?? process.env["WHALOC_DEV_SERVER_URL"] ?? "http://localhost:8025";
+const graphUrl = process.env["WASANDBOX_DEV_GRAPH_URL"] ?? "http://localhost:8888";
 
 /**
  * The virtual phone is its own page (SPEC §5). In production the server answers `/phone` with
@@ -16,7 +16,7 @@ const graphUrl = process.env["MOCKWA_DEV_GRAPH_URL"] ?? "http://localhost:8888";
  */
 function phonePage(): Plugin {
 	return {
-		name: "mockwa-phone-page",
+		name: "wasandbox-phone-page",
 		configureServer(server) {
 			server.middlewares.use((request, _response, next) => {
 				const url = request.url ?? "";

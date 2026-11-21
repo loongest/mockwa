@@ -1,11 +1,11 @@
-// Milestone M7 acceptance checks (AC-19 and the hardening review) against a running mockwa —
+// Milestone M7 acceptance checks (AC-19 and the hardening review) against a running WaSandbox —
 // normally the built Docker image — in public mode with the **default** limits, so the limits a
 // real instance ships with are what is exercised. The example echo app plays the app under test.
 //
 //   node e2e/m7-hardening.mjs
 //
-// The instance runs MOCKWA_MODE=public on e2e/fixtures/m1-seed.json with the default limits
-// and MOCKWA_TRUSTED_PROXIES=127.0.0.1 so requests made from inside the
+// The instance runs WASANDBOX_MODE=public on e2e/fixtures/m1-seed.json with the default limits
+// and WASANDBOX_TRUSTED_PROXIES=127.0.0.1 so requests made from inside the
 // container may name a client address (that is how one machine plays many visitors here). Its
 // webhook points at the echo app, which answers through the Graph listener with the registered
 // token. See .github/workflows/docker.yml for the exact flags.
@@ -197,7 +197,7 @@ class Visitor {
 		const all = { ...headers };
 
 		if (this.cookie !== undefined) {
-			all.cookie = `mockwa_visitor=${this.cookie}`;
+			all.cookie = `wasandbox_visitor=${this.cookie}`;
 		}
 
 		if (origin !== null) {
@@ -226,7 +226,7 @@ class Visitor {
 			const [pair] = header.split(";", 1);
 			const [name, value] = pair.split("=", 2);
 
-			if (name === "mockwa_visitor") {
+			if (name === "wasandbox_visitor") {
 				this.cookie = value === "" ? undefined : value;
 				this.setCookie = header;
 			}
@@ -268,7 +268,7 @@ class Visitor {
 		const headers = { ...(origin !== null && { origin }) };
 
 		if (this.cookie !== undefined) {
-			headers.cookie = `mockwa_visitor=${this.cookie}`;
+			headers.cookie = `wasandbox_visitor=${this.cookie}`;
 		}
 
 		const ws = new WebSocket(url, { headers });
@@ -693,7 +693,7 @@ await check("oversized and malformed bodies get bounded answers and change nothi
 	// sees the connection closed under it.
 	assert.equal(
 		oversizedPost(`${ana.chat()}/messages`, 8 * 1024 * 1024, {
-			cookie: `mockwa_visitor=${ana.cookie}`,
+			cookie: `wasandbox_visitor=${ana.cookie}`,
 			"x-csrf-token": ana.session.csrfToken,
 		}),
 		"413",
@@ -709,7 +709,7 @@ await check("oversized and malformed bodies get bounded answers and change nothi
 
 	assert.equal(long.status, 400);
 
-	const hugeFile = nodePath.join(tmpdir(), `mockwa-m7-${String(process.pid)}.png`);
+	const hugeFile = nodePath.join(tmpdir(), `wasandbox-m7-${String(process.pid)}.png`);
 
 	writeFileSync(hugeFile, Buffer.concat([PNG, Buffer.alloc(2 * 1024 * 1024)]));
 
@@ -725,7 +725,7 @@ await check("oversized and malformed bodies get bounded answers and change nothi
 				"-H",
 				`origin: ${CONSOLE_URL}`,
 				"-H",
-				`cookie: mockwa_visitor=${ana.cookie}`,
+				`cookie: wasandbox_visitor=${ana.cookie}`,
 				"-H",
 				`x-csrf-token: ${ana.session.csrfToken}`,
 				"-F",
@@ -845,7 +845,7 @@ await check("the Graph listener takes only the registered token", async () => {
 
 	const cookieOnly = await fetch(`${GRAPH_URL}/v25.0/${PHONE_NUMBER_ID}/messages`, {
 		...send,
-		headers: { ...send.headers, cookie: `mockwa_visitor=${ana.cookie}` },
+		headers: { ...send.headers, cookie: `wasandbox_visitor=${ana.cookie}` },
 	});
 
 	assert.equal(cookieOnly.status, 401);

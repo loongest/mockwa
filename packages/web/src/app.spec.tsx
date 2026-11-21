@@ -1,4 +1,4 @@
-import type { WsEvent } from "@mockwa/shared";
+import type { WsEvent } from "@wasandbox/shared";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";

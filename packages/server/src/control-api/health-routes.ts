@@ -1,4 +1,4 @@
-import { healthResponseSchema, type HealthResponse } from "@mockwa/shared";
+import { healthResponseSchema, type HealthResponse } from "@wasandbox/shared";
 import { Hono } from "hono";
 import type { AppEnv } from "../app-env.ts";
 

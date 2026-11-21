@@ -62,7 +62,7 @@ export interface UploadSessionStatus {
 /** The upload behind a handle, as the control plane and the profile/template surfaces see it. */
 export interface UploadDescriptor {
 	handle: string;
-	/** Points at whaloc's own byte endpoint, built from `MOCKWA_PUBLIC_URL` (SPEC §2.22). */
+	/** Points at whaloc's own byte endpoint, built from `WASANDBOX_PUBLIC_URL` (SPEC §2.22). */
 	url: string;
 	mimeType: string;
 	sha256: string;
@@ -74,7 +74,7 @@ export interface UploadDescriptor {
 export interface UploadServiceOptions {
 	repositories: Repositories;
 	storage: MediaStorage;
-	/** `MOCKWA_PUBLIC_URL`, already stripped of any trailing slash by the config parser. */
+	/** `WASANDBOX_PUBLIC_URL`, already stripped of any trailing slash by the config parser. */
 	publicUrl: string;
 	/** The id `subscribed_apps` reports; a session may also be opened under any other digit id. */
 	appId: string;
@@ -123,7 +123,7 @@ export class UploadService {
 	 *
 	 * **whaloc's own app id, or any digit-only id** (SPEC §2.21). Meta scopes an upload to the
 	 * Meta app that made it, and an app under test is configured with a `META_APP_ID` that has no
-	 * reason to equal `MOCKWA_APP_ID` — refusing it would be an obstacle with nothing behind it,
+	 * reason to equal `WASANDBOX_APP_ID` — refusing it would be an obstacle with nothing behind it,
 	 * since whaloc has one app and every session belongs to it either way. Anything that is *not*
 	 * an id at all is still `(#100)`, so a path typo does not silently open a session.
 	 */
@@ -155,7 +155,7 @@ export class UploadService {
 			return await buffer(object.stream);
 		} catch (error) {
 			if (error instanceof MediaObjectNotFoundError) {
-				// The row says bytes arrived and storage disagrees — a `MOCKWA_MEDIA_DIR` someone
+				// The row says bytes arrived and storage disagrees — a `WASANDBOX_MEDIA_DIR` someone
 				// emptied by hand. Starting over is the only honest answer left.
 				return Buffer.alloc(0);
 			}

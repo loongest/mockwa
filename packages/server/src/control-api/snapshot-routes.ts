@@ -1,4 +1,4 @@
-import { importResponseSchema } from "@mockwa/shared";
+import { importResponseSchema } from "@wasandbox/shared";
 import { Hono, type Context } from "hono";
 import { ControlPlaneError, type SnapshotService, type StateSnapshot } from "../domain/index.ts";
 import { readJsonBody, type ControlEnv } from "./control-env.ts";

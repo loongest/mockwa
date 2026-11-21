@@ -6,7 +6,7 @@ import type { AppState } from "../store/types.ts";
 import { makeAppState, makeStateResponse } from "../test/factories.ts";
 import { shortWebhookUrl, WebhookBadge } from "./webhook-badge.tsx";
 
-/** The webhook receiver, named in the top bar so a reply is never mistaken for mockwa's own. */
+/** The webhook receiver, named in the top bar so a reply is never mistaken for WaSandbox's own. */
 function renderBadge(state: Partial<AppState>): void {
 	render(
 		<MemoryRouter>

@@ -18,7 +18,7 @@ import {
 	type PhoneChat,
 	type PhoneMode,
 	type VisitorSession,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { z, type output, type ZodType } from "zod";
 import { ApiError, queryString, request as rawRequest, type RequestOptions } from "../api/client.ts";
 import type { Signal } from "../api/endpoints.ts";

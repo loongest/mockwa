@@ -1,4 +1,4 @@
-import type { MessagingRulesConfig } from "@mockwa/shared";
+import type { MessagingRulesConfig } from "@wasandbox/shared";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { jsonResponse, stubFetch } from "../../test/factories.ts";
@@ -39,7 +39,7 @@ describe("MessagingRulesCard", () => {
 		);
 		const { unmount } = render(<MessagingRulesCard rules={DEFAULTS} />);
 
-		expect(screen.getByText("MOCKWA_SERVICE_WINDOW")).toBeTruthy();
+		expect(screen.getByText("WASANDBOX_SERVICE_WINDOW")).toBeTruthy();
 		expect(fetchMock).not.toHaveBeenCalled();
 
 		unmount();

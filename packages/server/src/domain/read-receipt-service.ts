@@ -1,4 +1,4 @@
-import type { TypingIndicator } from "@mockwa/shared";
+import type { TypingIndicator } from "@wasandbox/shared";
 import type { MessageRecord, Repositories } from "../db/index.ts";
 import { toMessageDto } from "./control-dto.ts";
 import { noopEventPublisher, type EventPublisher } from "./event-bus.ts";

@@ -28,7 +28,7 @@ function enhance(attributes: Record<string, unknown>): Record<string, unknown> {
  * stack to grep, ship and read the same way:
  *
  * ```json
- * {"level":"info","service":"mockwa","env":"development","timestamp":"2026-09-02T01:18:02.090Z",
+ * {"level":"info","service":"wasandbox","env":"development","timestamp":"2026-09-02T01:18:02.090Z",
  *  "context":{"port":8080},"message":"whaloc listening"}
  * ```
  *
@@ -41,7 +41,7 @@ function enhance(attributes: Record<string, unknown>): Record<string, unknown> {
 function envelopeOptions(level: LogLevel): LoggerOptions {
 	return {
 		level,
-		base: { service: "mockwa", env: process.env["NODE_ENV"] ?? "development" },
+		base: { service: "wasandbox", env: process.env["NODE_ENV"] ?? "development" },
 		messageKey: "message",
 		// pino's own `time` is off: `enhance` emits the timestamp, inside the envelope it builds.
 		timestamp: false,

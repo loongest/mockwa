@@ -1,4 +1,8 @@
-import { injectionRuleResponseSchema, messagingRulesResponseSchema, serviceWindowResponseSchema } from "@mockwa/shared";
+import {
+	injectionRuleResponseSchema,
+	messagingRulesResponseSchema,
+	serviceWindowResponseSchema,
+} from "@wasandbox/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import type { MessageRecord } from "../db/index.ts";
 import { createRecordingScheduler, type RecordingScheduler } from "../testing/domain-harness.ts";
@@ -27,7 +31,7 @@ describe("messaging rules (SPEC §4)", () => {
 
 	async function boot(env: Record<string, string> = {}): Promise<void> {
 		scheduler = createRecordingScheduler(START);
-		fixture = await createTestApp({ MOCKWA_SERVICE_WINDOW: "24h", ...env }, { scheduler });
+		fixture = await createTestApp({ WASANDBOX_SERVICE_WINDOW: "24h", ...env }, { scheduler });
 	}
 
 	function at(offsetMs: number): void {
@@ -241,7 +245,7 @@ describe("messaging rules (SPEC §4)", () => {
 		});
 
 		it("follows a shorter configured window", async () => {
-			await boot({ MOCKWA_SERVICE_WINDOW: "30s" });
+			await boot({ WASANDBOX_SERVICE_WINDOW: "30s" });
 			await receive(ANA);
 			at(29_999);
 
@@ -371,8 +375,8 @@ describe("messaging rules (SPEC §4)", () => {
 			});
 		});
 
-		it("enforces nothing with MOCKWA_SERVICE_WINDOW=off, but still reports the window", async () => {
-			await boot({ MOCKWA_SERVICE_WINDOW: "off" });
+		it("enforces nothing with WASANDBOX_SERVICE_WINDOW=off, but still reports the window", async () => {
+			await boot({ WASANDBOX_SERVICE_WINDOW: "off" });
 
 			expect(await statusAfter(sendText(ANA))).not.toBe("failed");
 			expect(await serviceWindow(ANA)).toMatchObject({ isEnforced: false, isOpen: false, windowMs: DAY_MS });
@@ -381,7 +385,7 @@ describe("messaging rules (SPEC §4)", () => {
 
 	describe("throughput (130429)", () => {
 		it("refuses the send past the configured rate in one second, and admits it in the next", async () => {
-			await boot({ MOCKWA_THROUGHPUT: "2", MOCKWA_SERVICE_WINDOW: "off" });
+			await boot({ WASANDBOX_THROUGHPUT: "2", WASANDBOX_SERVICE_WINDOW: "off" });
 
 			expect(await httpStatus(sendText(ANA))).toBe(200);
 			expect(await httpStatus(sendText(BRUNO))).toBe(200);
@@ -403,8 +407,8 @@ describe("messaging rules (SPEC §4)", () => {
 			expect(await httpStatus(sendText(ANA))).toBe(200);
 		});
 
-		it("uses Meta's 80 per second for a STANDARD number with MOCKWA_THROUGHPUT=meta", async () => {
-			await boot({ MOCKWA_THROUGHPUT: "meta", MOCKWA_SERVICE_WINDOW: "off" });
+		it("uses Meta's 80 per second for a STANDARD number with WASANDBOX_THROUGHPUT=meta", async () => {
+			await boot({ WASANDBOX_THROUGHPUT: "meta", WASANDBOX_SERVICE_WINDOW: "off" });
 
 			const statuses: number[] = [];
 
@@ -417,7 +421,7 @@ describe("messaging rules (SPEC §4)", () => {
 		});
 
 		it("leaves a refused send off the record: no message, no contact", async () => {
-			await boot({ MOCKWA_THROUGHPUT: "1", MOCKWA_SERVICE_WINDOW: "off" });
+			await boot({ WASANDBOX_THROUGHPUT: "1", WASANDBOX_SERVICE_WINDOW: "off" });
 			await sendText(ANA);
 
 			expect(await httpStatus(sendText("5511900000099"))).toBe(429);
@@ -427,7 +431,7 @@ describe("messaging rules (SPEC §4)", () => {
 
 	describe("the pair rate limit (131056)", () => {
 		it("allows a burst, refuses the next send to that contact, and recovers one interval later", async () => {
-			await boot({ MOCKWA_PAIR_RATE_LIMIT: "2s/3", MOCKWA_SERVICE_WINDOW: "off" });
+			await boot({ WASANDBOX_PAIR_RATE_LIMIT: "2s/3", WASANDBOX_SERVICE_WINDOW: "off" });
 
 			for (let index = 0; index < 3; index += 1) {
 				expect(await httpStatus(sendText(ANA))).toBe(200);
@@ -454,7 +458,7 @@ describe("messaging rules (SPEC §4)", () => {
 		});
 
 		it("does not spend a throughput slot on a send it refuses", async () => {
-			await boot({ MOCKWA_PAIR_RATE_LIMIT: "6s/1", MOCKWA_THROUGHPUT: "2", MOCKWA_SERVICE_WINDOW: "off" });
+			await boot({ WASANDBOX_PAIR_RATE_LIMIT: "6s/1", WASANDBOX_THROUGHPUT: "2", WASANDBOX_SERVICE_WINDOW: "off" });
 
 			expect(await httpStatus(sendText(ANA))).toBe(200);
 			expect(await httpStatus(sendText(ANA))).toBe(400);
@@ -464,7 +468,7 @@ describe("messaging rules (SPEC §4)", () => {
 
 	describe("the messaging limit (simulated 990001)", () => {
 		it("counts unique contacts reached by business-initiated sends over a moving 24 hours", async () => {
-			await boot({ MOCKWA_MESSAGING_LIMIT: "1" });
+			await boot({ WASANDBOX_MESSAGING_LIMIT: "1" });
 
 			expect(await statusAfter(sendTemplate(ANA))).not.toBe("failed");
 			// The same contact again is not a new user.
@@ -473,12 +477,12 @@ describe("messaging rules (SPEC §4)", () => {
 			const over = await settled(await sendTemplate(BRUNO));
 
 			expect(over.status).toBe("failed");
-			// Meta documents no code for this, so mockwa's own says it is mockwa's (SPEC §4).
+			// Meta documents no code for this, so WaSandbox's own says it is WaSandbox's (SPEC §4).
 			expect(over.error).toEqual({
 				code: 990_001,
-				title: "[mockwa] Messaging limit reached (simulated)",
-				message: "[mockwa] Messaging limit reached (simulated)",
-				error_data: { details: expect.stringContaining("Simulated by mockwa") as unknown },
+				title: "[WaSandbox] Messaging limit reached (simulated)",
+				message: "[WaSandbox] Messaging limit reached (simulated)",
+				error_data: { details: expect.stringContaining("Simulated by WaSandbox") as unknown },
 				href: "/documentation/business-messaging/whatsapp/messaging-limits",
 			});
 			expect(over.isBusinessInitiated).toBe(false);
@@ -489,7 +493,7 @@ describe("messaging rules (SPEC §4)", () => {
 		});
 
 		it("does not count a template sent inside the window", async () => {
-			await boot({ MOCKWA_MESSAGING_LIMIT: "1" });
+			await boot({ WASANDBOX_MESSAGING_LIMIT: "1" });
 			await receive(BRUNO);
 
 			expect(await statusAfter(sendTemplate(ANA))).not.toBe("failed");
@@ -497,7 +501,7 @@ describe("messaging rules (SPEC §4)", () => {
 		});
 
 		it("reports the configuration and each WABA's count", async () => {
-			await boot({ MOCKWA_MESSAGING_LIMIT: "250", MOCKWA_THROUGHPUT: "meta", MOCKWA_PAIR_RATE_LIMIT: "meta" });
+			await boot({ WASANDBOX_MESSAGING_LIMIT: "250", WASANDBOX_THROUGHPUT: "meta", WASANDBOX_PAIR_RATE_LIMIT: "meta" });
 			await settled(await sendTemplate(ANA));
 
 			const response = await fixture.app.request("/api/messaging-rules");
@@ -523,7 +527,7 @@ describe("messaging rules (SPEC §4)", () => {
 		}
 
 		it("accepts the send and fails its status webhook with the rule's code, as many times as armed", async () => {
-			await boot({ MOCKWA_SERVICE_WINDOW: "off" });
+			await boot({ WASANDBOX_SERVICE_WINDOW: "off" });
 
 			expect(await httpStatus(armStatusRule({ trigger: { kind: "next", count: 1 }, errorCode: 131_026 }))).toBe(201);
 
@@ -535,7 +539,7 @@ describe("messaging rules (SPEC §4)", () => {
 		});
 
 		it("fires on every Nth accepted send only", async () => {
-			await boot({ MOCKWA_SERVICE_WINDOW: "off" });
+			await boot({ WASANDBOX_SERVICE_WINDOW: "off" });
 			await armStatusRule({ trigger: { kind: "every", nth: 2 }, errorCode: 131_049 });
 
 			const failed: boolean[] = [];
@@ -564,7 +568,7 @@ describe("messaging rules (SPEC §4)", () => {
 		});
 
 		it("never touches a Graph request, not even through graph.all", async () => {
-			await boot({ MOCKWA_SERVICE_WINDOW: "off" });
+			await boot({ WASANDBOX_SERVICE_WINDOW: "off" });
 			await armStatusRule({ trigger: { kind: "always" }, errorCode: 131_026 });
 
 			expect(await httpStatus(sendText(ANA))).toBe(200);
@@ -595,7 +599,7 @@ describe("messaging rules (SPEC §4)", () => {
 	});
 
 	it("starts the throughput and pair-rate counts afresh on POST /api/reset", async () => {
-		await boot({ MOCKWA_PAIR_RATE_LIMIT: "1m/1", MOCKWA_SERVICE_WINDOW: "off" });
+		await boot({ WASANDBOX_PAIR_RATE_LIMIT: "1m/1", WASANDBOX_SERVICE_WINDOW: "off" });
 
 		expect(await httpStatus(sendText(ANA))).toBe(200);
 		expect(await httpStatus(sendText(ANA))).toBe(400);

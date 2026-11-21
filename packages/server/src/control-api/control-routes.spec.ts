@@ -19,7 +19,7 @@ import {
 	webhookDeliveryListResponseSchema,
 	type ControlError,
 	type InboundRequest,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { output, ZodType } from "zod";
 import { startCaptureServer, type CaptureServer } from "../testing/capture-server.ts";
@@ -29,7 +29,7 @@ import { createTestApp, TEST_AUTH_HEADERS, type TestApp } from "../testing/test-
 /**
  * The control plane through `app.request()` (SPEC §5).
  *
- * The fixture is the real composed app on an in-memory database, with `MOCKWA_WEBHOOK_URL`
+ * The fixture is the real composed app on an in-memory database, with `WASANDBOX_WEBHOOK_URL`
  * pointing at a throwaway capture server — so a route that is supposed to emit a webhook is
  * asserted on the request the app under test would have received, not on a mock.
  */
@@ -42,12 +42,12 @@ describe("control-plane API", () => {
 	beforeEach(async () => {
 		capture = await startCaptureServer(request => ({ status: 200, body: request.query.get("hub.challenge") ?? "ok" }));
 		fixture = await createTestApp({
-			MOCKWA_WEBHOOK_URL: capture.url,
-			MOCKWA_APP_SECRET: APP_SECRET,
-			MOCKWA_WEBHOOK_VERIFY_TOKEN: "dev-verify-token",
+			WASANDBOX_WEBHOOK_URL: capture.url,
+			WASANDBOX_APP_SECRET: APP_SECRET,
+			WASANDBOX_WEBHOOK_VERIFY_TOKEN: "dev-verify-token",
 			// Reviews and read receipts are triggered by the tests themselves.
-			MOCKWA_TEMPLATE_AUTO_APPROVE: "off",
-			MOCKWA_STATUS_DELAYS: "sent:0,delivered:800",
+			WASANDBOX_TEMPLATE_AUTO_APPROVE: "off",
+			WASANDBOX_STATUS_DELAYS: "sent:0,delivered:800",
 		});
 	});
 
@@ -987,7 +987,7 @@ describe("control-plane API", () => {
 
 			expect(attempts[0]).toMatchObject({ eventType: "account_update", responseStatus: 200 });
 			expect(receivedField()).toEqual({ wabaId: fixture.wabaId, field: "account_update" });
-			expect(receivedValue()).toEqual({ phone_number: "5511912345678", event: "VERIFIED_ACCOUNT" });
+			expect(receivedValue()).toEqual({ phone_number: "60123456789", event: "VERIFIED_ACCOUNT" });
 		});
 
 		it("leaves phone_number off when no number was named", async () => {
@@ -1081,7 +1081,7 @@ describe("control-plane API", () => {
 			// `current_limit` with `max_daily_conversations_per_business` in February 2026, so
 			// both spellings go out carrying the same tier.
 			expect(lastWebhookValue()).toEqual({
-				display_phone_number: "5511912345678",
+				display_phone_number: "60123456789",
 				event: "THROUGHPUT_UPGRADE",
 				old_limit: "TIER_1K",
 				current_limit: "TIER_UNLIMITED",

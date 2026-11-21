@@ -1,4 +1,4 @@
-import type { GraphRequest } from "@mockwa/shared";
+import type { GraphRequest } from "@wasandbox/shared";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";

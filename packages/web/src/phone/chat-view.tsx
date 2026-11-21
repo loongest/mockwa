@@ -1,4 +1,4 @@
-import type { InboundRequest, Message, PhoneChat } from "@mockwa/shared";
+import type { InboundRequest, Message, PhoneChat } from "@wasandbox/shared";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { MediaResolverContext, type MediaResolver } from "../features/chats/media-preview.tsx";
 import { InboundSenderContext, type InboundSender } from "../features/chats/use-quoted-reply.ts";

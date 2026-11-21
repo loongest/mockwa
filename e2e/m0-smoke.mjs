@@ -1,10 +1,10 @@
 // Milestone M0 acceptance checks (AC-01, AC-02 and signed webhook delivery) against a running
-// mockwa — normally the built Docker image — and the example echo app. Dependency-free:
+// WaSandbox — normally the built Docker image — and the example echo app. Dependency-free:
 //
 //   node e2e/m0-smoke.mjs
 //
 // Environment, required (e2e/targets.mjs): GRAPH_URL, CONSOLE_URL and ECHO_URL, each with an
-// explicit port. Optional: APP_SECRET (the secret both mockwa and the echo app use).
+// explicit port. Optional: APP_SECRET (the secret both WaSandbox and the echo app use).
 // Runs every check, prints PASS/FAIL for each, and exits non-zero if any failed.
 
 import assert from "node:assert/strict";
@@ -105,7 +105,7 @@ function shapeOf(value) {
 	return value === null ? "null" : typeof value;
 }
 
-/** Recomputed here, independently of both mockwa and the echo app. */
+/** Recomputed here, independently of both WaSandbox and the echo app. */
 function expectedSignature(rawBody) {
 	return `sha256=${createHmac("sha256", APP_SECRET).update(rawBody, "utf8").digest("hex")}`;
 }

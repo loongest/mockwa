@@ -170,7 +170,7 @@ describe("media (SPEC §1.7, §1.8, §2.6, §2.12)", () => {
 	});
 
 	describe("GET /:mediaId — the first hop (SPEC §1.7)", () => {
-		it("answers the whole descriptor with a MOCKWA_PUBLIC_URL-based url", async () => {
+		it("answers the whole descriptor with a WASANDBOX_PUBLIC_URL-based url", async () => {
 			const node = await uploadAndResolve();
 
 			expect(node).toEqual({

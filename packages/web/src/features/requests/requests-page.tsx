@@ -4,7 +4,7 @@ import {
 	type GraphRequest,
 	type GraphRequestSummary,
 	type LoggedBody,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { api, GRAPH_REQUESTS_EXPORT_PATH } from "../../api/endpoints.ts";
@@ -276,7 +276,7 @@ export function RequestsPage() {
 
 			<div className="page__body page__body--flush">
 				{graphRequests?.length === 0 && (
-					<p className="empty">No Graph requests yet. Point the app under test at this mockwa's Graph port.</p>
+					<p className="empty">No Graph requests yet. Point the app under test at this WaSandbox's Graph port.</p>
 				)}
 
 				{graphRequests !== null && graphRequests.length > 0 && (

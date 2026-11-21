@@ -4,12 +4,12 @@ import { readTargets } from "./targets.mjs";
 
 /**
  * M5 in the browser (AC-13): the console on simulator time. Runs against the instance
- * e2e/m5-console.mjs drives (MOCKWA_CLOCK=virtual, the default seed, the example echo app as the
+ * e2e/m5-console.mjs drives (WASANDBOX_CLOCK=virtual, the default seed, the example echo app as the
  * app under test; see .github/workflows/docker.yml). Every test resets that instance first.
  *
  * Environment, required (e2e/targets.mjs): M5_CONSOLE_URL, the project's baseURL, and
  * M5_GRAPH_URL, the same instance's Graph port (for a request the app under test would make). Optional:
- * M5_CLOCK_START (2026-07-01T08:00:00.000Z), the instance's MOCKWA_CLOCK_START.
+ * M5_CLOCK_START (2026-07-01T08:00:00.000Z), the instance's WASANDBOX_CLOCK_START.
  */
 
 const { M5_GRAPH_URL: GRAPH_URL } = readTargets(process.env, {
@@ -240,6 +240,6 @@ test("Webhooks says the signature was generated, never that the receiver verifie
 	const signature = page.getByTestId("delivery-signature");
 
 	await expect(signature).toContainText("signature generated");
-	await expect(signature).toContainText("not visible to mockwa");
+	await expect(signature).toContainText("not visible to wasandbox");
 	await expect(page.getByTestId("delivery-outcome").first()).toHaveAttribute("data-outcome", "delivered");
 });

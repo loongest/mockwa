@@ -63,7 +63,7 @@ export interface CreateServicesOptions {
 	logger: Logger;
 	/**
 	 * Injected by tests that drive time. Defaults to real timers inside every service, or to a
-	 * {@link VirtualClock} when `MOCKWA_CLOCK=virtual`; a `VirtualClock` passed here is treated
+	 * {@link VirtualClock} when `WASANDBOX_CLOCK=virtual`; a `VirtualClock` passed here is treated
 	 * as the instance's virtual clock (SPEC §4, "Virtual clock").
 	 */
 	scheduler?: Scheduler;
@@ -453,7 +453,7 @@ async function buildServices(options: CreateServicesOptions, handle: DatabaseHan
 	logger.info({ dbPath: config.dbPath, applied }, migrationMessage(applied));
 
 	// One clock per instance (SPEC §4): a test's scheduler, else the virtual clock when
-	// `MOCKWA_CLOCK=virtual`, else real time inside every service, as before.
+	// `WASANDBOX_CLOCK=virtual`, else real time inside every service, as before.
 	const scheduler =
 		options.scheduler ?? (config.clock.mode === "virtual" ? new VirtualClock(config.clock.start) : undefined);
 	const ids = scheduler instanceof VirtualClock ? createSeededIdStream() : createRandomIdStream();
@@ -466,7 +466,7 @@ async function buildServices(options: CreateServicesOptions, handle: DatabaseHan
 	// created (SPEC §7).
 	logger.info({ wabas: seed.wabas, created: seed.created }, "seed applied");
 
-	// A directory or an S3 bucket, decided by `MOCKWA_MEDIA_BACKEND` (SPEC §6); everything
+	// A directory or an S3 bucket, decided by `WASANDBOX_MEDIA_BACKEND` (SPEC §6); everything
 	// downstream only ever sees the interface.
 	const mediaStorage = createMediaStorage({ config });
 

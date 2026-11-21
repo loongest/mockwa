@@ -712,7 +712,7 @@ describe("POST /:phoneNumberId/messages (SPEC §2.5)", () => {
 			);
 
 			expect(template).toMatchObject({ status: "APPROVED" });
-			// Nothing was scheduled: `MOCKWA_TEMPLATE_AUTO_APPROVE` has nothing to approve.
+			// Nothing was scheduled: `WASANDBOX_TEMPLATE_AUTO_APPROVE` has nothing to approve.
 			expect(fixture.services.domain.templateLifecycle.pendingCount).toBe(0);
 		});
 

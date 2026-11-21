@@ -1,4 +1,4 @@
-// A minimal app under test for mockwa: what a real WhatsApp Cloud API integration does, and
+// A minimal app under test for wasandbox: what a real WhatsApp Cloud API integration does, and
 // nothing that knows it is talking to a simulator. Dependency-free, so it runs with plain
 // `node examples/echo-app/server.mjs` and shares no code with the server it tests.
 //
@@ -12,7 +12,7 @@
 //                        any other text → "echo: <text>"
 //   GET  /deliveries   what was received, for tests to assert on
 //   DELETE /deliveries forget it
-//   PUT  /fail         make deliveries fail on purpose, to watch mockwa retry them:
+//   PUT  /fail         make deliveries fail on purpose, to watch WaSandbox retry them:
 //                      {"status": 500, "count": 2} answers the next 2 with a 500; without
 //                      "count" every delivery fails until DELETE /fail. Any status but 200
 //                      counts as a failure for Meta, a 204 included.

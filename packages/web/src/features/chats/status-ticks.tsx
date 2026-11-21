@@ -1,4 +1,4 @@
-import type { JsonObject, MessageStatus } from "@mockwa/shared";
+import type { JsonObject, MessageStatus } from "@wasandbox/shared";
 import clsx from "clsx";
 import { asNumber, asString } from "../../lib/json.ts";
 

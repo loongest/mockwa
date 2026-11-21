@@ -108,7 +108,7 @@ function hasNoDuplicates(tokens: readonly string[]): boolean {
 }
 
 /**
- * `MOCKWA_TOKENS` — the strict token registry (SPEC §1.9). Comma-separated; blank entries are
+ * `WASANDBOX_TOKENS` — the strict token registry (SPEC §1.9). Comma-separated; blank entries are
  * dropped, so a trailing comma is harmless. **Left unset the variable changes nothing**: whaloc
  * stays permissive and accepts any non-empty bearer token.
  */
@@ -124,7 +124,7 @@ const tokensSchema = z
 	.refine(tokens => hasNoDuplicates(tokens), "must not repeat a token")
 	.optional();
 
-/** `MOCKWA_MEDIA_TTL_SECONDS` — media expiry (SPEC §4); unset means media never expires. */
+/** `WASANDBOX_MEDIA_TTL_SECONDS` — media expiry (SPEC §4); unset means media never expires. */
 const mediaTtlSchema = integerString("must be a whole number of seconds").pipe(z.int().min(1)).optional();
 
 /** The S3-compatible media backend (SPEC §6), resolved once the environment has been checked. */
@@ -139,15 +139,15 @@ export interface S3Config {
 	credentials: { accessKeyId: string; secretAccessKey: string } | undefined;
 }
 
-/** The `MOCKWA_S3_*` half of the environment, before the cross-field rules below are applied. */
+/** The `WASANDBOX_S3_*` half of the environment, before the cross-field rules below are applied. */
 interface S3Env {
-	MOCKWA_MEDIA_BACKEND: MediaBackend;
-	MOCKWA_S3_ENDPOINT?: string | undefined;
-	MOCKWA_S3_REGION?: string | undefined;
-	MOCKWA_S3_BUCKET?: string | undefined;
-	MOCKWA_S3_ACCESS_KEY_ID?: string | undefined;
-	MOCKWA_S3_SECRET_ACCESS_KEY?: string | undefined;
-	MOCKWA_S3_FORCE_PATH_STYLE?: boolean | undefined;
+	WASANDBOX_MEDIA_BACKEND: MediaBackend;
+	WASANDBOX_S3_ENDPOINT?: string | undefined;
+	WASANDBOX_S3_REGION?: string | undefined;
+	WASANDBOX_S3_BUCKET?: string | undefined;
+	WASANDBOX_S3_ACCESS_KEY_ID?: string | undefined;
+	WASANDBOX_S3_SECRET_ACCESS_KEY?: string | undefined;
+	WASANDBOX_S3_FORCE_PATH_STYLE?: boolean | undefined;
 }
 
 /**
@@ -156,17 +156,17 @@ interface S3Env {
  * one of them alone is a typo, not a request for the default credential chain.
  */
 function checkS3Env(env: S3Env, ctx: z.RefinementCtx): void {
-	if (env.MOCKWA_MEDIA_BACKEND === "s3") {
-		for (const key of ["MOCKWA_S3_BUCKET", "MOCKWA_S3_REGION"] as const) {
+	if (env.WASANDBOX_MEDIA_BACKEND === "s3") {
+		for (const key of ["WASANDBOX_S3_BUCKET", "WASANDBOX_S3_REGION"] as const) {
 			if (env[key] === undefined) {
-				ctx.addIssue({ code: "custom", path: [key], message: 'is required when MOCKWA_MEDIA_BACKEND is "s3"' });
+				ctx.addIssue({ code: "custom", path: [key], message: 'is required when WASANDBOX_MEDIA_BACKEND is "s3"' });
 			}
 		}
 	}
 
 	const credentials = [
-		["MOCKWA_S3_ACCESS_KEY_ID", "MOCKWA_S3_SECRET_ACCESS_KEY"],
-		["MOCKWA_S3_SECRET_ACCESS_KEY", "MOCKWA_S3_ACCESS_KEY_ID"],
+		["WASANDBOX_S3_ACCESS_KEY_ID", "WASANDBOX_S3_SECRET_ACCESS_KEY"],
+		["WASANDBOX_S3_SECRET_ACCESS_KEY", "WASANDBOX_S3_ACCESS_KEY_ID"],
 	] as const;
 
 	for (const [key, other] of credentials) {
@@ -181,144 +181,144 @@ function checkS3Env(env: S3Env, ctx: z.RefinementCtx): void {
 }
 
 /** One port cannot be two listeners: the Graph surface and the console never share an origin. */
-function checkPorts(env: { MOCKWA_GRAPH_PORT: number; MOCKWA_CONSOLE_PORT: number }, ctx: z.RefinementCtx): void {
-	if (env.MOCKWA_GRAPH_PORT === env.MOCKWA_CONSOLE_PORT) {
+function checkPorts(env: { WASANDBOX_GRAPH_PORT: number; WASANDBOX_CONSOLE_PORT: number }, ctx: z.RefinementCtx): void {
+	if (env.WASANDBOX_GRAPH_PORT === env.WASANDBOX_CONSOLE_PORT) {
 		ctx.addIssue({
 			code: "custom",
-			path: ["MOCKWA_CONSOLE_PORT"],
-			message: `must differ from MOCKWA_GRAPH_PORT (both are ${String(env.MOCKWA_GRAPH_PORT)})`,
+			path: ["WASANDBOX_CONSOLE_PORT"],
+			message: `must differ from WASANDBOX_GRAPH_PORT (both are ${String(env.WASANDBOX_GRAPH_PORT)})`,
 		});
 	}
 }
 
 /** The resolved {@link S3Config}, or `undefined` when the bytes go to a directory instead. */
 function s3ConfigOf(env: S3Env): S3Config | undefined {
-	if (env.MOCKWA_MEDIA_BACKEND !== "s3") {
+	if (env.WASANDBOX_MEDIA_BACKEND !== "s3") {
 		return undefined;
 	}
 
-	const accessKeyId = env.MOCKWA_S3_ACCESS_KEY_ID;
-	const secretAccessKey = env.MOCKWA_S3_SECRET_ACCESS_KEY;
-	const endpoint = env.MOCKWA_S3_ENDPOINT;
+	const accessKeyId = env.WASANDBOX_S3_ACCESS_KEY_ID;
+	const secretAccessKey = env.WASANDBOX_S3_SECRET_ACCESS_KEY;
+	const endpoint = env.WASANDBOX_S3_ENDPOINT;
 
 	return {
 		// Both are guaranteed by `checkS3Env`, which fails the parse before this runs.
-		bucket: env.MOCKWA_S3_BUCKET!,
-		region: env.MOCKWA_S3_REGION!,
+		bucket: env.WASANDBOX_S3_BUCKET!,
+		region: env.WASANDBOX_S3_REGION!,
 		endpoint,
 		// RustFS and friends are addressed as `<endpoint>/<bucket>/<key>`; AWS is not.
-		forcePathStyle: env.MOCKWA_S3_FORCE_PATH_STYLE ?? endpoint !== undefined,
+		forcePathStyle: env.WASANDBOX_S3_FORCE_PATH_STYLE ?? endpoint !== undefined,
 		credentials:
 			accessKeyId === undefined || secretAccessKey === undefined ? undefined : { accessKeyId, secretAccessKey },
 	};
 }
 
 /**
- * Every `MOCKWA_*` environment variable (SPEC §7). Keys are the variable names so validation
+ * Every `WASANDBOX_*` environment variable (SPEC §7). Keys are the variable names so validation
  * issues carry them as their path; the transform below is the only place that maps them to
- * the camelCase {@link AppConfig} the rest of the server consumes. The `MOCKWA_*` aliases are
+ * the camelCase {@link AppConfig} the rest of the server consumes. The `WASANDBOX_*` aliases are
  * folded in by `parseConfig` before this schema sees the environment.
  */
 export const appConfigSchema = z
 	.object({
-		MOCKWA_GRAPH_PORT: portSchema.default(DEFAULT_GRAPH_PORT),
-		MOCKWA_CONSOLE_PORT: portSchema.default(DEFAULT_CONSOLE_PORT),
-		MOCKWA_HOST: z.string().min(1).default("0.0.0.0"),
-		MOCKWA_PUBLIC_URL: httpUrl
+		WASANDBOX_GRAPH_PORT: portSchema.default(DEFAULT_GRAPH_PORT),
+		WASANDBOX_CONSOLE_PORT: portSchema.default(DEFAULT_CONSOLE_PORT),
+		WASANDBOX_HOST: z.string().min(1).default("0.0.0.0"),
+		WASANDBOX_PUBLIC_URL: httpUrl
 			.transform(value => value.replace(/\/+$/, ""))
 			.default(`http://localhost:${String(DEFAULT_GRAPH_PORT)}`),
-		MOCKWA_WEBHOOK_URL: httpUrl.optional(),
-		MOCKWA_APP_SECRET: z.string().min(1).optional(),
-		MOCKWA_WEBHOOK_VERIFY_TOKEN: z.string().min(1).optional(),
-		MOCKWA_VERIFY_ON_START: z.stringbool().default(false),
+		WASANDBOX_WEBHOOK_URL: httpUrl.optional(),
+		WASANDBOX_APP_SECRET: z.string().min(1).optional(),
+		WASANDBOX_WEBHOOK_VERIFY_TOKEN: z.string().min(1).optional(),
+		WASANDBOX_VERIFY_ON_START: z.stringbool().default(false),
 		// The app id `subscribed_apps` reports (SPEC §2.20). Left unset it is derived, so the
 		// value is stable across restarts; set it to the `META_APP_ID` the app under test uses.
-		MOCKWA_APP_ID: z
+		WASANDBOX_APP_ID: z
 			.string()
 			.regex(/^\d{1,32}$/, "must be a string of 1-32 digits")
 			.optional(),
-		MOCKWA_SEED: seedEnvSchema,
-		MOCKWA_APPS: appsEnvSchema,
-		MOCKWA_WEBHOOK_RETRY_SCHEDULE: retryScheduleSchema,
-		MOCKWA_WEBHOOK_RETRY_MAX_AGE: retryMaxAgeSchema,
-		MOCKWA_STATUS_DELAYS: statusDelaysSchema,
-		MOCKWA_TEMPLATE_AUTO_APPROVE: templateAutoApproveSchema,
-		MOCKWA_TOKENS: tokensSchema,
-		MOCKWA_MEDIA_TTL_SECONDS: mediaTtlSchema,
-		MOCKWA_SERVICE_WINDOW: serviceWindowSchema,
-		MOCKWA_THROUGHPUT: throughputSchema,
-		MOCKWA_PAIR_RATE_LIMIT: pairRateLimitSchema,
-		MOCKWA_MESSAGING_LIMIT: messagingLimitSchema,
-		MOCKWA_CLOCK: clockModeSchema,
-		MOCKWA_CLOCK_START: clockStartSchema,
-		MOCKWA_DB_PATH: z.string().min(1).default(":memory:"),
+		WASANDBOX_SEED: seedEnvSchema,
+		WASANDBOX_APPS: appsEnvSchema,
+		WASANDBOX_WEBHOOK_RETRY_SCHEDULE: retryScheduleSchema,
+		WASANDBOX_WEBHOOK_RETRY_MAX_AGE: retryMaxAgeSchema,
+		WASANDBOX_STATUS_DELAYS: statusDelaysSchema,
+		WASANDBOX_TEMPLATE_AUTO_APPROVE: templateAutoApproveSchema,
+		WASANDBOX_TOKENS: tokensSchema,
+		WASANDBOX_MEDIA_TTL_SECONDS: mediaTtlSchema,
+		WASANDBOX_SERVICE_WINDOW: serviceWindowSchema,
+		WASANDBOX_THROUGHPUT: throughputSchema,
+		WASANDBOX_PAIR_RATE_LIMIT: pairRateLimitSchema,
+		WASANDBOX_MESSAGING_LIMIT: messagingLimitSchema,
+		WASANDBOX_CLOCK: clockModeSchema,
+		WASANDBOX_CLOCK_START: clockStartSchema,
+		WASANDBOX_DB_PATH: z.string().min(1).default(":memory:"),
 		// Where the bytes go (SPEC §6). `local` is the default and needs nothing else; `s3`
 		// requires the bucket and region below, and is checked before the server boots.
-		MOCKWA_MEDIA_BACKEND: z.enum(MEDIA_BACKENDS).default("local"),
+		WASANDBOX_MEDIA_BACKEND: z.enum(MEDIA_BACKENDS).default("local"),
 		// The Docker image sets `/data/media` (a declared volume); outside a container the
 		// storage root stays inside the working directory (SPEC §6).
-		MOCKWA_MEDIA_DIR: z.string().min(1).default("./data/media"),
-		MOCKWA_S3_BUCKET: z.string().min(1).optional(),
-		MOCKWA_S3_REGION: z.string().min(1).optional(),
+		WASANDBOX_MEDIA_DIR: z.string().min(1).default("./data/media"),
+		WASANDBOX_S3_BUCKET: z.string().min(1).optional(),
+		WASANDBOX_S3_REGION: z.string().min(1).optional(),
 		/** RustFS, R2, Ceph …; left unset the SDK talks to AWS S3 itself. */
-		MOCKWA_S3_ENDPOINT: httpUrl.optional(),
-		MOCKWA_S3_ACCESS_KEY_ID: z.string().min(1).optional(),
-		MOCKWA_S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
-		MOCKWA_S3_FORCE_PATH_STYLE: z.stringbool().optional(),
-		MOCKWA_WEB_DIR: z
+		WASANDBOX_S3_ENDPOINT: httpUrl.optional(),
+		WASANDBOX_S3_ACCESS_KEY_ID: z.string().min(1).optional(),
+		WASANDBOX_S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+		WASANDBOX_S3_FORCE_PATH_STYLE: z.stringbool().optional(),
+		WASANDBOX_WEB_DIR: z
 			.string()
 			.min(1)
 			.transform(value => path.resolve(value))
 			.default(DEFAULT_WEB_DIR),
-		MOCKWA_LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
+		WASANDBOX_LOG_LEVEL: z.enum(LOG_LEVELS).default("info"),
 		...accessEnvShape,
 	})
 	.superRefine(checkS3Env)
 	.superRefine(checkPorts)
 	.superRefine(checkAccessEnv)
 	.transform(env => ({
-		graphPort: env.MOCKWA_GRAPH_PORT,
-		consolePort: env.MOCKWA_CONSOLE_PORT,
-		host: env.MOCKWA_HOST,
-		publicUrl: env.MOCKWA_PUBLIC_URL,
-		webhookUrl: env.MOCKWA_WEBHOOK_URL,
-		appSecret: env.MOCKWA_APP_SECRET,
-		webhookVerifyToken: env.MOCKWA_WEBHOOK_VERIFY_TOKEN,
-		verifyOnStart: env.MOCKWA_VERIFY_ON_START,
+		graphPort: env.WASANDBOX_GRAPH_PORT,
+		consolePort: env.WASANDBOX_CONSOLE_PORT,
+		host: env.WASANDBOX_HOST,
+		publicUrl: env.WASANDBOX_PUBLIC_URL,
+		webhookUrl: env.WASANDBOX_WEBHOOK_URL,
+		appSecret: env.WASANDBOX_APP_SECRET,
+		webhookVerifyToken: env.WASANDBOX_WEBHOOK_VERIFY_TOKEN,
+		verifyOnStart: env.WASANDBOX_VERIFY_ON_START,
 		/** `undefined` = derive it; {@link SubscribedAppService} owns that fallback. */
-		appId: env.MOCKWA_APP_ID,
-		seed: env.MOCKWA_SEED,
+		appId: env.WASANDBOX_APP_ID,
+		seed: env.WASANDBOX_SEED,
 		/** Apps registered at boot and after every reset, next to the default app (SPEC §3). */
-		apps: env.MOCKWA_APPS,
+		apps: env.WASANDBOX_APPS,
 		/** Delay before each retry; the last repeats. `[]` = no retries (SPEC §3). */
-		webhookRetryScheduleMs: env.MOCKWA_WEBHOOK_RETRY_SCHEDULE,
+		webhookRetryScheduleMs: env.WASANDBOX_WEBHOOK_RETRY_SCHEDULE,
 		/** A chain stops retrying once its first attempt is this old. */
-		webhookRetryMaxAgeMs: env.MOCKWA_WEBHOOK_RETRY_MAX_AGE,
-		statusDelays: env.MOCKWA_STATUS_DELAYS,
+		webhookRetryMaxAgeMs: env.WASANDBOX_WEBHOOK_RETRY_MAX_AGE,
+		statusDelays: env.WASANDBOX_STATUS_DELAYS,
 		/** `null` = templates stay `PENDING` until approved through the control plane. */
-		templateAutoApproveMs: env.MOCKWA_TEMPLATE_AUTO_APPROVE,
+		templateAutoApproveMs: env.WASANDBOX_TEMPLATE_AUTO_APPROVE,
 		/** `undefined` = permissive auth: any non-empty bearer token is accepted (SPEC §1.9). */
-		tokens: env.MOCKWA_TOKENS,
+		tokens: env.WASANDBOX_TOKENS,
 		/** `undefined` = uploaded media never expires (SPEC §4). */
-		mediaTtlSeconds: env.MOCKWA_MEDIA_TTL_SECONDS,
+		mediaTtlSeconds: env.WASANDBOX_MEDIA_TTL_SECONDS,
 		/** The window, throughput, pair rate and messaging limit rules (SPEC §4); `null` = off. */
 		messaging: {
-			serviceWindowMs: env.MOCKWA_SERVICE_WINDOW,
-			throughput: env.MOCKWA_THROUGHPUT,
-			pairRateLimit: env.MOCKWA_PAIR_RATE_LIMIT,
-			messagingLimit: env.MOCKWA_MESSAGING_LIMIT,
+			serviceWindowMs: env.WASANDBOX_SERVICE_WINDOW,
+			throughput: env.WASANDBOX_THROUGHPUT,
+			pairRateLimit: env.WASANDBOX_PAIR_RATE_LIMIT,
+			messagingLimit: env.WASANDBOX_MESSAGING_LIMIT,
 		} satisfies MessagingRulesConfig,
 		/** Real time (the default) or the virtual clock the control plane moves (SPEC §4). */
-		clock: { mode: env.MOCKWA_CLOCK, start: env.MOCKWA_CLOCK_START } satisfies ClockConfig,
-		dbPath: env.MOCKWA_DB_PATH,
+		clock: { mode: env.WASANDBOX_CLOCK, start: env.WASANDBOX_CLOCK_START } satisfies ClockConfig,
+		dbPath: env.WASANDBOX_DB_PATH,
 		/** Which `MediaStorage` the boot sequence builds (SPEC §6). */
-		mediaBackend: env.MOCKWA_MEDIA_BACKEND,
-		mediaDir: env.MOCKWA_MEDIA_DIR,
+		mediaBackend: env.WASANDBOX_MEDIA_BACKEND,
+		mediaDir: env.WASANDBOX_MEDIA_DIR,
 		/** Set only for the `s3` backend; `undefined` means the bytes go to {@link mediaDir}. */
 		s3: s3ConfigOf(env),
 		/** Where the static UI is served from; an absent directory just leaves `/` unrouted. */
-		webDir: env.MOCKWA_WEB_DIR,
-		logLevel: env.MOCKWA_LOG_LEVEL,
+		webDir: env.WASANDBOX_WEB_DIR,
+		logLevel: env.WASANDBOX_LOG_LEVEL,
 		/** `dev` or `public`, the admin token and the visitor limits (SPEC §7, "Access modes"). */
 		access: accessConfigOf(env),
 	}));

@@ -77,7 +77,7 @@ export function createMediaRoutes(options: MediaRoutesOptions): Hono<GraphEnv> {
 	 *
 	 * Afterwards the id resolves to that same envelope and the byte URL 404s like an unknown
 	 * token, which is the whole point: it is how a consumer's "this media is gone" path is
-	 * rehearsed without waiting out `MOCKWA_MEDIA_TTL_SECONDS`.
+	 * rehearsed without waiting out `WASANDBOX_MEDIA_TTL_SECONDS`.
 	 */
 	routes.delete("/:id", async c => {
 		const id = c.req.param("id");

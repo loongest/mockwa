@@ -5,7 +5,7 @@ import {
 	phoneNumberQualityRequestSchema,
 	phoneNumberResponseSchema,
 	phoneNumberUpdateRequestSchema,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { Hono } from "hono";
 import { toPhoneNumberDto, type BusinessProfileService, type PhoneNumberService } from "../domain/index.ts";
 import { readBody, type ControlEnv } from "./control-env.ts";

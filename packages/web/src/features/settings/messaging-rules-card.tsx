@@ -1,9 +1,9 @@
-import type { MessagingLimitUsage, MessagingRulesConfig } from "@mockwa/shared";
+import type { MessagingLimitUsage, MessagingRulesConfig } from "@wasandbox/shared";
 import { useEffect, useState } from "react";
 import { api } from "../../api/endpoints.ts";
 
 /**
- * Meta's messaging rules as this mockwa enforces them (SPEC §4, "Messaging rules"). Read-only:
+ * Meta's messaging rules as this WaSandbox enforces them (SPEC §4, "Messaging rules"). Read-only:
  * each rule is an environment variable, and the window is opened by the contact writing, exactly
  * as on WhatsApp. The card exists so a send that came back 429 or `failed` has an explanation one
  * click away.
@@ -27,12 +27,12 @@ export function describeRules(rules: MessagingRulesConfig): { name: string; vari
 	return [
 		{
 			name: "Customer service window (131047)",
-			variable: "MOCKWA_SERVICE_WINDOW",
+			variable: "WASANDBOX_SERVICE_WINDOW",
 			value: rules.serviceWindowMs === null ? "off" : durationText(rules.serviceWindowMs),
 		},
 		{
 			name: "Throughput (130429)",
-			variable: "MOCKWA_THROUGHPUT",
+			variable: "WASANDBOX_THROUGHPUT",
 			value:
 				throughput === null
 					? "off"
@@ -42,7 +42,7 @@ export function describeRules(rules: MessagingRulesConfig): { name: string; vari
 		},
 		{
 			name: "Pair rate limit (131056)",
-			variable: "MOCKWA_PAIR_RATE_LIMIT",
+			variable: "WASANDBOX_PAIR_RATE_LIMIT",
 			value:
 				pairRateLimit === null
 					? "off"
@@ -50,7 +50,7 @@ export function describeRules(rules: MessagingRulesConfig): { name: string; vari
 		},
 		{
 			name: "Messaging limit (simulated 990001)",
-			variable: "MOCKWA_MESSAGING_LIMIT",
+			variable: "WASANDBOX_MESSAGING_LIMIT",
 			value: rules.messagingLimit === null ? "unlimited" : `${String(rules.messagingLimit)} users / 24h`,
 		},
 	];

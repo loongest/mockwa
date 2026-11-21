@@ -11,7 +11,7 @@ import {
  * Request bodies of the template management endpoints (SPEC §2.7, §2.9).
  *
  * The field shapes themselves — Meta's name and language rules, the component array — come from
- * `config/seed.ts`, which validates the templates in `MOCKWA_SEED` with the very same ones: a
+ * `config/seed.ts`, which validates the templates in `WASANDBOX_SEED` with the very same ones: a
  * seeded template and a created one are the same object described in two places.
  */
 

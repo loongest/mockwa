@@ -1,4 +1,4 @@
-import type { Message } from "@mockwa/shared";
+import type { Message } from "@wasandbox/shared";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { dayKey, formatDayLabel } from "../../lib/format.ts";
 import { useSimulatorNow } from "../../lib/sim-clock.tsx";

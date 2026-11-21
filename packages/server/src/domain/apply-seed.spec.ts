@@ -67,11 +67,11 @@ describe("applySeed", () => {
 		const [waba] = result.wabas;
 
 		expect(waba?.id).toMatch(META_ID_PATTERN);
-		expect(waba?.name).toBe("whaloc Test Business");
+		expect(waba?.name).toBe("Your Company Business");
 		expect(waba?.phoneNumbers[0]?.id).toMatch(META_ID_PATTERN);
 		expect(waba?.phoneNumbers[0]).toMatchObject({
-			displayPhoneNumber: "+55 11 91234-5678",
-			verifiedName: "whaloc Test Business",
+			displayPhoneNumber: "+60 12-345 6789",
+			verifiedName: "Your Company Business",
 		});
 		expect(waba?.contacts).toEqual([
 			{ waId: "5571990000001", profileName: "Ana Souza", userId: "BR.ENT.AnaSouza01" },
@@ -81,11 +81,11 @@ describe("applySeed", () => {
 	});
 
 	/**
-	 * The derived ids of the built-in seed are a published contract: downstream compose seeds pin
-	 * them (docs/integrating.md), so a change to a natural key here has to be a deliberate,
+	 * The ids of the built-in seed are a published contract: downstream compose seeds pin
+	 * them (docs/integrating.md), so a change to them has to be a deliberate,
 	 * documented one rather than a surprise at the consumer's next send.
 	 */
-	it("derives the ids the default seed's consumers hardcode", async () => {
+	it("keeps the ids the default seed's consumers hardcode", async () => {
 		const result = await applySeed({ repositories, seed: DEFAULT_SEED });
 
 		expect(result.wabas[0]).toMatchObject({

@@ -6,7 +6,7 @@ import {
 	rawWebhookRequestSchema,
 	webhookDeliveryAttemptsResponseSchema,
 	webhookDeliveryListResponseSchema,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { Hono } from "hono";
 import type { WebhookDeliveryRecord } from "../db/index.ts";
 import { toWebhookDeliveryDto, type AccountEventService, type WebhookEmitter } from "../domain/index.ts";

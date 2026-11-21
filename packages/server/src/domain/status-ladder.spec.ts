@@ -1,4 +1,4 @@
-import type { WsEvent } from "@mockwa/shared";
+import type { WsEvent } from "@wasandbox/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StatusDelays } from "../config/index.ts";
 import type { MessageRecord } from "../db/index.ts";

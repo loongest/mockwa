@@ -1,4 +1,4 @@
-import type { Conversation } from "@mockwa/shared";
+import type { Conversation } from "@wasandbox/shared";
 import type { MessageRecord, Repositories } from "../db/index.ts";
 import { toConversationDto } from "./control-dto.ts";
 

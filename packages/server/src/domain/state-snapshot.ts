@@ -6,7 +6,7 @@ import {
 	templateCategorySchema,
 	templateParameterFormatSchema,
 	throughputLevelSchema,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { z } from "zod";
 import {
 	CODE_VERIFICATION_STATUSES,
@@ -72,7 +72,7 @@ const contactRowSchema = z.object({
 	wa_id: z.string().min(1),
 	profile_name: z.string(),
 	user_id: nullable(z.string()),
-	// mockwa: a snapshot written before the virtual phone's columns simply has none.
+	// wasandbox: a snapshot written before the virtual phone's columns simply has none.
 	role: nullable(z.string()).default(null),
 	display_number: nullable(z.string()).default(null),
 	created_at: timestamp,
@@ -246,7 +246,7 @@ export const snapshotTablesSchema = z.object({
 	webhook_deliveries: z.array(webhookDeliveryRowSchema).default([]),
 	injection_rules: z.array(injectionRuleRowSchema).default([]),
 	expired_tokens: z.array(expiredTokenRowSchema).default([]),
-	// Added with M2: apps, secrets included — a snapshot is a whole mockwa (SPEC §5).
+	// Added with M2: apps, secrets included — a snapshot is a whole WaSandbox (SPEC §5).
 	apps: z.array(appRowSchema).default([]),
 	webhook_subscriptions: z.array(webhookSubscriptionRowSchema).default([]),
 	phone_number_webhook_overrides: z.array(phoneNumberWebhookOverrideRowSchema).default([]),

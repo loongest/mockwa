@@ -57,7 +57,7 @@ function failedCriteria(run) {
 }
 
 function cli(run) {
-	const directory = mkdtempSync(nodePath.join(tmpdir(), "mockwa-load-verdict-"));
+	const directory = mkdtempSync(nodePath.join(tmpdir(), "wasandbox-load-verdict-"));
 	const file = nodePath.join(directory, "report.json");
 
 	try {

@@ -3,7 +3,7 @@ import {
 	serviceWindowExpireRequestSchema,
 	serviceWindowQuerySchema,
 	serviceWindowResponseSchema,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { Hono } from "hono";
 import { toServiceWindowDto, type MessagingRules } from "../domain/index.ts";
 import { parseOrThrow, readBody, type ControlEnv } from "./control-env.ts";

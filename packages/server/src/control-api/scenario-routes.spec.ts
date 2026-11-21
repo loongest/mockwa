@@ -145,10 +145,10 @@ describe("scenarios", () => {
 			return { status: 200, body: "ok" };
 		});
 		fixture = await createTestApp({
-			MOCKWA_CLOCK: "virtual",
-			MOCKWA_WEBHOOK_URL: capture.url,
-			MOCKWA_APP_SECRET: SECRET,
-			MOCKWA_STATUS_DELAYS: "sent:0,delivered:1000",
+			WASANDBOX_CLOCK: "virtual",
+			WASANDBOX_WEBHOOK_URL: capture.url,
+			WASANDBOX_APP_SECRET: SECRET,
+			WASANDBOX_STATUS_DELAYS: "sent:0,delivered:1000",
 		});
 	});
 

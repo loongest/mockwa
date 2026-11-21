@@ -6,7 +6,7 @@ import {
 	type InjectionPreset,
 	type InjectionTarget,
 	type InjectionTrigger,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import type { Kysely } from "kysely";
 import { nowIso, systemClock, type Clock } from "../../timestamps.ts";
 import { decodeNullableJsonColumn, encodeJsonColumn } from "../json-column.ts";

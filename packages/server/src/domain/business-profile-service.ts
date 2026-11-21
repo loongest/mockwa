@@ -1,4 +1,4 @@
-import { businessProfileSchema, type BusinessProfile } from "@mockwa/shared";
+import { businessProfileSchema, type BusinessProfile } from "@wasandbox/shared";
 import type { PhoneNumberRecord, Repositories } from "../db/index.ts";
 import type { BusinessProfilePatch } from "./business-profile-requests.ts";
 import { toPhoneNumberDto } from "./control-dto.ts";

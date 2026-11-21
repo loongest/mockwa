@@ -31,7 +31,7 @@ function signInPage(error: string | null): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>mockwa admin</title>
+<title>WaSandbox admin</title>
 <style>
 body{font-family:system-ui,sans-serif;background:#f4f5f7;color:#1c1e21;display:grid;place-items:center;min-height:100vh;margin:0}
 form{background:#fff;padding:24px;border-radius:12px;box-shadow:0 1px 4px rgb(0 0 0/.15);display:grid;gap:12px;width:min(320px,90vw)}
@@ -43,7 +43,7 @@ button{background:#128c7e;color:#fff;border:0;cursor:pointer}
 </head>
 <body>
 <form method="post" action="/api/admin/login">
-<h1>mockwa admin</h1>
+<h1>WaSandbox admin</h1>
 ${message}
 <label>Admin token <input type="password" name="token" autocomplete="current-password" required autofocus></label>
 <button type="submit">Sign in</button>

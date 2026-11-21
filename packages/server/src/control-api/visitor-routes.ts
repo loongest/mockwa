@@ -13,7 +13,7 @@ import {
 	visitorSessionResponseSchema,
 	type InboundRequest,
 	type VisitorSession,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { Hono, type Context, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import type { WSContext } from "hono/ws";

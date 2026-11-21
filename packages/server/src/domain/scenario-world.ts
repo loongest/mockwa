@@ -1,4 +1,4 @@
-import { inboundRequestSchema } from "@mockwa/shared";
+import { inboundRequestSchema } from "@wasandbox/shared";
 import type { Scenario, Seed, SeedContact } from "../config/index.ts";
 import { describeScenarioIssues } from "../config/scenario.ts";
 import type { SeedResult } from "./apply-seed.ts";
@@ -243,7 +243,7 @@ function checkSteps(scenario: Scenario, plan: ScenarioPlan, found: Problems): vo
 }
 
 /**
- * The seed a scenario runs in — its own `wabas`, or `MOCKWA_SEED` — with its identities added
+ * The seed a scenario runs in — its own `wabas`, or `WASANDBOX_SEED` — with its identities added
  * to the first WABA, and every reference checked. Returns the problems instead when there are
  * any, all of them at once.
  */

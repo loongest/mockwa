@@ -1,5 +1,5 @@
 {
-	"name": "mockwa",
+	"name": "wasandbox",
 	"version": "0.0.0",
 	"private": true,
 	"type": "module",
@@ -21,14 +21,14 @@
 		"npm": ">=11.0.0"
 	},
 	"scripts": {
-		"build": "npm run build --workspace @mockwa/shared && npm run build --workspace @mockwa/server && npm run build --workspace @mockwa/web",
-		"dev": "concurrently --kill-others-on-fail --names server,web --prefix-colors blue,green \"npm run dev --workspace @mockwa/server\" \"npm run dev --workspace @mockwa/web\"",
+		"build": "npm run build --workspace @wasandbox/shared && npm run build --workspace @wasandbox/server && npm run build --workspace @wasandbox/web",
+		"dev": "concurrently --kill-others-on-fail --names server,web --prefix-colors blue,green \"npm run dev --workspace @wasandbox/server\" \"npm run dev --workspace @wasandbox/web\"",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",
-		"mockwa": "node --experimental-transform-types --disable-warning=ExperimentalWarning --conditions=development packages/server/src/cli/mockwa.ts",
-		"start": "npm run start --workspace @mockwa/server",
+		"wasandbox": "node --experimental-transform-types --disable-warning=ExperimentalWarning --conditions=development packages/server/src/cli/wasandbox.ts",
+		"start": "npm run start --workspace @wasandbox/server",
 		"test": "npm run test --workspaces --if-present && npm run test:e2e-targets",
 		"test:e2e-targets": "node --test e2e/targets.test.mjs e2e/load-verdict.test.mjs",
 		"typecheck": "npm run typecheck --workspaces --if-present"

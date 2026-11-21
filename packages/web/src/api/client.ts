@@ -1,4 +1,4 @@
-import { controlErrorSchema } from "@mockwa/shared";
+import { controlErrorSchema } from "@wasandbox/shared";
 import type { output, ZodType } from "zod";
 
 /**

@@ -6,7 +6,7 @@ import {
 	webhookDeliveryListResponseSchema,
 	type ControlError,
 	type WsEvent,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { output, ZodType } from "zod";
 import { SNAPSHOT_SCHEMA_VERSION, type StateSnapshot } from "../domain/index.ts";
@@ -28,8 +28,8 @@ describe("state export/import", () => {
 
 	beforeEach(async () => {
 		fixture = await createTestApp({
-			MOCKWA_TEMPLATE_AUTO_APPROVE: "off",
-			MOCKWA_STATUS_DELAYS: "sent:0,delivered:800",
+			WASANDBOX_TEMPLATE_AUTO_APPROVE: "off",
+			WASANDBOX_STATUS_DELAYS: "sent:0,delivered:800",
 		});
 	});
 
@@ -111,7 +111,7 @@ describe("state export/import", () => {
 				exportedAt: stringMatching(/^\d{4}-\d{2}-\d{2}T/),
 			});
 			expect(snapshot.tables.wabas).toEqual([
-				{ id: fixture.wabaId, name: "whaloc Test Business", subscribed_at: null, created_at: anyString() },
+				{ id: fixture.wabaId, name: "Your Company Business", subscribed_at: null, created_at: anyString() },
 			]);
 			expect(snapshot.tables.phone_numbers[0]).toMatchObject({ id: fixture.phoneNumberId, status: "CONNECTED" });
 			expect(snapshot.tables.contacts.map(contact => contact.wa_id)).toEqual(["5571990000001", "5571990000002"]);
@@ -176,7 +176,7 @@ describe("state export/import", () => {
 	describe("POST /api/import", () => {
 		/**
 		 * A state that is deliberately *not* the seed: the seeded WABA is gone and another one
-		 * has taken its place, so an import that re-applied `MOCKWA_SEED` would be obvious.
+		 * has taken its place, so an import that re-applied `WASANDBOX_SEED` would be obvious.
 		 */
 		async function captureNonSeededSnapshot(): Promise<{ snapshot: StateSnapshot; wabaId: string }> {
 			await simulateInbound("before the export");

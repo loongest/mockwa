@@ -1,4 +1,4 @@
-import { clockMoveResponseSchema, clockResponseSchema } from "@mockwa/shared";
+import { clockMoveResponseSchema, clockResponseSchema } from "@wasandbox/shared";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -8,7 +8,7 @@ import { createTestApp, TEST_AUTH_HEADERS, type TestApp } from "../testing/test-
 
 /**
  * `/api/clock` and the virtual clock end to end (SPEC §4, "Virtual clock"; §5): the composed
- * app on `MOCKWA_CLOCK=virtual`, webhooks captured as the bytes an app would receive.
+ * app on `WASANDBOX_CLOCK=virtual`, webhooks captured as the bytes an app would receive.
  */
 
 const START = "2026-03-01T09:00:00.000Z";
@@ -143,13 +143,13 @@ describe("the virtual clock", () => {
 	beforeEach(async () => {
 		capture = await startCaptureServer();
 		fixture = await createTestApp({
-			MOCKWA_CLOCK: "virtual",
-			MOCKWA_CLOCK_START: START,
-			MOCKWA_WEBHOOK_URL: capture.url,
-			MOCKWA_APP_SECRET: "clock-secret",
+			WASANDBOX_CLOCK: "virtual",
+			WASANDBOX_CLOCK_START: START,
+			WASANDBOX_WEBHOOK_URL: capture.url,
+			WASANDBOX_APP_SECRET: "clock-secret",
 			// Timers on minute boundaries, so an advance can stop between them.
-			MOCKWA_STATUS_DELAYS: "sent:0,delivered:60000,read:420000",
-			MOCKWA_TEMPLATE_AUTO_APPROVE: "off",
+			WASANDBOX_STATUS_DELAYS: "sent:0,delivered:60000,read:420000",
+			WASANDBOX_TEMPLATE_AUTO_APPROVE: "off",
 		});
 	});
 
@@ -158,7 +158,7 @@ describe("the virtual clock", () => {
 		await capture.close();
 	});
 
-	it("starts at MOCKWA_CLOCK_START and stamps rows with virtual time", async () => {
+	it("starts at WASANDBOX_CLOCK_START and stamps rows with virtual time", async () => {
 		expect(await clock(fixture)).toMatchObject({ mode: "virtual", now: START, start: START, deterministicIds: true });
 
 		await inbound(fixture);
@@ -337,10 +337,10 @@ describe("the virtual clock", () => {
 
 		beforeEach(async () => {
 			windowed = await createTestApp({
-				MOCKWA_CLOCK: "virtual",
-				MOCKWA_CLOCK_START: START,
-				MOCKWA_SERVICE_WINDOW: "24h",
-				MOCKWA_TEMPLATE_AUTO_APPROVE: "off",
+				WASANDBOX_CLOCK: "virtual",
+				WASANDBOX_CLOCK_START: START,
+				WASANDBOX_SERVICE_WINDOW: "24h",
+				WASANDBOX_TEMPLATE_AUTO_APPROVE: "off",
 			});
 		});
 
@@ -404,7 +404,7 @@ describe("webhook retries on the virtual clock", () => {
 
 	beforeEach(async () => {
 		capture = await startCaptureServer(() => ({ status: 500, body: "down" }));
-		dir = await mkdtemp(path.join(tmpdir(), "mockwa-clock-"));
+		dir = await mkdtemp(path.join(tmpdir(), "wasandbox-clock-"));
 		opened = [];
 	});
 
@@ -427,11 +427,11 @@ describe("webhook retries on the virtual clock", () => {
 
 	function environment(dbPath = ":memory:"): Record<string, string> {
 		return {
-			MOCKWA_CLOCK: "virtual",
-			MOCKWA_CLOCK_START: START,
-			MOCKWA_DB_PATH: dbPath,
-			MOCKWA_WEBHOOK_URL: capture.url,
-			MOCKWA_APP_SECRET: "retry-secret",
+			WASANDBOX_CLOCK: "virtual",
+			WASANDBOX_CLOCK_START: START,
+			WASANDBOX_DB_PATH: dbPath,
+			WASANDBOX_WEBHOOK_URL: capture.url,
+			WASANDBOX_APP_SECRET: "retry-secret",
 		};
 	}
 
@@ -475,7 +475,7 @@ describe("webhook retries on the virtual clock", () => {
 	});
 
 	it("keeps a pending retry and the clock's position across a restart", async () => {
-		const dbPath = path.join(dir, "mockwa.db");
+		const dbPath = path.join(dir, "wasandbox.db");
 		const first = await open(dbPath);
 
 		await inbound(first);

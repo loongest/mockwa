@@ -1,4 +1,4 @@
-import { stateResponseSchema } from "@mockwa/shared";
+import { stateResponseSchema } from "@wasandbox/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { META_ID_PATTERN } from "../domain/index.ts";
 import { readJson, stringMatching } from "../testing/expectations.ts";
@@ -96,7 +96,7 @@ describe("subscribed apps (SPEC §2.20)", () => {
 		expect(await second.json()).toEqual({ success: true });
 	});
 
-	it("derives a stable app id, and takes MOCKWA_APP_ID when it is set", async () => {
+	it("derives a stable app id, and takes WASANDBOX_APP_ID when it is set", async () => {
 		await call("POST");
 
 		const [derived] = await listed();
@@ -110,7 +110,7 @@ describe("subscribed apps (SPEC §2.20)", () => {
 		expect(again?.whatsapp_business_api_data.id).toBe(derived?.whatsapp_business_api_data.id);
 
 		await fixture.close();
-		fixture = await createTestApp({ MOCKWA_APP_ID: "1234567890" });
+		fixture = await createTestApp({ WASANDBOX_APP_ID: "1234567890" });
 		await call("POST");
 
 		const [configured] = await listed();
@@ -136,7 +136,7 @@ describe("subscribed apps (SPEC §2.20)", () => {
 	});
 
 	/**
-	 * The divergence worth being explicit about: `MOCKWA_WEBHOOK_URL` decides where webhooks go,
+	 * The divergence worth being explicit about: `WASANDBOX_WEBHOOK_URL` decides where webhooks go,
 	 * so a `DELETE` here does not silence them. A dev tool that quietly stopped delivering would
 	 * be a support question, not a feature.
 	 */
@@ -163,8 +163,8 @@ describe("subscribed apps (SPEC §2.20)", () => {
 
 		beforeEach(async () => {
 			multi = await createTestApp({
-				MOCKWA_WEBHOOK_URL: "http://127.0.0.1:9/default",
-				MOCKWA_APPS: JSON.stringify([
+				WASANDBOX_WEBHOOK_URL: "http://127.0.0.1:9/default",
+				WASANDBOX_APPS: JSON.stringify([
 					{
 						id: "200000000000002",
 						name: "Billing",

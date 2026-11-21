@@ -26,12 +26,12 @@ export const behaviorStateSchema = z.object({
 	/** `null` = templates stay `PENDING` until moderated through the control plane. */
 	templateAutoApproveMs: z.number().int().nonnegative().nullable(),
 	/**
-	 * `MOCKWA_TOKENS` is set, so only the registered bearer tokens are accepted (SPEC §1.9).
+	 * `WASANDBOX_TOKENS` is set, so only the registered bearer tokens are accepted (SPEC §1.9).
 	 * `false` — the default — is whaloc's permissive mode: any non-empty token passes, and
 	 * `GET /api/tokens` has nothing to list.
 	 */
 	strictTokens: z.boolean(),
-	/** `MOCKWA_MEDIA_TTL_SECONDS`; `null` = uploaded media never expires. */
+	/** `WASANDBOX_MEDIA_TTL_SECONDS`; `null` = uploaded media never expires. */
 	mediaTtlSeconds: z.number().int().nonnegative().nullable(),
 	/** The customer service window, throughput, pair rate and messaging limit (SPEC §4). */
 	messaging: messagingRulesConfigSchema,
@@ -56,7 +56,7 @@ export type WebhookState = z.infer<typeof webhookStateSchema>;
 /**
  * The one app whaloc plays on the `subscribed_apps` surface (SPEC §2.20): the id
  * `POST /{wabaId}/subscribed_apps` registers and `GET` reports, so the UI can say *which* app a
- * WABA is subscribed to. Its id comes from `MOCKWA_APP_ID`, or is derived deterministically.
+ * WABA is subscribed to. Its id comes from `WASANDBOX_APP_ID`, or is derived deterministically.
  */
 export const appIdentitySchema = z.object({
 	id: z.string(),

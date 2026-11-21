@@ -4,7 +4,7 @@ import {
 	type BusinessProfileUpdateRequest,
 	type BusinessVertical,
 	type PhoneNumber,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { useState } from "react";
 import { api } from "../../api/endpoints.ts";
 import { useDispatch, useToasts } from "../../store/store.tsx";

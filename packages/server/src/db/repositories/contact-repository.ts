@@ -7,9 +7,9 @@ export interface ContactRecord {
 	profileName: string;
 	/** The contact's business-scoped user id (SPEC §1.15), `null` when it has none. */
 	userId: string | null;
-	/** mockwa: free-form label the virtual phone shows, `null` when unset. */
+	/** wasandbox: free-form label the virtual phone shows, `null` when unset. */
 	role: string | null;
-	/** mockwa: friendly number the virtual phone shows, `null` = `+<wa_id>`. */
+	/** wasandbox: friendly number the virtual phone shows, `null` = `+<wa_id>`. */
 	displayNumber: string | null;
 	createdAt: string;
 	updatedAt: string;

@@ -5,23 +5,23 @@ import { toJUnitXml } from "../domain/scenario-junit.ts";
 import type { ScenarioRun, StepResult } from "../domain/scenario-runner.ts";
 
 /**
- * `mockwa scenario run` (SPEC §4, "Scenarios"): a small client of a running mockwa's control
+ * `wasandbox scenario run` (SPEC §4, "Scenarios"): a small client of a running WaSandbox's control
  * plane. It validates each scenario file locally first — so a typo is reported with its file
  * and its location, without a round trip — then asks the instance to run it and prints the
  * outcome. Exit codes: `0` every scenario passed, `1` at least one failed, `2` the command
  * could not do its job (bad arguments, an invalid file, an unreachable or refusing instance).
  *
- * The instance is never guessed: `--url` (or `MOCKWA_CONSOLE_URL`) must name it, because a run
+ * The instance is never guessed: `--url` (or `WASANDBOX_CONSOLE_URL`) must name it, because a run
  * **resets** the instance it talks to.
  */
 
 const USAGE = `Usage:
-  mockwa scenario run <file.json>... --url <console URL> [--junit <report.xml>] [--json <results.json>]
-  mockwa scenario validate <file.json>... [--url <console URL>]
+  wasandbox scenario run <file.json>... --url <console URL> [--junit <report.xml>] [--json <results.json>]
+  wasandbox scenario validate <file.json>... [--url <console URL>]
 
 Options:
-  --url      The mockwa console to run against, such as http://127.0.0.1:8025
-             (or set MOCKWA_CONSOLE_URL). A run resets that instance.
+  --url      The WaSandbox console to run against, such as http://127.0.0.1:8025
+             (or set WASANDBOX_CONSOLE_URL). A run resets that instance.
   --junit    Also write a JUnit XML report of every scenario to this file.
   --json     Also write the full results as JSON to this file.
   --timeout  Give up on one scenario after this many seconds (default 600).
@@ -86,10 +86,12 @@ async function loadScenario(file: string): Promise<Scenario> {
 }
 
 function consoleUrl(value: string | undefined, env: Record<string, string | undefined>): string {
-	const raw = value ?? env["MOCKWA_CONSOLE_URL"];
+	const raw = value ?? env["WASANDBOX_CONSOLE_URL"];
 
 	if (raw === undefined || raw.trim() === "") {
-		throw new CliError("name the mockwa console with --url (or MOCKWA_CONSOLE_URL), such as http://127.0.0.1:8025");
+		throw new CliError(
+			"name the WaSandbox console with --url (or WASANDBOX_CONSOLE_URL), such as http://127.0.0.1:8025",
+		);
 	}
 
 	let url: URL;
@@ -244,7 +246,7 @@ async function runScenarios(cli: CliEnvironment, files: string[], values: Option
 }
 
 async function validateScenarios(cli: CliEnvironment, files: string[], values: Options) {
-	const base = values.url ?? cli.env["MOCKWA_CONSOLE_URL"];
+	const base = values.url ?? cli.env["WASANDBOX_CONSOLE_URL"];
 
 	for (const file of files) {
 		const scenario = await loadScenario(file);
@@ -311,7 +313,7 @@ export async function main(argv: readonly string[], cli: CliEnvironment): Promis
 		return await action(cli, files, parsed.values);
 	} catch (error) {
 		if (error instanceof CliError) {
-			cli.err(`mockwa: ${error.message}`);
+			cli.err(`wasandbox: ${error.message}`);
 
 			return EXIT_ERROR;
 		}

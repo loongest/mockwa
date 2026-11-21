@@ -175,7 +175,7 @@ describe("phone number management", () => {
 
 		it("compares by digits, so the seeded number's own MSISDN is a duplicate too", async () => {
 			const duplicate = await post(`/v25.0/${fixture.wabaId}/phone_numbers`, {
-				phone_number: "5511912345678",
+				phone_number: "60123456789",
 				verified_name: "Copy Cat",
 			});
 
@@ -365,7 +365,7 @@ describe("phone number management", () => {
 			const response = await get(`/v25.0/${fixture.wabaId}/phone_numbers?fields=display_phone_number,status`);
 
 			expect(await response.json()).toMatchObject({
-				data: [{ display_phone_number: "+55 11 91234-5678", status: "CONNECTED", id: fixture.phoneNumberId }],
+				data: [{ display_phone_number: "+60 12-345 6789", status: "CONNECTED", id: fixture.phoneNumberId }],
 			});
 		});
 
@@ -375,8 +375,8 @@ describe("phone number management", () => {
 			);
 
 			expect(await response.json()).toEqual({
-				verified_name: "whaloc Test Business",
-				display_phone_number: "+55 11 91234-5678",
+				verified_name: "Your Company Business",
+				display_phone_number: "+60 12-345 6789",
 				quality_rating: "GREEN",
 				throughput: { level: "STANDARD" },
 				id: fixture.phoneNumberId,

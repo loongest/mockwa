@@ -1,4 +1,4 @@
-import type { InboundRequest } from "@mockwa/shared";
+import type { InboundRequest } from "@wasandbox/shared";
 import type { JsonObject, MessageRecord } from "../db/index.ts";
 
 /**

@@ -1,4 +1,4 @@
-import { contactRoleSchema } from "@mockwa/shared";
+import { contactRoleSchema } from "@wasandbox/shared";
 import { isIP } from "node:net";
 import { z } from "zod";
 import { parseDuration } from "./webhook-config.ts";
@@ -52,7 +52,7 @@ export const DEFAULT_PUBLIC_LIMITS = {
 	sessionCreatesPerMinutePerIp: 10,
 } as const;
 
-/** `MOCKWA_PUBLIC_WA_ID_PREFIX`: the reserved range's leading digits. */
+/** `WASANDBOX_PUBLIC_WA_ID_PREFIX`: the reserved range's leading digits. */
 export const DEFAULT_VISITOR_WA_ID_PREFIX = "999";
 
 /** Digits a visitor's `wa_id` carries in all, prefix included (Meta's wa_ids are 1-20 digits). */
@@ -96,7 +96,7 @@ const visitorIdentitiesSchema = z
 	}, "must not repeat a role");
 
 /**
- * `MOCKWA_TRUSTED_PROXIES`: the exact addresses of the reverse proxies whose
+ * `WASANDBOX_TRUSTED_PROXIES`: the exact addresses of the reverse proxies whose
  * `X-Forwarded-For` / `X-Forwarded-Proto` / `X-Forwarded-Host` are believed. Exact addresses,
  * not ranges: a public demo sits behind one or two known hops, and a typo in a range would
  * trust the whole internet.
@@ -112,7 +112,7 @@ const trustedProxiesSchema = z
 	.refine(entries => entries.every(entry => isIP(entry) !== 0), "must be a comma-separated list of IP addresses")
 	.default([]);
 
-/** `MOCKWA_ALLOWED_ORIGINS`: browser origins besides the listener's own, for CSRF and socket checks. */
+/** `WASANDBOX_ALLOWED_ORIGINS`: browser origins besides the listener's own, for CSRF and socket checks. */
 const allowedOriginsSchema = z
 	.string()
 	.transform(value => {
@@ -127,49 +127,49 @@ const allowedOriginsSchema = z
 	)
 	.default([]);
 
-/** The `MOCKWA_*` keys this file owns, before the cross-field rules below. */
+/** The `WASANDBOX_*` keys this file owns, before the cross-field rules below. */
 export const accessEnvShape = {
-	MOCKWA_MODE: z.enum(ACCESS_MODES).default("dev"),
-	MOCKWA_ADMIN_TOKEN: z.string().min(1).optional(),
-	MOCKWA_PUBLIC_IDENTITIES: visitorIdentitiesSchema.default([...DEFAULT_VISITOR_IDENTITIES]),
-	MOCKWA_PUBLIC_WA_ID_PREFIX: z
+	WASANDBOX_MODE: z.enum(ACCESS_MODES).default("dev"),
+	WASANDBOX_ADMIN_TOKEN: z.string().min(1).optional(),
+	WASANDBOX_PUBLIC_IDENTITIES: visitorIdentitiesSchema.default([...DEFAULT_VISITOR_IDENTITIES]),
+	WASANDBOX_PUBLIC_WA_ID_PREFIX: z
 		.string()
 		.regex(/^[1-9]\d{0,5}$/, "must be 1-6 digits and must not start with 0")
 		.default(DEFAULT_VISITOR_WA_ID_PREFIX),
-	MOCKWA_PUBLIC_SESSION_TTL: durationSchema.default(DEFAULT_PUBLIC_LIMITS.sessionTtlMs),
-	MOCKWA_PUBLIC_MESSAGES_PER_MINUTE: positiveInteger("must be a whole number of at least 1").default(
+	WASANDBOX_PUBLIC_SESSION_TTL: durationSchema.default(DEFAULT_PUBLIC_LIMITS.sessionTtlMs),
+	WASANDBOX_PUBLIC_MESSAGES_PER_MINUTE: positiveInteger("must be a whole number of at least 1").default(
 		DEFAULT_PUBLIC_LIMITS.messagesPerMinutePerSession,
 	),
-	MOCKWA_PUBLIC_IP_MESSAGES_PER_MINUTE: positiveInteger("must be a whole number of at least 1").default(
+	WASANDBOX_PUBLIC_IP_MESSAGES_PER_MINUTE: positiveInteger("must be a whole number of at least 1").default(
 		DEFAULT_PUBLIC_LIMITS.messagesPerMinutePerIp,
 	),
-	MOCKWA_PUBLIC_MEDIA_MAX_BYTES: positiveInteger("must be a whole number of bytes, at least 1").default(
+	WASANDBOX_PUBLIC_MEDIA_MAX_BYTES: positiveInteger("must be a whole number of bytes, at least 1").default(
 		DEFAULT_PUBLIC_LIMITS.mediaMaxBytes,
 	),
-	MOCKWA_PUBLIC_MEDIA_PER_SESSION: positiveInteger("must be a whole number of at least 1").default(
+	WASANDBOX_PUBLIC_MEDIA_PER_SESSION: positiveInteger("must be a whole number of at least 1").default(
 		DEFAULT_PUBLIC_LIMITS.mediaPerSession,
 	),
-	MOCKWA_PUBLIC_SESSIONS_PER_IP: positiveInteger("must be a whole number of at least 1").default(
+	WASANDBOX_PUBLIC_SESSIONS_PER_IP: positiveInteger("must be a whole number of at least 1").default(
 		DEFAULT_PUBLIC_LIMITS.sessionsPerIp,
 	),
-	MOCKWA_PUBLIC_MAX_SESSIONS: positiveInteger("must be a whole number of at least 1").default(
+	WASANDBOX_PUBLIC_MAX_SESSIONS: positiveInteger("must be a whole number of at least 1").default(
 		DEFAULT_PUBLIC_LIMITS.maxSessions,
 	),
-	MOCKWA_PUBLIC_SESSION_CREATES_PER_MINUTE: positiveInteger("must be a whole number of at least 1").default(
+	WASANDBOX_PUBLIC_SESSION_CREATES_PER_MINUTE: positiveInteger("must be a whole number of at least 1").default(
 		DEFAULT_PUBLIC_LIMITS.sessionCreatesPerMinutePerIp,
 	),
-	MOCKWA_TRUSTED_PROXIES: trustedProxiesSchema,
-	MOCKWA_ALLOWED_ORIGINS: allowedOriginsSchema,
-	MOCKWA_COOKIE_SECURE: z.enum(COOKIE_SECURE_MODES).default("auto"),
+	WASANDBOX_TRUSTED_PROXIES: trustedProxiesSchema,
+	WASANDBOX_ALLOWED_ORIGINS: allowedOriginsSchema,
+	WASANDBOX_COOKIE_SECURE: z.enum(COOKIE_SECURE_MODES).default("auto"),
 };
 
 /** What `checkAccessEnv` needs to see of the whole environment. */
 interface AccessEnv {
-	MOCKWA_MODE: AccessMode;
-	MOCKWA_ADMIN_TOKEN?: string | undefined;
-	MOCKWA_CLOCK: string;
-	MOCKWA_TOKENS?: readonly string[] | undefined;
-	MOCKWA_PUBLIC_WA_ID_PREFIX: string;
+	WASANDBOX_MODE: AccessMode;
+	WASANDBOX_ADMIN_TOKEN?: string | undefined;
+	WASANDBOX_CLOCK: string;
+	WASANDBOX_TOKENS?: readonly string[] | undefined;
+	WASANDBOX_PUBLIC_WA_ID_PREFIX: string;
 }
 
 /**
@@ -178,41 +178,45 @@ interface AccessEnv {
  *
  * - no admin token, or a short one: the console would be unreachable, or guessable;
  * - the virtual clock: visitors run in real time, and one visitor must not move another's clock;
- * - no `MOCKWA_TOKENS`: the Graph listener would accept any bearer token, so anyone who reaches
+ * - no `WASANDBOX_TOKENS`: the Graph listener would accept any bearer token, so anyone who reaches
  *   it could speak as the business.
  *
  * An admin token in dev mode is allowed and puts the whole console behind it (SPEC §7).
  */
 export function checkAccessEnv(env: AccessEnv, ctx: z.RefinementCtx): void {
-	if (env.MOCKWA_ADMIN_TOKEN !== undefined && env.MOCKWA_ADMIN_TOKEN.length < MIN_ADMIN_TOKEN_LENGTH) {
+	if (env.WASANDBOX_ADMIN_TOKEN !== undefined && env.WASANDBOX_ADMIN_TOKEN.length < MIN_ADMIN_TOKEN_LENGTH) {
 		ctx.addIssue({
 			code: "custom",
-			path: ["MOCKWA_ADMIN_TOKEN"],
+			path: ["WASANDBOX_ADMIN_TOKEN"],
 			message: `must be at least ${String(MIN_ADMIN_TOKEN_LENGTH)} characters`,
 		});
 	}
 
-	if (env.MOCKWA_MODE !== "public") {
+	if (env.WASANDBOX_MODE !== "public") {
 		return;
 	}
 
-	if (env.MOCKWA_ADMIN_TOKEN === undefined) {
-		ctx.addIssue({ code: "custom", path: ["MOCKWA_ADMIN_TOKEN"], message: 'is required when MOCKWA_MODE is "public"' });
-	}
-
-	if (env.MOCKWA_CLOCK !== "real") {
+	if (env.WASANDBOX_ADMIN_TOKEN === undefined) {
 		ctx.addIssue({
 			code: "custom",
-			path: ["MOCKWA_CLOCK"],
-			message: 'must be "real" when MOCKWA_MODE is "public": visitors run in real time',
+			path: ["WASANDBOX_ADMIN_TOKEN"],
+			message: 'is required when WASANDBOX_MODE is "public"',
 		});
 	}
 
-	if (env.MOCKWA_TOKENS === undefined) {
+	if (env.WASANDBOX_CLOCK !== "real") {
 		ctx.addIssue({
 			code: "custom",
-			path: ["MOCKWA_TOKENS"],
-			message: 'is required when MOCKWA_MODE is "public": the Graph listener must not accept any bearer token',
+			path: ["WASANDBOX_CLOCK"],
+			message: 'must be "real" when WASANDBOX_MODE is "public": visitors run in real time',
+		});
+	}
+
+	if (env.WASANDBOX_TOKENS === undefined) {
+		ctx.addIssue({
+			code: "custom",
+			path: ["WASANDBOX_TOKENS"],
+			message: 'is required when WASANDBOX_MODE is "public": the Graph listener must not accept any bearer token',
 		});
 	}
 }
@@ -242,41 +246,41 @@ export interface VisitorConfig {
 }
 
 export interface ParsedAccessEnv {
-	MOCKWA_MODE: AccessMode;
-	MOCKWA_ADMIN_TOKEN?: string | undefined;
-	MOCKWA_PUBLIC_IDENTITIES: VisitorIdentityTemplate[];
-	MOCKWA_PUBLIC_WA_ID_PREFIX: string;
-	MOCKWA_PUBLIC_SESSION_TTL: number;
-	MOCKWA_PUBLIC_MESSAGES_PER_MINUTE: number;
-	MOCKWA_PUBLIC_IP_MESSAGES_PER_MINUTE: number;
-	MOCKWA_PUBLIC_MEDIA_MAX_BYTES: number;
-	MOCKWA_PUBLIC_MEDIA_PER_SESSION: number;
-	MOCKWA_PUBLIC_SESSIONS_PER_IP: number;
-	MOCKWA_PUBLIC_MAX_SESSIONS: number;
-	MOCKWA_PUBLIC_SESSION_CREATES_PER_MINUTE: number;
-	MOCKWA_TRUSTED_PROXIES: string[];
-	MOCKWA_ALLOWED_ORIGINS: string[];
-	MOCKWA_COOKIE_SECURE: CookieSecureMode;
+	WASANDBOX_MODE: AccessMode;
+	WASANDBOX_ADMIN_TOKEN?: string | undefined;
+	WASANDBOX_PUBLIC_IDENTITIES: VisitorIdentityTemplate[];
+	WASANDBOX_PUBLIC_WA_ID_PREFIX: string;
+	WASANDBOX_PUBLIC_SESSION_TTL: number;
+	WASANDBOX_PUBLIC_MESSAGES_PER_MINUTE: number;
+	WASANDBOX_PUBLIC_IP_MESSAGES_PER_MINUTE: number;
+	WASANDBOX_PUBLIC_MEDIA_MAX_BYTES: number;
+	WASANDBOX_PUBLIC_MEDIA_PER_SESSION: number;
+	WASANDBOX_PUBLIC_SESSIONS_PER_IP: number;
+	WASANDBOX_PUBLIC_MAX_SESSIONS: number;
+	WASANDBOX_PUBLIC_SESSION_CREATES_PER_MINUTE: number;
+	WASANDBOX_TRUSTED_PROXIES: string[];
+	WASANDBOX_ALLOWED_ORIGINS: string[];
+	WASANDBOX_COOKIE_SECURE: CookieSecureMode;
 }
 
 export function accessConfigOf(env: ParsedAccessEnv): AccessConfig {
 	return {
-		mode: env.MOCKWA_MODE,
-		adminToken: env.MOCKWA_ADMIN_TOKEN,
-		trustedProxies: env.MOCKWA_TRUSTED_PROXIES,
-		allowedOrigins: env.MOCKWA_ALLOWED_ORIGINS,
-		cookieSecure: env.MOCKWA_COOKIE_SECURE,
+		mode: env.WASANDBOX_MODE,
+		adminToken: env.WASANDBOX_ADMIN_TOKEN,
+		trustedProxies: env.WASANDBOX_TRUSTED_PROXIES,
+		allowedOrigins: env.WASANDBOX_ALLOWED_ORIGINS,
+		cookieSecure: env.WASANDBOX_COOKIE_SECURE,
 		visitors: {
-			identities: env.MOCKWA_PUBLIC_IDENTITIES,
-			waIdPrefix: env.MOCKWA_PUBLIC_WA_ID_PREFIX,
-			sessionTtlMs: env.MOCKWA_PUBLIC_SESSION_TTL,
-			messagesPerMinutePerSession: env.MOCKWA_PUBLIC_MESSAGES_PER_MINUTE,
-			messagesPerMinutePerIp: env.MOCKWA_PUBLIC_IP_MESSAGES_PER_MINUTE,
-			mediaMaxBytes: env.MOCKWA_PUBLIC_MEDIA_MAX_BYTES,
-			mediaPerSession: env.MOCKWA_PUBLIC_MEDIA_PER_SESSION,
-			sessionsPerIp: env.MOCKWA_PUBLIC_SESSIONS_PER_IP,
-			maxSessions: env.MOCKWA_PUBLIC_MAX_SESSIONS,
-			sessionCreatesPerMinutePerIp: env.MOCKWA_PUBLIC_SESSION_CREATES_PER_MINUTE,
+			identities: env.WASANDBOX_PUBLIC_IDENTITIES,
+			waIdPrefix: env.WASANDBOX_PUBLIC_WA_ID_PREFIX,
+			sessionTtlMs: env.WASANDBOX_PUBLIC_SESSION_TTL,
+			messagesPerMinutePerSession: env.WASANDBOX_PUBLIC_MESSAGES_PER_MINUTE,
+			messagesPerMinutePerIp: env.WASANDBOX_PUBLIC_IP_MESSAGES_PER_MINUTE,
+			mediaMaxBytes: env.WASANDBOX_PUBLIC_MEDIA_MAX_BYTES,
+			mediaPerSession: env.WASANDBOX_PUBLIC_MEDIA_PER_SESSION,
+			sessionsPerIp: env.WASANDBOX_PUBLIC_SESSIONS_PER_IP,
+			maxSessions: env.WASANDBOX_PUBLIC_MAX_SESSIONS,
+			sessionCreatesPerMinutePerIp: env.WASANDBOX_PUBLIC_SESSION_CREATES_PER_MINUTE,
 		},
 	};
 }

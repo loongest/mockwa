@@ -1,4 +1,4 @@
-import { parseDurationMs, type ClockMove, type ClockState } from "@mockwa/shared";
+import { parseDurationMs, type ClockMove, type ClockState } from "@wasandbox/shared";
 import clsx from "clsx";
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { api } from "../../api/endpoints.ts";
@@ -10,7 +10,7 @@ import { isRepeatClick } from "../../lib/repeat-click.ts";
 
 /**
  * The simulator clock (SPEC §4, "Virtual clock"): where it is, what is waiting on it, and — with
- * `MOCKWA_CLOCK=virtual` — the three ways to move it. Every move is one request at a time: the
+ * `WASANDBOX_CLOCK=virtual` — the three ways to move it. Every move is one request at a time: the
  * controls lock while one is in flight, so a double click cannot advance twice.
  */
 
@@ -248,9 +248,9 @@ export function ClockPage() {
 					<p className="muted" data-testid="clock-explainer">
 						{isVirtual
 							? "This clock stands still until you move it. Moving it runs whatever falls due (status webhooks, retries, template approvals) in order."
-							: "mockwa runs on real time. Start it with MOCKWA_CLOCK=virtual to stop time and move it from here."}{" "}
-						These controls move <strong>mockwa's</strong> clock only: the app under test keeps its own clock, so its own
-						timers (an OTP's expiry, a session timeout) are not affected.
+							: "wasandbox runs on real time. Start it with WASANDBOX_CLOCK=virtual to stop time and move it from here."}{" "}
+						These controls move <strong>WaSandbox's</strong> clock only: the app under test keeps its own clock, so its
+						own timers (an OTP's expiry, a session timeout) are not affected.
 					</p>
 				</div>
 

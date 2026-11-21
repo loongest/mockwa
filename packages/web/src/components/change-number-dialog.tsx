@@ -1,4 +1,4 @@
-import type { Contact } from "@mockwa/shared";
+import type { Contact } from "@wasandbox/shared";
 import { useState } from "react";
 import { api } from "../api/endpoints.ts";
 import { useAction, useDispatch, useToasts } from "../store/store.tsx";

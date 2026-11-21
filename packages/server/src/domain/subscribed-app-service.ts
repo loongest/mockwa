@@ -1,4 +1,4 @@
-import type { AppIdentity } from "@mockwa/shared";
+import type { AppIdentity } from "@wasandbox/shared";
 import { AppService, overrideUrlProblem, type OverrideInput, type WebhookApp } from "./app-service.ts";
 import type { GraphApiError } from "./graph-api-error.ts";
 import { invalidParameterError, unknownObjectError } from "./meta-errors.ts";
@@ -18,7 +18,7 @@ import { invalidParameterError, unknownObjectError } from "./meta-errors.ts";
  * - `DELETE` on a WABA nothing is subscribed to answers `{success:true}` rather than an error:
  *   the call is idempotent, which is how a consumer's teardown wants to behave.
  * - Setting an override does not call the URL. Meta's reference does not say whether it
- *   verifies an override when it is set, so mockwa does not invent a failure for it; the
+ *   verifies an override when it is set, so WaSandbox does not invent a failure for it; the
  *   console's handshake checks any URL on demand.
  *
  * An unknown WABA or number keeps the uniform missing-object envelope (SPEC §1.4).
@@ -41,7 +41,7 @@ export interface WebhookConfiguration {
 
 export interface SubscribedAppServiceOptions {
 	apps: AppService;
-	/** `MOCKWA_PUBLIC_URL`, reported as every app's `link`. */
+	/** `WASANDBOX_PUBLIC_URL`, reported as every app's `link`. */
 	publicUrl: string;
 	/**
 	 * Public demo mode (SPEC §5): webhook destinations come only from the server's configuration,

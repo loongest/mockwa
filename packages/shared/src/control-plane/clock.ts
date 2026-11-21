@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * `/api/clock` (SPEC §4, "Virtual clock"; §5). With `MOCKWA_CLOCK=virtual` the instance's one
+ * `/api/clock` (SPEC §4, "Virtual clock"; §5). With `WASANDBOX_CLOCK=virtual` the instance's one
  * clock stands still until one of these moves it; with the default real clock they only report.
  */
 

@@ -1,4 +1,4 @@
-import type { Contact, Message, PhoneChat, VisitorSession, WsEvent } from "@mockwa/shared";
+import type { Contact, Message, PhoneChat, VisitorSession, WsEvent } from "@wasandbox/shared";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StoreProvider } from "../store/store.tsx";

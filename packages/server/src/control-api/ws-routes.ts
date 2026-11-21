@@ -1,5 +1,5 @@
 import { upgradeWebSocket } from "@hono/node-server";
-import type { WsEvent } from "@mockwa/shared";
+import type { WsEvent } from "@wasandbox/shared";
 import { Hono } from "hono";
 import type { WSContext } from "hono/ws";
 import type { EventBus } from "../domain/index.ts";

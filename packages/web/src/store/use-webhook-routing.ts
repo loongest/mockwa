@@ -1,4 +1,4 @@
-import type { WebhookRouting } from "@mockwa/shared";
+import type { WebhookRouting } from "@wasandbox/shared";
 import { useEffect } from "react";
 import { api } from "../api/endpoints.ts";
 import { useAppState, useDispatch, useToasts } from "./store.tsx";

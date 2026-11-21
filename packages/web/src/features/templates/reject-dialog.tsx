@@ -1,4 +1,8 @@
-import { TEMPLATE_REJECTION_REASONS, type RejectTemplateRequest, type TemplateRejectionReason } from "@mockwa/shared";
+import {
+	TEMPLATE_REJECTION_REASONS,
+	type RejectTemplateRequest,
+	type TemplateRejectionReason,
+} from "@wasandbox/shared";
 import { useState } from "react";
 import { Dialog } from "../../components/dialog.tsx";
 

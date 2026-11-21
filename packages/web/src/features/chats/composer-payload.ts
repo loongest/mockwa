@@ -4,7 +4,7 @@ import {
 	type InboundRequest,
 	type ReferralMediaType,
 	type ReferralSourceType,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import type { ZodError } from "zod";
 import { asArray, asRecord } from "../../lib/json.ts";
 

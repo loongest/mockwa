@@ -1,4 +1,4 @@
-import { parseConversationId } from "@mockwa/shared";
+import { parseConversationId } from "@wasandbox/shared";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Navigate, useParams } from "react-router";
 import {
@@ -116,7 +116,7 @@ export function ScopeRedirect(props: { view: ScopedView }) {
 }
 
 /**
- * A whaloc with no WABA at all — `MOCKWA_SEED` set to `[]`, or every account deleted. Every
+ * A whaloc with no WABA at all — `WASANDBOX_SEED` set to `[]`, or every account deleted. Every
  * scoped view is unreachable, so rather than four redirects that lead nowhere the content offers
  * the one action that unblocks them.
  */

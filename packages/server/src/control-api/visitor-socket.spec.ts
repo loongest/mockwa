@@ -1,5 +1,5 @@
 import { serve, type ServerType } from "@hono/node-server";
-import { wsEventSchema, type WsEvent } from "@mockwa/shared";
+import { wsEventSchema, type WsEvent } from "@wasandbox/shared";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WebSocket as NodeWebSocket, WebSocketServer } from "ws";
@@ -18,7 +18,7 @@ describe("visitor sockets", () => {
 	const clients: NodeWebSocket[] = [];
 
 	beforeEach(async () => {
-		fixture = await createTestApp({ ...PUBLIC_ENV, MOCKWA_STATUS_DELAYS: "sent:0,delivered:0" });
+		fixture = await createTestApp({ ...PUBLIC_ENV, WASANDBOX_STATUS_DELAYS: "sent:0,delivered:0" });
 		webSocketServer = new WebSocketServer({ noServer: true });
 		server = await new Promise<ServerType>(resolve => {
 			const created = serve(
@@ -53,7 +53,7 @@ describe("visitor sockets", () => {
 		});
 		const cookie = response.headers
 			.getSetCookie()
-			.find(header => header.startsWith("mockwa_visitor="))!
+			.find(header => header.startsWith("wasandbox_visitor="))!
 			.split(";", 1)[0]!;
 		const body = (await response.json()) as { data: { identities: { waId: string }[]; csrfToken: string } };
 

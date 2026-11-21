@@ -1,12 +1,12 @@
-// Milestone M2 acceptance checks (AC-06 routing and AC-07 retries) against a running mockwa —
+// Milestone M2 acceptance checks (AC-06 routing and AC-07 retries) against a running WaSandbox —
 // normally the built Docker image — and two copies of the example echo app, one per app.
 // Dependency-free apart from the `docker` CLI, which the restart check uses:
 //
 //   node e2e/m2-webhooks.mjs
 //
 // The instance is started with e2e/fixtures/m2-seed.json (two WABAs, one number each),
-// MOCKWA_APPS=e2e/fixtures/m2-apps.json (Sales App on 3003, Support App on 3004, each subscribed
-// to one WABA), a file database on a volume, and a short MOCKWA_WEBHOOK_RETRY_SCHEDULE so a
+// WASANDBOX_APPS=e2e/fixtures/m2-apps.json (Sales App on 3003, Support App on 3004, each subscribed
+// to one WABA), a file database on a volume, and a short WASANDBOX_WEBHOOK_RETRY_SCHEDULE so a
 // retry is due within seconds. See .github/workflows/docker.yml for the exact command.
 //
 // Environment, required (e2e/targets.mjs): M2_GRAPH_URL, M2_CONSOLE_URL, M2_SALES_ECHO_URL and
@@ -94,7 +94,7 @@ function jsonInit(method, body, headers = {}) {
 	};
 }
 
-/** A Graph call as one of the apps: the access token is what tells mockwa which app it is. */
+/** A Graph call as one of the apps: the access token is what tells WaSandbox which app it is. */
 function asApp(app, path, method = "GET", body) {
 	return getJson(`${GRAPH_URL}/v25.0/${path}`, jsonInit(method, body, { authorization: `Bearer ${app.accessToken}` }));
 }
@@ -127,7 +127,7 @@ function sleep(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/** Recomputed here, independently of both mockwa and the echo app. */
+/** Recomputed here, independently of both WaSandbox and the echo app. */
 function signatureFor(secret, rawBody) {
 	return `sha256=${createHmac("sha256", secret).update(rawBody, "utf8").digest("hex")}`;
 }
@@ -173,7 +173,7 @@ async function inbound(phoneNumberId, from, text) {
 	assert.equal(status, 201, `POST /api/inbound answered ${String(status)}: ${JSON.stringify(body)}`);
 }
 
-/** mockwa's own log of every attempt carrying `text`, oldest first. */
+/** WaSandbox's own log of every attempt carrying `text`, oldest first. */
 async function loggedAttempts(text) {
 	const { body } = await getJson(`${CONSOLE_URL}/api/webhook-deliveries?limit=100`);
 
@@ -356,7 +356,7 @@ await check("AC-07 a 500 is retried, and a pending retry survives a container re
 
 	const stoppedAt = Date.now();
 
-	// The receiver is fixed while mockwa is down; only a stored retry can still deliver.
+	// The receiver is fixed while WaSandbox is down; only a stored retry can still deliver.
 	await fetch(`${SALES_ECHO_URL}/fail`, { method: "DELETE" });
 	dockerRun("start", CONTAINER);
 	await waitHealthy();

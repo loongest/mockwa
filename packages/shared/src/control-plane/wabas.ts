@@ -4,7 +4,7 @@ import { metaIdSchema } from "./common.ts";
 /**
  * WhatsApp Business Accounts as the control plane manages them (SPEC §5).
  *
- * `MOCKWA_SEED` describes the world whaloc boots with; these routes are how a dev adds a second
+ * `WASANDBOX_SEED` describes the world whaloc boots with; these routes are how a dev adds a second
  * WABA — or a second number under one — without restarting the container.
  */
 export const wabaSchema = z.object({

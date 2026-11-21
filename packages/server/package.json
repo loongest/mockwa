@@ -1,5 +1,5 @@
 {
-	"name": "@mockwa/server",
+	"name": "@wasandbox/server",
 	"version": "0.0.0",
 	"private": true,
 	"type": "module",
@@ -7,7 +7,8 @@
 	"license": "MIT",
 	"main": "./dist/main.js",
 	"bin": {
-		"mockwa": "./dist/cli/mockwa.js"
+		"wasandbox": "./dist/cli/wasandbox.js",
+		"mockwa": "./dist/cli/wasandbox.js"
 	},
 	"files": [
 		"dist"
@@ -16,7 +17,7 @@
 		"build": "tsc -p tsconfig.build.json",
 		"dev": "node --watch --experimental-transform-types --disable-warning=ExperimentalWarning --conditions=development src/main.ts",
 		"start": "node --disable-warning=ExperimentalWarning dist/main.js",
-		"mockwa": "node --experimental-transform-types --disable-warning=ExperimentalWarning --conditions=development src/cli/mockwa.ts",
+		"wasandbox": "node --experimental-transform-types --disable-warning=ExperimentalWarning --conditions=development src/cli/wasandbox.ts",
 		"test": "vitest run",
 		"test:watch": "vitest watch",
 		"typecheck": "tsc"
@@ -25,7 +26,7 @@
 		"@aws-sdk/client-s3": "^3.1124.0",
 		"@aws-sdk/lib-storage": "^3.1124.0",
 		"@hono/node-server": "^2.1.1",
-		"@mockwa/shared": "*",
+		"@wasandbox/shared": "*",
 		"hono": "^4.13.5",
 		"kysely": "^0.29.5",
 		"pino": "^10.3.1",

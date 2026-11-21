@@ -1,4 +1,4 @@
-import { MESSAGE_ERROR_CODES, type MessageErrorCode } from "@mockwa/shared";
+import { MESSAGE_ERROR_CODES, type MessageErrorCode } from "@wasandbox/shared";
 import type { JsonObject } from "../db/index.ts";
 
 /**
@@ -85,19 +85,19 @@ export function messageErrorNode(preset: MessageErrorPreset): JsonObject {
 }
 
 /**
- * mockwa's own code for a send over the messaging limit (SPEC §4, "Messaging rules"). Meta
+ * WaSandbox's own code for a send over the messaging limit (SPEC §4, "Messaging rules"). Meta
  * documents the limit but no error code for exceeding it, so this one is deliberately outside
- * Meta's numbering and says in its own text that mockwa made it up: an app must never learn to
+ * Meta's numbering and says in its own text that WaSandbox made it up: an app must never learn to
  * key behavior on it as if Meta sent it.
  */
 export const SIMULATED_MESSAGING_LIMIT_CODE = 990_001;
 
-/** Why an accepted send ends `failed`: one of Meta's codes, or mockwa's messaging-limit one. */
+/** Why an accepted send ends `failed`: one of Meta's codes, or WaSandbox's messaging-limit one. */
 export type SendFailure = MessageErrorCode | typeof SIMULATED_MESSAGING_LIMIT_CODE;
 
 const SIMULATED_MESSAGING_LIMIT_DETAILS =
-	"Simulated by mockwa: this business has reached its messaging limit of unique users in a moving 24 hours. " +
-	"Meta documents the limit but no error code for exceeding it, so this code is mockwa's own.";
+	"Simulated by WaSandbox: this business has reached its messaging limit of unique users in a moving 24 hours. " +
+	"Meta documents the limit but no error code for exceeding it, so this code is WaSandbox's own.";
 
 /** The `errors[]` node a {@link SendFailure} puts on its `failed` status. */
 export function sendFailureNode(failure: SendFailure): JsonObject {
@@ -107,8 +107,8 @@ export function sendFailureNode(failure: SendFailure): JsonObject {
 
 	return {
 		code: SIMULATED_MESSAGING_LIMIT_CODE,
-		title: "[mockwa] Messaging limit reached (simulated)",
-		message: "[mockwa] Messaging limit reached (simulated)",
+		title: "[WaSandbox] Messaging limit reached (simulated)",
+		message: "[WaSandbox] Messaging limit reached (simulated)",
 		error_data: { details: SIMULATED_MESSAGING_LIMIT_DETAILS },
 		href: "/documentation/business-messaging/whatsapp/messaging-limits",
 	};

@@ -1,4 +1,4 @@
-import { BSUID_PATTERN, type MessageErrorCode } from "@mockwa/shared";
+import { BSUID_PATTERN, type MessageErrorCode } from "@wasandbox/shared";
 import type { MessageRecord, PhoneNumberRecord, Repositories, TemplateSnapshotRecord } from "../db/index.ts";
 import type { OutboundMessageEvents } from "./domain-events.ts";
 import { createWamid, defaultRandomBytes, type RandomBytes } from "./ids.ts";

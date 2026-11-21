@@ -1,8 +1,8 @@
 # Testing your app
 
-How to test your own WhatsApp integration against mockwa: keep runs isolated, play the user from
+How to test your own WhatsApp integration against wasandbox: keep runs isolated, play the user from
 a test, move time, make things fail on purpose, and run scenario files in CI. Each section says
-which parts follow Meta and which are mockwa's own.
+which parts follow Meta and which are WaSandbox's own.
 
 **On this page:** [Start a test instance](#start-a-test-instance) ·
 [Keep every run isolated](#keep-every-run-isolated) ·
@@ -11,7 +11,7 @@ which parts follow Meta and which are mockwa's own.
 [Check the messaging rules](#check-the-messaging-rules) · [Inject errors](#inject-errors) ·
 [Expire or reject tokens](#expire-or-reject-tokens) · [Expire media](#expire-media) ·
 [Run scenarios](#run-scenarios) · [Share a reproduction](#share-a-reproduction) ·
-[Meta behavior and mockwa behavior](#meta-behavior-and-mockwa-behavior)
+[Meta behavior and WaSandbox behavior](#meta-behavior-and-wasandbox-behavior)
 
 ## Start a test instance
 
@@ -21,16 +21,16 @@ scenario run. So every command here goes to a **dedicated test instance**, never
 
 1. Pick two free host ports. This page uses 47888 (Graph) and 47025 (console);
    `lsof -i :47888 -i :47025` prints nothing when they are free.
-2. Start the instance from a checkout, with the `mockwa:local` image from
+2. Start the instance from a checkout, with the `wasandbox:local` image from
    [Getting started](getting-started.md#get-an-image). It runs on the virtual clock, accepts one
    app token, and has the example scenarios mounted:
 
    ```sh
-   docker run -d --name mockwa-test -p 127.0.0.1:47888:8888 -p 127.0.0.1:47025:8025 \
+   docker run -d --name wasandbox-test -p 127.0.0.1:47888:8888 -p 127.0.0.1:47025:8025 \
      -v "$PWD/examples/scenarios:/scenarios:ro" \
-     -e MOCKWA_CLOCK=virtual -e MOCKWA_CLOCK_START=2026-06-01T08:00:00Z \
-     -e MOCKWA_TOKENS=test-app-token \
-     mockwa:local
+     -e WASANDBOX_CLOCK=virtual -e WASANDBOX_CLOCK_START=2026-06-01T08:00:00Z \
+     -e WASANDBOX_TOKENS=test-app-token \
+     wasandbox:local
    ```
 
 3. Name its two addresses once, in the shell you run the rest of the page from:
@@ -44,10 +44,10 @@ scenario run. So every command here goes to a **dedicated test instance**, never
    Expected result: `{"status":"ok",…}`.
 
 It has no webhook URL, so webhooks are logged as `skipped` instead of sent. Point
-`MOCKWA_WEBHOOK_URL` at your app to test it for real.
+`WASANDBOX_WEBHOOK_URL` at your app to test it for real.
 
 When you are done, remove it with its anonymous `/data` volume:
-`docker rm -f -v mockwa-test`.
+`docker rm -f -v wasandbox-test`.
 
 ## Keep every run isolated
 
@@ -75,7 +75,7 @@ Everything the console does, a test can do through the console port's `/api`.
 | Mark a business message delivered/read/failed | `POST /api/messages/{id}/status`                                                    |
 | Approve or reject a template                  | `POST /api/templates/{id}/approve` or `…/reject`                                    |
 | See what your app sent                        | `GET /api/conversations/{phoneNumberId}:{waId}/messages`, `GET /api/graph-requests` |
-| See what mockwa sent to your app              | `GET /api/webhook-deliveries`                                                       |
+| See what WaSandbox sent to your app              | `GET /api/webhook-deliveries`                                                       |
 | Wait for events instead of polling            | the WebSocket `GET /api/ws`                                                         |
 
 Example: Ana writes, the app answers, and Ana reads the answer. The `id` of the app's message
@@ -105,7 +105,7 @@ list of calls is in the
 
 > Simulator-only. Meta has no clock you can move.
 
-With `MOCKWA_CLOCK=virtual`, as on the [test instance](#start-a-test-instance), time stands
+With `WASANDBOX_CLOCK=virtual`, as on the [test instance](#start-a-test-instance), time stands
 still until you move it:
 
 ```sh
@@ -119,42 +119,42 @@ An advance answers `{from, to, fired, clock}`: every event it ran, in order, eac
 time. It returns only when that work, and the webhooks it sent, is done, so you can assert right
 after it.
 
-**What the clock moves.** Every timer and timestamp **inside mockwa**: message, status and webhook
+**What the clock moves.** Every timer and timestamp **inside WaSandbox**: message, status and webhook
 timestamps, the status ladder, template auto-approval, typing indicators, the 24-hour window, the
 messaging limit, rate limits, media expiry, and webhook retries with their 7-day limit.
 
 **What it does not move.**
 
 - **Your app's clock.** Its timers, token expiry, OTP expiry and `Date.now()` keep real time. This
-  includes apps such as Workbench and GotUnit: advancing mockwa does not expire their codes.
-  Webhook timestamps show mockwa's time, so an app that compares them with its own clock sees a
+  includes apps such as Workbench and GotUnit: advancing WaSandbox does not expire their codes.
+  Webhook timestamps show WaSandbox's time, so an app that compares them with its own clock sees a
   difference.
 - **Network time.** A webhook's 10-second timeout and a scenario's `within` wait stay real.
 
-**The status ladder is cumulative.** `MOCKWA_STATUS_DELAYS=sent:0,delivered:800,read:1000` means
+**The status ladder is cumulative.** `WASANDBOX_STATUS_DELAYS=sent:0,delivered:800,read:1000` means
 `sent` at once, `delivered` 800 ms later, and `read` 1,000 ms after that: 1,800 ms after the send.
 
 **Good to know.**
 
 - Events due at the same instant run in the order they were scheduled.
 - Time never goes back. `set` to an earlier time is refused; `POST /api/reset` returns to
-  `MOCKWA_CLOCK_START`.
+  `WASANDBOX_CLOCK_START`.
 - With a file database, the clock's position and pending webhook retries survive a restart. The
   status ladder, auto-approvals and typing timers do not.
 - Public mode refuses the virtual clock.
 
 ## Check the messaging rules
 
-mockwa can apply four of Meta's sending rules. Only the first is on by default.
+WaSandbox can apply four of Meta's sending rules. Only the first is on by default.
 
 | Rule                    | Variable (default)               | When it applies                                                       | Result                                                   |
 | ----------------------- | -------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------- |
-| Customer service window | `MOCKWA_SERVICE_WINDOW` (`24h`)  | A non-template message to a contact who has not written in the window | `200`, then a `failed` status with `131047`              |
-| Throughput              | `MOCKWA_THROUGHPUT` (`off`)      | Too many sends per second from one number                             | `429`, code `130429`, `Retry-After: 1`                   |
-| Pair rate limit         | `MOCKWA_PAIR_RATE_LIMIT` (`off`) | Too many sends to one contact                                         | `400`, code `131056`                                     |
-| Messaging limit         | `MOCKWA_MESSAGING_LIMIT` (`off`) | A template to a **new** contact over the 24-hour limit                | `200`, then `failed` with mockwa's own code **`990001`** |
+| Customer service window | `WASANDBOX_SERVICE_WINDOW` (`24h`)  | A non-template message to a contact who has not written in the window | `200`, then a `failed` status with `131047`              |
+| Throughput              | `WASANDBOX_THROUGHPUT` (`off`)      | Too many sends per second from one number                             | `429`, code `130429`, `Retry-After: 1`                   |
+| Pair rate limit         | `WASANDBOX_PAIR_RATE_LIMIT` (`off`) | Too many sends to one contact                                         | `400`, code `131056`                                     |
+| Messaging limit         | `WASANDBOX_MESSAGING_LIMIT` (`off`) | A template to a **new** contact over the 24-hour limit                | `200`, then `failed` with WaSandbox's own code **`990001`** |
 
-To reach a boundary fast, shorten it (`MOCKWA_SERVICE_WINDOW=30s`) or close one window now:
+To reach a boundary fast, shorten it (`WASANDBOX_SERVICE_WINDOW=30s`) or close one window now:
 
 ```sh
 curl -s "$CONSOLE/api/service-window?phoneNumberId=573542517421694&waId=5571990000001"
@@ -164,10 +164,10 @@ curl -s "$CONSOLE/api/messaging-rules"
 ```
 
 **`990001` is not a Meta code.** Meta documents the messaging limit but no error code for going
-over it, so mockwa uses its own, titled `[mockwa] Messaging limit reached (simulated)`. Never build
+over it, so WaSandbox uses its own, titled `[WaSandbox] Messaging limit reached (simulated)`. Never build
 production logic on it. **`131048` is not that limit either**: it is a restriction on the sending
-number (for example after blocks or spam reports), and in mockwa it is only a manual failure
-preset. Every place mockwa differs from Meta here is listed in
+number (for example after blocks or spam reports), and in WaSandbox it is only a manual failure
+preset. Every place WaSandbox differs from Meta here is listed in
 [SPEC, "Differences from the real Meta Cloud API"](SPEC.md#differences-from-the-real-meta-cloud-api).
 
 ## Inject errors
@@ -202,7 +202,7 @@ Expected result: each of the next three sends gets Meta's `130429` envelope with
 | `custom`            | The status, code, subcode and message you give                                          |
 | `failed_status`     | The send answers `200`, then its first status webhook is `failed` with your `errorCode` |
 
-The name `throughput_131056` is mockwa's own label, inherited from whaloc; `131056` is Meta's
+The name `throughput_131056` is WaSandbox's own label, inherited from whaloc; `131056` is Meta's
 **pair** rate-limit code, not its throughput code (`130429`). The message text of this preset
 has not been compared with a captured Meta response.
 
@@ -219,7 +219,7 @@ rules with `GET /api/injection-rules` and `DELETE /api/injection-rules/{id}`.
 
 ## Expire or reject tokens
 
-By default the Graph API accepts any non-empty bearer token. Set `MOCKWA_TOKENS` to a
+By default the Graph API accepts any non-empty bearer token. Set `WASANDBOX_TOKENS` to a
 comma-separated list and only those pass; anything else gets `401`, code `190`, the same answer
 as a missing token. Then expire one to test your "refresh the token" path.
 
@@ -267,11 +267,11 @@ as a missing token. Then expire one to test your "refresh the token" path.
    `HTTP 200` with a `wamid.…`.
 
 An expiry survives a restart with a file database; a reset restores every token. Token values
-never leave the process. A registered app's `accessToken` must also be in `MOCKWA_TOKENS`.
+never leave the process. A registered app's `accessToken` must also be in `WASANDBOX_TOKENS`.
 
 ## Expire media
 
-`MOCKWA_MEDIA_TTL_SECONDS=5` makes uploaded media disappear from the Graph API 5 seconds after
+`WASANDBOX_MEDIA_TTL_SECONDS=5` makes uploaded media disappear from the Graph API 5 seconds after
 upload (at exactly 5 s, it is gone). The media ID then answers `400`, code `100`, subcode `33`,
 which is how apps detect expired media, and the byte URL answers a plain `404`. To remove one
 object at once, call `DELETE /v25.0/{media-id}` on port 8888.
@@ -281,7 +281,7 @@ object at once, call `DELETE /v25.0/{media-id}` on port 8888.
 > Simulator-only.
 
 A scenario is a JSON file: a world (numbers, people, apps, templates, error rules, a start time)
-and steps (`send`, `tap`, `expect`, `advance`). mockwa **resets** into that world and runs the
+and steps (`send`, `tap`, `expect`, `advance`). WaSandbox **resets** into that world and runs the
 steps against your app. Two examples are in [`examples/scenarios/`](../examples/scenarios/); the
 format is in [SPEC, "Scenarios"](SPEC.md#scenarios-m4).
 
@@ -303,18 +303,18 @@ format is in [SPEC, "Scenarios"](SPEC.md#scenarios-m4).
 
 This example expects replies from [`examples/echo-app`](../examples/echo-app/server.mjs); with
 your own app, expect what your app sends. A scenario that uses `advance` needs
-`MOCKWA_CLOCK=virtual`.
+`WASANDBOX_CLOCK=virtual`.
 
-### The `mockwa` command
+### The `wasandbox` command
 
 ```text
-mockwa scenario run <file.json>... --url <console URL> [--junit <report.xml>] [--json <results.json>] [--timeout <seconds>]
-mockwa scenario validate <file.json>... [--url <console URL>]
+wasandbox scenario run <file.json>... --url <console URL> [--junit <report.xml>] [--json <results.json>] [--timeout <seconds>]
+wasandbox scenario validate <file.json>... [--url <console URL>]
 ```
 
 | Option      | Meaning                                                                          |
 | ----------- | -------------------------------------------------------------------------------- |
-| `--url`     | The console to use, such as `http://127.0.0.1:8025`. Or set `MOCKWA_CONSOLE_URL` |
+| `--url`     | The console to use, such as `http://127.0.0.1:8025`. Or set `WASANDBOX_CONSOLE_URL` |
 | `--junit`   | Also write a JUnit XML report to this file                                       |
 | `--json`    | Also write the full results as JSON                                              |
 | `--timeout` | Give up on one scenario after this many seconds (default 600)                    |
@@ -334,7 +334,7 @@ so mount them (the [test instance](#start-a-test-instance) has them at `/scenari
 container's **own** console port, 8025, whatever the host port is:
 
 ```sh
-docker exec mockwa-test mockwa scenario run /scenarios/service-window.json \
+docker exec wasandbox-test wasandbox scenario run /scenarios/service-window.json \
   --url http://127.0.0.1:8025 --junit /tmp/report.xml
 echo "exit code $?"
 ```
@@ -343,15 +343,15 @@ Expected result: `PASS service window …`, nine `✓` steps, `1 scenario(s): 1 
 and exit code `0`.
 
 **From a checkout**, without Docker (after `npm ci`):
-`npm run mockwa -- scenario run examples/scenarios/service-window.json --url "$CONSOLE"`.
+`npm run wasandbox -- scenario run examples/scenarios/service-window.json --url "$CONSOLE"`.
 
 **With an admin token.** The command sends no credentials and has no token option, so against an
-instance with `MOCKWA_ADMIN_TOKEN` set it stops with `the instance refused it (401)` and exit
+instance with `WASANDBOX_ADMIN_TOKEN` set it stops with `the instance refused it (401)` and exit
 code `2`. Call the API yourself instead:
 
 ```sh
 curl -s -X POST "$CONSOLE/api/scenarios/run" \
-  -H "Authorization: Bearer $MOCKWA_ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $WASANDBOX_ADMIN_TOKEN" -H 'Content-Type: application/json' \
   --data-binary @examples/scenarios/service-window.json
 ```
 
@@ -376,9 +376,9 @@ curl -s -X POST "$CONSOLE/api/import" -H 'Content-Type: application/json' --data
 - It is not a full backup: no clock position, no pending retries or timers, no request log.
   See [Configuration → What survives what](configuration.md#what-survives-what).
 
-## Meta behavior and mockwa behavior
+## Meta behavior and WaSandbox behavior
 
-| Topic                          | Follows Meta                                                 | mockwa's own                                                         |
+| Topic                          | Follows Meta                                                 | WaSandbox's own                                                         |
 | ------------------------------ | ------------------------------------------------------------ | -------------------------------------------------------------------- |
 | Error envelopes and codes      | Shapes and codes from Meta's references and captured traffic | `990001` (messaging limit); preset names such as `throughput_131056` |
 | Unknown object ID              | `400`, code `100`, subcode `33`                              | —                                                                    |
@@ -389,6 +389,6 @@ curl -s -X POST "$CONSOLE/api/import" -H 'Content-Type: application/json' --data
 | Messaging limit scope          | Per business portfolio                                       | Per WABA, fixed number, no tier upgrades                             |
 | Clock, scenarios, injection    | —                                                            | Simulator-only                                                       |
 
-The left column is mockwa's reading of Meta's documentation, recorded in [SPEC](SPEC.md) with its
+The left column is WaSandbox's reading of Meta's documentation, recorded in [SPEC](SPEC.md) with its
 sources. These pages do not re-check Meta's live documentation; where SPEC names no source,
-treat the behavior as mockwa's choice.
+treat the behavior as WaSandbox's choice.

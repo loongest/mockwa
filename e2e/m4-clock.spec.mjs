@@ -3,12 +3,12 @@ import { readTargets } from "./targets.mjs";
 
 /**
  * M4 in the browser: the virtual phone stays live on the virtual clock. Runs against the
- * instance e2e/m4-clock-scenarios.mjs drives (MOCKWA_CLOCK=virtual, the default seed, status
+ * instance e2e/m4-clock-scenarios.mjs drives (WASANDBOX_CLOCK=virtual, the default seed, status
  * rungs at sent:0, delivered:+2m, read:+4m, the example echo app as the app under test; see
  * .github/workflows/docker.yml). It resets that instance first, so the clock is at its start.
  *
  * Environment, required (e2e/targets.mjs): M4_CONSOLE_URL, the project's baseURL. Optional:
- * M4_CLOCK_START (2026-06-01T08:00:00.000Z), the instance's MOCKWA_CLOCK_START.
+ * M4_CLOCK_START (2026-06-01T08:00:00.000Z), the instance's WASANDBOX_CLOCK_START.
  */
 
 readTargets(process.env, { suite: "m4-clock", urls: ["M4_CONSOLE_URL"] });
@@ -16,7 +16,7 @@ readTargets(process.env, { suite: "m4-clock", urls: ["M4_CONSOLE_URL"] });
 const START = new Date(process.env.M4_CLOCK_START ?? "2026-06-01T08:00:00.000Z");
 /** The default seed's first contact and business (packages/server/src/config/seed.ts). */
 const CUSTOMER = { waId: "5571990000001", name: "Ana Souza" };
-const BUSINESS = "whaloc Test Business";
+const BUSINESS = "Your Company Business";
 
 function bubble(page, text) {
 	return page.getByTestId("phone-message").filter({ hasText: text });

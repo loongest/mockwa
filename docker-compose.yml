@@ -1,4 +1,4 @@
-# Standalone mockwa demo: the simulator plus a webhook receiver that plays the app under test.
+# Standalone WaSandbox demo: the simulator plus a webhook receiver that plays the app under test.
 #
 #   docker compose up
 #
@@ -7,12 +7,12 @@
 # To point a real application at it instead, see docs/integrating.md.
 #
 # The two `${...}` values below are shared by both services, so overriding either one (shell
-# environment or a `.env` file beside this file) keeps mockwa and the receiver in agreement.
+# environment or a `.env` file beside this file) keeps WaSandbox and the receiver in agreement.
 
-name: mockwa
+name: wasandbox
 
 services:
-  mockwa:
+  wasandbox:
     image: ghcr.io/loongest/mockwa:latest
     # No release is published yet, so this builds the checkout; drop it to pull the image.
     build: .
@@ -21,25 +21,25 @@ services:
       - "127.0.0.1:8888:8888"
       - "127.0.0.1:8025:8025"
     environment:
-      # Where mockwa's Graph port is reachable *from whoever downloads media*. The generated media
+      # Where WaSandbox's Graph port is reachable *from whoever downloads media*. The generated media
       # URLs and `paging.next` are built from it. From the host that is the published port; an
-      # app in another compose service on this network would need `http://mockwa:8888`.
-      MOCKWA_PUBLIC_URL: http://localhost:8888
+      # app in another compose service on this network would need `http://wasandbox:8888`.
+      WASANDBOX_PUBLIC_URL: http://localhost:8888
       # The receiver below. Meta's side of the conversation: every inbound message, status
       # change and template event is POSTed here, signed.
-      MOCKWA_WEBHOOK_URL: http://webhook-echo:3001/meta-webhooks
-      MOCKWA_APP_SECRET: ${MOCKWA_APP_SECRET:-dev-app-secret}
-      MOCKWA_WEBHOOK_VERIFY_TOKEN: ${MOCKWA_WEBHOOK_VERIFY_TOKEN:-dev-verify-token}
+      WASANDBOX_WEBHOOK_URL: http://webhook-echo:3001/meta-webhooks
+      WASANDBOX_APP_SECRET: ${WASANDBOX_APP_SECRET:-dev-app-secret}
+      WASANDBOX_WEBHOOK_VERIFY_TOKEN: ${WASANDBOX_WEBHOOK_VERIFY_TOKEN:-dev-verify-token}
       # Run the `hub.challenge` handshake at boot, so the logs say up front whether the
       # receiver is reachable and agrees on the verify token.
-      MOCKWA_VERIFY_ON_START: "true"
+      WASANDBOX_VERIFY_ON_START: "true"
       # Uncomment to keep WABAs, conversations, templates and media across restarts. The
       # default (`:memory:`) starts from the seed every time.
-      # MOCKWA_DB_PATH: /data/mockwa.db
+      # WASANDBOX_DB_PATH: /data/wasandbox.db
     volumes:
       # Media bytes live under /data/media; the SQLite file goes next to them when
-      # MOCKWA_DB_PATH is set above.
-      - mockwa-data:/data
+      # WASANDBOX_DB_PATH is set above.
+      - wasandbox-data:/data
     depends_on:
       - webhook-echo
 
@@ -49,8 +49,8 @@ services:
   webhook-echo:
     image: node:24-alpine
     environment:
-      APP_SECRET: ${MOCKWA_APP_SECRET:-dev-app-secret}
-      VERIFY_TOKEN: ${MOCKWA_WEBHOOK_VERIFY_TOKEN:-dev-verify-token}
+      APP_SECRET: ${WASANDBOX_APP_SECRET:-dev-app-secret}
+      VERIFY_TOKEN: ${WASANDBOX_WEBHOOK_VERIFY_TOKEN:-dev-verify-token}
     command:
       - node
       - -e
@@ -61,7 +61,7 @@ services:
         const appSecret = process.env.APP_SECRET ?? "";
         const verifyToken = process.env.VERIFY_TOKEN ?? "";
 
-        /** mockwa signs the exact bytes it sends, so the raw buffer is what gets hashed. */
+        /** WaSandbox signs the exact bytes it sends, so the raw buffer is what gets hashed. */
         function checkSignature(header, body) {
           if (appSecret === "") return "unsigned (no APP_SECRET set)";
           if (typeof header !== "string") return "MISSING";
@@ -105,4 +105,4 @@ services:
         }).listen(3001, () => console.log("webhook-echo listening on :3001 (POST /meta-webhooks)"));
 
 volumes:
-  mockwa-data:
+  wasandbox-data:

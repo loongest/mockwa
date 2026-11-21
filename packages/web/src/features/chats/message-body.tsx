@@ -1,4 +1,4 @@
-import type { JsonObject, Message } from "@mockwa/shared";
+import type { JsonObject, Message } from "@wasandbox/shared";
 import { JsonBlock } from "../../components/json-block.tsx";
 import { asArray, asNumber, asRecord, asString, readString } from "../../lib/json.ts";
 import { InteractiveMessage } from "./interactive-message.tsx";

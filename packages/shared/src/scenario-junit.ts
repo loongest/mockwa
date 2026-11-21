@@ -44,7 +44,7 @@ function suiteXml(run: ScenarioRunResult): string {
 	const failures = result.steps.filter(step => step.status === "failed").length;
 	const skipped = result.steps.filter(step => step.status === "skipped").length;
 	const total = elapsedMs.reduce((sum, ms) => sum + ms, 0);
-	const testClass = `mockwa.scenario.${result.scenario}`;
+	const testClass = `wasandbox.scenario.${result.scenario}`;
 	const cases = result.steps.map((step, position) => {
 		const open = `    <testcase classname="${escapeXml(testClass)}" name="${escapeXml(`${String(step.index)}. ${step.name}`)}" time="${seconds(elapsedMs[position] ?? 0)}"`;
 
@@ -81,7 +81,7 @@ export function toJUnitXml(runs: readonly ScenarioRunResult[]): string {
 
 	return [
 		'<?xml version="1.0" encoding="UTF-8"?>',
-		`<testsuites name="mockwa scenarios" tests="${String(steps.length)}" failures="${String(failures)}" errors="0" skipped="${String(skipped)}" time="${seconds(total)}">`,
+		`<testsuites name="wasandbox scenarios" tests="${String(steps.length)}" failures="${String(failures)}" errors="0" skipped="${String(skipped)}" time="${seconds(total)}">`,
 		...runs.map(run => suiteXml(run)),
 		"</testsuites>",
 		"",

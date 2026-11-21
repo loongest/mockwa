@@ -88,7 +88,7 @@ describe("DeliveryRow", () => {
 		const signature = screen.getByTestId("delivery-signature");
 
 		expect(signature.textContent).toContain("signature generated");
-		expect(signature.textContent).toContain("Whether the receiver verified it is not visible to mockwa");
+		expect(signature.textContent).toContain("Whether the receiver verified it is not visible to wasandbox");
 		expect(signature.textContent).not.toMatch(/\bverified\b(?! it)/);
 	});
 

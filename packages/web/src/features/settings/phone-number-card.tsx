@@ -10,7 +10,7 @@ import {
 	type PhoneNumberStatus,
 	type QualityRating,
 	type ThroughputLevel,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { useState } from "react";
 import { api } from "../../api/endpoints.ts";
 import { CopyButton } from "../../components/copy-button.tsx";

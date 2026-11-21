@@ -37,18 +37,18 @@ async function freePort(): Promise<number> {
 	return port;
 }
 
-async function startMockwa(consolePort: number, graphPort: number): Promise<ChildProcess> {
-	const mockwa = spawn(
+async function startWasandbox(consolePort: number, graphPort: number): Promise<ChildProcess> {
+	const wasandbox = spawn(
 		process.execPath,
 		["--experimental-transform-types", "--disable-warning=ExperimentalWarning", "--conditions=development", MAIN],
 		{
 			env: {
 				PATH: process.env["PATH"],
-				MOCKWA_HOST: "127.0.0.1",
-				MOCKWA_GRAPH_PORT: String(graphPort),
-				MOCKWA_CONSOLE_PORT: String(consolePort),
-				MOCKWA_DB_PATH: ":memory:",
-				MOCKWA_LOG_LEVEL: "info",
+				WASANDBOX_HOST: "127.0.0.1",
+				WASANDBOX_GRAPH_PORT: String(graphPort),
+				WASANDBOX_CONSOLE_PORT: String(consolePort),
+				WASANDBOX_DB_PATH: ":memory:",
+				WASANDBOX_LOG_LEVEL: "info",
 			},
 			stdio: ["ignore", "pipe", "pipe"],
 		},
@@ -57,21 +57,21 @@ async function startMockwa(consolePort: number, graphPort: number): Promise<Chil
 	await new Promise<void>((resolve, reject) => {
 		let output = "";
 
-		mockwa.stdout.on("data", (chunk: Buffer) => {
+		wasandbox.stdout.on("data", (chunk: Buffer) => {
 			output += chunk.toString("utf8");
 
 			if (output.includes("console listening")) {
 				resolve();
 			}
 		});
-		mockwa.once("exit", code => {
-			reject(new Error(`mockwa exited with ${String(code)} before listening:\n${output}`));
+		wasandbox.once("exit", code => {
+			reject(new Error(`wasandbox exited with ${String(code)} before listening:\n${output}`));
 		});
 	});
 
-	started.push(mockwa);
+	started.push(wasandbox);
 
-	return mockwa;
+	return wasandbox;
 }
 
 /** Resolves once the socket is open, with a promise of the close code it will end with. */
@@ -104,7 +104,7 @@ describe("shutting down with WebSockets open", () => {
 		const consolePort = await freePort();
 		const graphPort = await freePort();
 
-		const child = await startMockwa(consolePort, graphPort);
+		const child = await startWasandbox(consolePort, graphPort);
 
 		const base = `ws://127.0.0.1:${String(consolePort)}/api`;
 		const { closed: consoleClosed } = await openSocket(`${base}/ws`);

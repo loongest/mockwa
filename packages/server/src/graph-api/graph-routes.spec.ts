@@ -141,8 +141,8 @@ describe("graph api surface", () => {
 			const response = await get(`/v25.0/${fixture.phoneNumberId}`);
 
 			expect(await response.json()).toEqual({
-				verified_name: "whaloc Test Business",
-				display_phone_number: "+55 11 91234-5678",
+				verified_name: "Your Company Business",
+				display_phone_number: "+60 12-345 6789",
 				quality_rating: "GREEN",
 				throughput: { level: "STANDARD" },
 				status: "CONNECTED",
@@ -156,8 +156,8 @@ describe("graph api surface", () => {
 			const response = await get(`/v25.0/${fixture.phoneNumberId}?fields=verified_name,display_phone_number`);
 
 			expect(await response.json()).toEqual({
-				verified_name: "whaloc Test Business",
-				display_phone_number: "+55 11 91234-5678",
+				verified_name: "Your Company Business",
+				display_phone_number: "+60 12-345 6789",
 				id: fixture.phoneNumberId,
 			});
 		});
@@ -173,14 +173,14 @@ describe("graph api surface", () => {
 			const response = await get(`/v25.0/${fixture.phoneNumberId}?fields=verified_name,nope`);
 
 			expect(response.status).toBe(200);
-			expect(await response.json()).toEqual({ verified_name: "whaloc Test Business", id: fixture.phoneNumberId });
+			expect(await response.json()).toEqual({ verified_name: "Your Company Business", id: fixture.phoneNumberId });
 		});
 
 		it("serves a WABA", async () => {
 			const whole = await get(`/v25.0/${fixture.wabaId}`);
 			const projected = await get(`/v25.0/${fixture.wabaId}?fields=id`);
 
-			expect(await whole.json()).toEqual({ name: "whaloc Test Business", id: fixture.wabaId });
+			expect(await whole.json()).toEqual({ name: "Your Company Business", id: fixture.wabaId });
 			expect(await projected.json()).toEqual({ id: fixture.wabaId });
 		});
 
@@ -200,8 +200,8 @@ describe("graph api surface", () => {
 				data: [
 					{
 						id: fixture.phoneNumberId,
-						display_phone_number: "+55 11 91234-5678",
-						verified_name: "whaloc Test Business",
+						display_phone_number: "+60 12-345 6789",
+						verified_name: "Your Company Business",
 						quality_rating: "GREEN",
 						throughput: { level: "STANDARD" },
 						status: "CONNECTED",

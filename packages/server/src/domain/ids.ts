@@ -218,7 +218,7 @@ export function createWebhookChallenge(random: RandomBytes = defaultRandomBytes)
 
 /**
  * Derives a stable digit-only id from a natural key. Seeding uses it for ids left out of
- * `MOCKWA_SEED` (SPEC §7), so an `:memory:` database hands out the same WABA and phone
+ * `WASANDBOX_SEED` (SPEC §7), so an `:memory:` database hands out the same WABA and phone
  * number ids on every restart instead of new ones the caller has to look up again.
  */
 export function deriveNumericId(key: string, digits: number = ID_DIGITS): string {

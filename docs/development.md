@@ -1,7 +1,7 @@
 # Development
 
-How to work on mockwa itself: set it up, run it, test it, find your way in the code, and how a
-release is published. To use mockwa for your own app, start at [Getting started](getting-started.md).
+How to work on WaSandbox itself: set it up, run it, test it, find your way in the code, and how a
+release is published. To use WaSandbox for your own app, start at [Getting started](getting-started.md).
 The rules for changing the code are in [AGENTS.md](../AGENTS.md); the behavior it must have is
 [SPEC](SPEC.md).
 
@@ -43,10 +43,10 @@ to the console port and `/v*.*` to the Graph port. The server's own `/` serves t
 | `npm run format:check` | Prettier (Markdown and YAML included)                                                 |
 | `npm run build`        | `shared`, then `server`, then `web`                                                   |
 | `npm start`            | Runs the built server                                                                 |
-| `npm run mockwa -- …`  | The `mockwa` scenario command, from source                                            |
+| `npm run wasandbox -- …`  | The `wasandbox` scenario command, from source                                            |
 
 CI runs lint, typecheck, test and build; run `format:check` too before you push. Scope any script
-to one package with `--workspace`, for example `npm run test:watch --workspace @mockwa/web`.
+to one package with `--workspace`, for example `npm run test:watch --workspace @wasandbox/web`.
 
 `.prettierignore` leaves out `docs/`, so `format:check` does not check the pages in it. Format a
 page you edit with `npx prettier --ignore-path /dev/null --write docs/<page>.md`.
@@ -59,7 +59,7 @@ The S3 tests need a real S3-compatible server, so they are opt-in: without
 ```sh
 docker run -d --name whaloc-rustfs -p 9000:9000 \
   -e RUSTFS_ACCESS_KEY=whaloc -e RUSTFS_SECRET_KEY=whaloc-secret rustfs/rustfs:1.0.0
-WHALOC_TEST_S3_ENDPOINT=http://127.0.0.1:9000 npm test --workspace @mockwa/server
+WHALOC_TEST_S3_ENDPOINT=http://127.0.0.1:9000 npm test --workspace @wasandbox/server
 ```
 
 The tests create their own bucket (`whaloc-test`).
@@ -72,21 +72,21 @@ The suites in `e2e/` drive a **built image** from outside, with
 
 Every suite needs its targets named explicitly (`GRAPH_URL`, `CONSOLE_URL`, `ECHO_URL`, the
 `M1_*` … `M7_*` variables, and any container a restart check may stop). There are no defaults, so
-a suite can never reach a mockwa you are using: a missing or portless target stops it before its
+a suite can never reach a WaSandbox you are using: a missing or portless target stops it before its
 first request. `npm run test:e2e-targets` checks that guard.
 
 Use a dedicated container, free ports and your own echo app. For example, the virtual-phone
 suite:
 
 ```sh
-docker build -t mockwa:local .
+docker build -t wasandbox:local .
 PORT=3102 APP_SECRET=m1-app-secret VERIFY_TOKEN=m1-verify-token \
   GRAPH_API_BASE_URL=http://127.0.0.1:47888/v25.0 node examples/echo-app/server.mjs &
-docker run -d --name mockwa-test-m1 --add-host=host.docker.internal:host-gateway \
+docker run -d --name wasandbox-test-m1 --add-host=host.docker.internal:host-gateway \
   -p 127.0.0.1:47888:8888 -p 127.0.0.1:47025:8025 \
-  -v "$PWD/e2e/fixtures/m1-seed.json:/seed/m1-seed.json:ro" -e MOCKWA_SEED_FILE=/seed/m1-seed.json \
-  -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3102/webhook -e MOCKWA_APP_SECRET=m1-app-secret \
-  -e MOCKWA_WEBHOOK_VERIFY_TOKEN=m1-verify-token mockwa:local
+  -v "$PWD/e2e/fixtures/m1-seed.json:/seed/m1-seed.json:ro" -e WASANDBOX_SEED_FILE=/seed/m1-seed.json \
+  -e WASANDBOX_WEBHOOK_URL=http://host.docker.internal:3102/webhook -e WASANDBOX_APP_SECRET=m1-app-secret \
+  -e WASANDBOX_WEBHOOK_VERIFY_TOKEN=m1-verify-token wasandbox:local
 M1_CONSOLE_URL=http://127.0.0.1:47025 M1_ECHO_URL=http://127.0.0.1:3102 \
   npx playwright test -c e2e/playwright.config.mjs --project m1-phone
 ```
@@ -118,8 +118,8 @@ each layer has one job:
 
 The server runs its TypeScript directly in development, so the code must stay erasable (no
 enums, namespaces or parameter properties) and relative imports keep their `.ts` extension.
-`@mockwa/shared` resolves to its source in development and tests, and to `dist/` in a build;
-that is why `shared` builds first. If a build fails with `TS2307` on `@mockwa/shared`, build
+`@wasandbox/shared` resolves to its source in development and tests, and to `dist/` in a build;
+that is why `shared` builds first. If a build fails with `TS2307` on `@wasandbox/shared`, build
 `shared` first.
 
 The rest of the project's rules (determinism, seeded IDs, webhook bytes, migrations, style) are
@@ -128,11 +128,11 @@ in [AGENTS.md](../AGENTS.md).
 ## Build the image
 
 ```sh
-docker build -t mockwa:local .
+docker build -t wasandbox:local .
 ```
 
 The image runs the compiled server as the unprivileged `node` user, declares `/data` as a volume,
-exposes 8888 and 8025, has a `HEALTHCHECK` on both `/health` routes, and puts the `mockwa` command
+exposes 8888 and 8025, has a `HEALTHCHECK` on both `/health` routes, and puts the `wasandbox` command
 on the `PATH`. The S3 client is about 26 MB of it; it ships either way, because the media backend
 is chosen at run time.
 

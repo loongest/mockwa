@@ -1,4 +1,4 @@
-import type { ServiceWindow } from "@mockwa/shared";
+import type { ServiceWindow } from "@wasandbox/shared";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { SimClockContext, type ClockSync } from "../../lib/sim-clock.tsx";

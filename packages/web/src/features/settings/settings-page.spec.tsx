@@ -1,4 +1,4 @@
-import type { StateResponse } from "@mockwa/shared";
+import type { StateResponse } from "@wasandbox/shared";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it } from "vitest";

@@ -1,4 +1,4 @@
-import type { Message, WsEvent } from "@mockwa/shared";
+import type { Message, WsEvent } from "@wasandbox/shared";
 import { describe, expect, it } from "vitest";
 import { isPhoneEvent } from "./phone-events.ts";
 

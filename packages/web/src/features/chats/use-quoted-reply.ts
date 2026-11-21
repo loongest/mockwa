@@ -1,4 +1,4 @@
-import type { InboundRequest, Message } from "@mockwa/shared";
+import type { InboundRequest, Message } from "@wasandbox/shared";
 import { createContext, use, useRef, useState } from "react";
 import { api } from "../../api/endpoints.ts";
 import { useToasts } from "../../store/store.tsx";

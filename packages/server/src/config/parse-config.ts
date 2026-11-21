@@ -1,33 +1,51 @@
 import type { z } from "zod";
 import { appConfigSchema, type AppConfig } from "./app-config.ts";
 
-const ENV_PREFIX = "MOCKWA_";
-/** whaloc's own prefix, still read so an existing setup keeps working after the rename (SPEC §7). */
-const LEGACY_ENV_PREFIX = "WHALOC_";
+const ENV_PREFIX = "WASANDBOX_";
+/**
+ * Earlier spellings of the prefix, still read so an existing setup keeps working after each
+ * rename (SPEC §7). Order is priority: mockwa's own name beats whaloc's when both are set.
+ */
+const LEGACY_ENV_PREFIXES: readonly string[] = ["MOCKWA_", "WHALOC_"];
 /**
  * Legacy names that are not a plain prefix swap. whaloc had one port and the app under test
  * pointed at it, so `WHALOC_PORT` keeps that meaning: it moves the Graph API listener.
  */
-const RENAMED_LEGACY_KEYS: Readonly<Record<string, string>> = { WHALOC_PORT: "MOCKWA_GRAPH_PORT" };
-const SEED_KEY = "MOCKWA_SEED";
-const SEED_FILE_KEY = "MOCKWA_SEED_FILE";
+const RENAMED_LEGACY_KEYS: Readonly<Record<string, string>> = { WHALOC_PORT: "WASANDBOX_GRAPH_PORT" };
+const SEED_KEY = "WASANDBOX_SEED";
+const SEED_FILE_KEY = "WASANDBOX_SEED_FILE";
 
 export type ParseConfigResult = { success: true; config: AppConfig } | { success: false; errors: string[] };
 
 /** Reads a whole file as UTF-8. Injected, so parsing the configuration never touches the disk itself. */
 export type ReadTextFile = (filePath: string) => string;
 
-/** The `MOCKWA_*` name a `WHALOC_*` variable stands for, or `undefined` when `key` is not a legacy name. */
+function legacyPrefixOf(key: string): string | undefined {
+	return LEGACY_ENV_PREFIXES.find(prefix => key.startsWith(prefix));
+}
+
+/**
+ * The `WASANDBOX_*` name a `MOCKWA_*` or `WHALOC_*` variable stands for, or `undefined` when
+ * `key` is not a legacy name.
+ */
 export function canonicalEnvKey(key: string): string | undefined {
-	if (!key.startsWith(LEGACY_ENV_PREFIX)) {
+	const prefix = legacyPrefixOf(key);
+
+	if (prefix === undefined) {
 		return undefined;
 	}
 
-	return RENAMED_LEGACY_KEYS[key] ?? `${ENV_PREFIX}${key.slice(LEGACY_ENV_PREFIX.length)}`;
+	return RENAMED_LEGACY_KEYS[key] ?? `${ENV_PREFIX}${key.slice(prefix.length)}`;
+}
+
+function legacyRank(key: string): number {
+	const prefix = legacyPrefixOf(key);
+
+	return prefix === undefined ? LEGACY_ENV_PREFIXES.length : LEGACY_ENV_PREFIXES.indexOf(prefix);
 }
 
 interface NormalizedEnv {
-	/** Keyed by the `MOCKWA_*` name, whichever spelling supplied the value. */
+	/** Keyed by the `WASANDBOX_*` name, whichever spelling supplied the value. */
 	values: Record<string, string>;
 	/** Canonical name → the name the operator actually set, so errors quote what they typed. */
 	sourceNames: Map<string, string>;
@@ -40,10 +58,11 @@ function blankToUndefined(value: string | undefined): string | undefined {
 }
 
 /**
- * Keeps only mockwa's own variables and treats blank ones as unset, so an empty
- * `MOCKWA_WEBHOOK_URL=` in a compose file behaves like an absent variable instead of
+ * Keeps only WaSandbox's own variables and treats blank ones as unset, so an empty
+ * `WASANDBOX_WEBHOOK_URL=` in a compose file behaves like an absent variable instead of
  * failing validation. Values are trimmed (secrets read from files often carry a newline).
- * A `WHALOC_*` alias fills its `MOCKWA_*` name only when that name is unset.
+ * A `MOCKWA_*` or `WHALOC_*` alias fills its `WASANDBOX_*` name only when that name is unset,
+ * and a `MOCKWA_*` alias is taken before a `WHALOC_*` one.
  */
 function normalizeEnv(env: NodeJS.ProcessEnv): NormalizedEnv {
 	const values: Record<string, string> = {};
@@ -58,7 +77,11 @@ function normalizeEnv(env: NodeJS.ProcessEnv): NormalizedEnv {
 		}
 	}
 
-	for (const [key, value] of Object.entries(env)) {
+	const legacyEntries = Object.entries(env)
+		.filter(([key]) => legacyPrefixOf(key) !== undefined)
+		.toSorted(([a], [b]) => legacyRank(a) - legacyRank(b));
+
+	for (const [key, value] of legacyEntries) {
 		const canonical = canonicalEnvKey(key);
 		const trimmed = blankToUndefined(value);
 
@@ -72,8 +95,8 @@ function normalizeEnv(env: NodeJS.ProcessEnv): NormalizedEnv {
 }
 
 /**
- * `MOCKWA_SEED_FILE` names a file that holds the seed JSON, for seeds too long to keep inline
- * in a compose file. It stands in for `MOCKWA_SEED`, so setting both is ambiguous and refused
+ * `WASANDBOX_SEED_FILE` names a file that holds the seed JSON, for seeds too long to keep inline
+ * in a compose file. It stands in for `WASANDBOX_SEED`, so setting both is ambiguous and refused
  * rather than silently preferring one. An empty file is refused too: falling back to the
  * default seed would hide a broken mount behind a world that merely looks wrong.
  */
@@ -132,7 +155,7 @@ function formatIssues(error: z.ZodError, sourceNames: ReadonlyMap<string, string
 /**
  * Parses the environment once at boot. Never throws: the caller decides how to report the
  * (complete) list of problems and how to exit. `readTextFile` is only needed for the variables
- * that point at a file (`MOCKWA_SEED_FILE`).
+ * that point at a file (`WASANDBOX_SEED_FILE`).
  */
 export function parseConfig(env: NodeJS.ProcessEnv, readTextFile?: ReadTextFile): ParseConfigResult {
 	const normalized = normalizeEnv(env);
@@ -144,19 +167,19 @@ export function parseConfig(env: NodeJS.ProcessEnv, readTextFile?: ReadTextFile)
 }
 
 /**
- * The `MOCKWA_S3_*` variables, named here because a `local` backend drops them during parsing:
+ * The `WASANDBOX_S3_*` variables, named here because a `local` backend drops them during parsing:
  * a bucket nobody reads leaves no trace in {@link AppConfig} to warn about.
  */
 const S3_ENV_KEYS = [
-	"MOCKWA_S3_BUCKET",
-	"MOCKWA_S3_REGION",
-	"MOCKWA_S3_ENDPOINT",
-	"MOCKWA_S3_ACCESS_KEY_ID",
-	"MOCKWA_S3_SECRET_ACCESS_KEY",
-	"MOCKWA_S3_FORCE_PATH_STYLE",
+	"WASANDBOX_S3_BUCKET",
+	"WASANDBOX_S3_REGION",
+	"WASANDBOX_S3_ENDPOINT",
+	"WASANDBOX_S3_ACCESS_KEY_ID",
+	"WASANDBOX_S3_SECRET_ACCESS_KEY",
+	"WASANDBOX_S3_FORCE_PATH_STYLE",
 ] as const;
 
-/** Whether `key` (a `MOCKWA_*` name) or its `WHALOC_*` alias carries a non-blank value. */
+/** Whether `key` (a `WASANDBOX_*` name) or one of its legacy aliases carries a non-blank value. */
 function isSet(env: NodeJS.ProcessEnv, key: string): boolean {
 	return Object.entries(env).some(
 		([name, value]) => (name === key || canonicalEnvKey(name) === key) && blankToUndefined(value) !== undefined,
@@ -172,17 +195,17 @@ export function collectConfigWarnings(config: AppConfig, env: NodeJS.ProcessEnv 
 
 	if (config.webhookUrl === undefined) {
 		warnings.push(
-			"MOCKWA_WEBHOOK_URL is not set: webhook delivery is disabled, nothing will be sent to the app under test",
+			"WASANDBOX_WEBHOOK_URL is not set: webhook delivery is disabled, nothing will be sent to the app under test",
 		);
 	} else if (config.appSecret === undefined) {
 		warnings.push(
-			"MOCKWA_APP_SECRET is not set: webhook deliveries will be sent without an X-Hub-Signature-256 header",
+			"WASANDBOX_APP_SECRET is not set: webhook deliveries will be sent without an X-Hub-Signature-256 header",
 		);
 	}
 
 	if (config.verifyOnStart && config.webhookVerifyToken === undefined) {
 		warnings.push(
-			"MOCKWA_VERIFY_ON_START is enabled but MOCKWA_WEBHOOK_VERIFY_TOKEN is not set: the handshake cannot run",
+			"WASANDBOX_VERIFY_ON_START is enabled but WASANDBOX_WEBHOOK_VERIFY_TOKEN is not set: the handshake cannot run",
 		);
 	}
 
@@ -190,25 +213,33 @@ export function collectConfigWarnings(config: AppConfig, env: NodeJS.ProcessEnv 
 	// somebody goes looking for objects that were never written (SPEC §6).
 	if (config.mediaBackend === "local" && S3_ENV_KEYS.some(key => isSet(env, key))) {
 		warnings.push(
-			'MOCKWA_S3_* is set but MOCKWA_MEDIA_BACKEND is not "s3": media bytes go to MOCKWA_MEDIA_DIR and the bucket is ignored',
+			'WASANDBOX_S3_* is set but WASANDBOX_MEDIA_BACKEND is not "s3": media bytes go to WASANDBOX_MEDIA_DIR and the bucket is ignored',
 		);
 	}
 
 	if (config.s3 !== undefined && config.s3.credentials === undefined) {
 		warnings.push(
-			"MOCKWA_S3_ACCESS_KEY_ID / MOCKWA_S3_SECRET_ACCESS_KEY are not set: the AWS SDK's default credential chain will be used",
+			"WASANDBOX_S3_ACCESS_KEY_ID / WASANDBOX_S3_SECRET_ACCESS_KEY are not set: the AWS SDK's default credential chain will be used",
 		);
 	}
 
-	// Both spellings set is not an error (the new name wins), but a differing value means the
+	// Two spellings set is not an error (the newest name wins), but a differing value means the
 	// operator probably edited one of them and expects it to count.
+	const { values, sourceNames } = normalizeEnv(env);
+
 	for (const [name, value] of Object.entries(env)) {
 		const canonical = canonicalEnvKey(name);
 		const legacy = blankToUndefined(value);
-		const current = canonical === undefined ? undefined : blankToUndefined(env[canonical]);
+		const used = canonical === undefined ? undefined : sourceNames.get(canonical);
 
-		if (canonical !== undefined && legacy !== undefined && current !== undefined && legacy !== current) {
-			warnings.push(`${name} and ${canonical} are both set to different values: ${canonical} is used`);
+		if (
+			canonical !== undefined &&
+			used !== undefined &&
+			used !== name &&
+			legacy !== undefined &&
+			legacy !== values[canonical]
+		) {
+			warnings.push(`${name} and ${used} are both set to different values: ${used} is used`);
 		}
 	}
 

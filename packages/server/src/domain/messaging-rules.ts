@@ -1,5 +1,5 @@
 import { DEFAULT_SERVICE_WINDOW_MS, META_THROUGHPUT_MPS, type MessagingRulesConfig } from "../config/index.ts";
-import type { ServiceWindow } from "@mockwa/shared";
+import type { ServiceWindow } from "@wasandbox/shared";
 import type { PhoneNumberRecord, Repositories } from "../db/index.ts";
 import { controlNotFound } from "./control-plane-error.ts";
 import type { EventPublisher } from "./event-bus.ts";
@@ -19,7 +19,7 @@ import { createSystemScheduler, type Scheduler } from "./scheduler.ts";
  *   last slot.
  * - **Failures** happen after: the send answers 200 with a wamid, and its status webhook says
  *   `failed` instead of `sent`. That is how a free-form message outside the customer service
- *   window (`131047`) and a send over the messaging limit (mockwa's own `990001`) end.
+ *   window (`131047`) and a send over the messaging limit (WaSandbox's own `990001`) end.
  *
  * Throughput and pair-rate state lives in memory, like every other timer here: a restart or a
  * reset starts both counts afresh. Everything reads the injected clock, so a test steps over a
@@ -40,7 +40,7 @@ export interface MessagingRulesOptions {
 
 /** The customer service window between one business number and one contact. */
 export interface ServiceWindowState {
-	/** `false` when `MOCKWA_SERVICE_WINDOW=off`: the state is still reported, never enforced. */
+	/** `false` when `WASANDBOX_SERVICE_WINDOW=off`: the state is still reported, never enforced. */
 	isEnforced: boolean;
 	isOpen: boolean;
 	/** The contact's latest message to this number; `null` if they never wrote. */
@@ -173,7 +173,7 @@ export class MessagingRules {
 	}
 
 	/**
-	 * Messaging limits are set per business portfolio, which mockwa does not model; the WABA is
+	 * Messaging limits are set per business portfolio, which WaSandbox does not model; the WABA is
 	 * the nearest thing it has, so every number in one WABA shares one count (SPEC §4).
 	 */
 	async #recipientsInPeriod(wabaId: string): Promise<string[]> {

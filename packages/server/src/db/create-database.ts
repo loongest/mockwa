@@ -7,7 +7,7 @@ import type { Database } from "./schema.ts";
 export const IN_MEMORY_DB_PATH = ":memory:";
 
 export interface CreateDatabaseOptions {
-	/** `MOCKWA_DB_PATH`. */
+	/** `WASANDBOX_DB_PATH`. */
 	dbPath: string;
 }
 

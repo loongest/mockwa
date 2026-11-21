@@ -8,7 +8,7 @@ import {
 	webhookRouteListResponseSchema,
 	webhookRouteQuerySchema,
 	webhookRoutingResponseSchema,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { Hono } from "hono";
 import {
 	ControlPlaneError,

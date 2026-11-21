@@ -1,4 +1,4 @@
-import { businessProfileSchema, type BusinessProfile } from "@mockwa/shared";
+import { businessProfileSchema, type BusinessProfile } from "@wasandbox/shared";
 import type { Kysely } from "kysely";
 import type { QualityRating, ThroughputLevel } from "../../config/index.ts";
 import { nowIso, systemClock, type Clock } from "../../timestamps.ts";

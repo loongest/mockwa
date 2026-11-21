@@ -62,8 +62,8 @@ function dispatchByPath(graph: Hono<AppEnv>, console: Hono<AppEnv>): Hono<AppEnv
 }
 
 /**
- * The fixture's defaults are spelled `MOCKWA_*`, and a `MOCKWA_*` name beats its alias, so a
- * spec overriding one through its `WHALOC_*` spelling also gets the `MOCKWA_*` copy that wins.
+ * The fixture's defaults are spelled `WASANDBOX_*`, and a `WASANDBOX_*` name beats its alias, so a
+ * spec overriding one through its `WHALOC_*` spelling also gets the `WASANDBOX_*` copy that wins.
  */
 function withCanonicalNames(env: Record<string, string>): Record<string, string> {
 	const overrides: Record<string, string> = { ...env };
@@ -87,18 +87,18 @@ export async function createTestApp(
 	// Through `parseConfig`, not the bare schema, so a spec may name a variable by either
 	// prefix exactly as an operator would (SPEC §7).
 	const parsed = parseConfig({
-		MOCKWA_DB_PATH: ":memory:",
-		MOCKWA_MEDIA_DIR: mediaDir,
-		MOCKWA_PUBLIC_URL: TEST_PUBLIC_URL,
-		MOCKWA_LOG_LEVEL: "silent",
+		WASANDBOX_DB_PATH: ":memory:",
+		WASANDBOX_MEDIA_DIR: mediaDir,
+		WASANDBOX_PUBLIC_URL: TEST_PUBLIC_URL,
+		WASANDBOX_LOG_LEVEL: "silent",
 		// A directory that does not exist: the API surfaces are tested without the static UI
 		// in front of them, so an unrouted path is a 404 and not the SPA fallback. The web UI
 		// spec points this at a fixture instead.
-		MOCKWA_WEB_DIR: path.join(mediaDir, "no-web-bundle"),
+		WASANDBOX_WEB_DIR: path.join(mediaDir, "no-web-bundle"),
 		// The specs written before M3 send to contacts that never wrote and assert on the ladder
-		// that follows; the window's own specs pass `MOCKWA_SERVICE_WINDOW` to switch it back on.
+		// that follows; the window's own specs pass `WASANDBOX_SERVICE_WINDOW` to switch it back on.
 		// The shipped default (24h) is pinned by the configuration spec.
-		MOCKWA_SERVICE_WINDOW: "off",
+		WASANDBOX_SERVICE_WINDOW: "off",
 		...withCanonicalNames(env),
 	});
 

@@ -1,4 +1,4 @@
-import { conversationId, type TypingIndicator } from "@mockwa/shared";
+import { conversationId, type TypingIndicator } from "@wasandbox/shared";
 import type { MessageRecord } from "../db/index.ts";
 import type { OutboundMessageEvents } from "./domain-events.ts";
 import { noopEventPublisher, type EventPublisher } from "./event-bus.ts";

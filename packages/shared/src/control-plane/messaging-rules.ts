@@ -20,7 +20,7 @@ export type ServiceWindowQuery = z.infer<typeof serviceWindowQuerySchema>;
 export const serviceWindowSchema = z.object({
 	phoneNumberId: z.string(),
 	waId: z.string(),
-	/** `false` when `MOCKWA_SERVICE_WINDOW=off`: reported, never enforced. */
+	/** `false` when `WASANDBOX_SERVICE_WINDOW=off`: reported, never enforced. */
 	isEnforced: z.boolean(),
 	isOpen: z.boolean(),
 	/** The contact's latest message to this number; `null` if they never wrote. */
@@ -67,7 +67,7 @@ const pairRateLimitSchema = z.object({ intervalMs: z.number().int().positive(), 
 
 /** What is configured — also served as `behavior.messaging` in `GET /api/state`. */
 export const messagingRulesConfigSchema = z.object({
-	/** `null` = the window is not enforced (`MOCKWA_SERVICE_WINDOW=off`). */
+	/** `null` = the window is not enforced (`WASANDBOX_SERVICE_WINDOW=off`). */
 	serviceWindowMs: z.number().int().positive().nullable(),
 	/** `meta` = 80 per second for a `STANDARD` number and 1,000 for `HIGH`; `null` = off. */
 	throughput: throughputSchema.nullable(),

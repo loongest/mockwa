@@ -5,7 +5,7 @@ import type {
 	PhoneNumberQualityEvent,
 	PhoneNumberQualityRequest,
 	PhoneNumberUpdateRequest,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import type { PhoneNumberRecord, Repositories, UpdatePhoneNumberInput } from "../db/index.ts";
 import type { Logger } from "../logging/index.ts";
 import type { MediaStorage } from "../storage/index.ts";
@@ -385,7 +385,7 @@ export class PhoneNumberService {
 	 *
 	 * The schema cascades the message and media *rows*; the media **bytes** are deleted here,
 	 * for the same reason `POST /api/reset` deletes them: a delete that left files behind in
-	 * `MOCKWA_MEDIA_DIR` would be quietly untrue. Called by {@link WabaService} too, so a WABA
+	 * `WASANDBOX_MEDIA_DIR` would be quietly untrue. Called by {@link WabaService} too, so a WABA
 	 * delete reaches the same corners.
 	 */
 	async delete(phoneNumberId: string): Promise<PhoneNumberRecord> {

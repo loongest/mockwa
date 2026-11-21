@@ -1,6 +1,6 @@
 // Where an end-to-end suite points, read from the environment and checked before anything runs.
 //
-// There are no defaults on purpose. A developer's own mockwa usually holds the familiar ports
+// There are no defaults on purpose. A developer's own WaSandbox usually holds the familiar ports
 // (8025, 8888, 18025…), and a suite that quietly fell back to them would send test traffic to,
 // and restart, somebody's working instance. So every URL and container a suite touches must be
 // named explicitly, and a missing or malformed one stops the suite before its first request or

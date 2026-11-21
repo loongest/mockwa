@@ -219,7 +219,7 @@ export function createWebUiRoutes(options: WebUiRoutesOptions): Hono<AppEnv> {
 	return routes;
 }
 
-/** Whether {@link createWebUiRoutes} has anything to serve: `npm run build --workspace @mockwa/web` ran. */
+/** Whether {@link createWebUiRoutes} has anything to serve: `npm run build --workspace @wasandbox/web` ran. */
 export function hasWebUiBundle(webDir: string): boolean {
 	return existsSync(path.join(webDir, "index.html"));
 }

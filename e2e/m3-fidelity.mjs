@@ -1,12 +1,12 @@
-// Milestone M3 acceptance checks (API fidelity) against a running mockwa — normally the built
+// Milestone M3 acceptance checks (API fidelity) against a running WaSandbox — normally the built
 // Docker image — and the example echo app playing the app under test. Dependency-free apart
 // from the `docker` CLI, which the restart check uses:
 //
 //   node e2e/m3-fidelity.mjs
 //
 // The instance runs the default seed with Meta's default 24-hour window, a file database on a
-// volume, and the opt-in limits set low enough to reach: MOCKWA_THROUGHPUT=5,
-// MOCKWA_PAIR_RATE_LIMIT=1m/2 and MOCKWA_MESSAGING_LIMIT=2. The echo app answers every inbound
+// volume, and the opt-in limits set low enough to reach: WASANDBOX_THROUGHPUT=5,
+// WASANDBOX_PAIR_RATE_LIMIT=1m/2 and WASANDBOX_MESSAGING_LIMIT=2. The echo app answers every inbound
 // message through the Graph API, so its replies are free-form sends that the window judges. The
 // 24-hour boundary is reached with caller-supplied inbound timestamps, not by waiting a day; the
 // exact instant is pinned by the server's unit tests. See .github/workflows/docker.yml.
@@ -116,7 +116,7 @@ function sleep(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/** Recomputed here, independently of both mockwa and the echo app. */
+/** Recomputed here, independently of both WaSandbox and the echo app. */
 function signatureFor(rawBody) {
 	return `sha256=${createHmac("sha256", APP_SECRET).update(rawBody, "utf8").digest("hex")}`;
 }
@@ -370,22 +370,25 @@ await check("pair rate: a third send to one contact within the minute is refused
 	assert.equal(refused.body.error.message, "(#131056) (Business Account, Consumer account) pair rate limit hit");
 });
 
-await check("messaging limit: a third new user outside the window fails with mockwa's simulated 990001", async () => {
-	// NEVER_WROTE and PAIR were the two business-initiated recipients so far.
-	const { body: before } = await getJson(`${CONSOLE_URL}/api/messaging-rules`);
+await check(
+	"messaging limit: a third new user outside the window fails with WaSandbox's simulated 990001",
+	async () => {
+		// NEVER_WROTE and PAIR were the two business-initiated recipients so far.
+		const { body: before } = await getJson(`${CONSOLE_URL}/api/messaging-rules`);
 
-	assert.equal(before.data.usage[0].used, 2);
+		assert.equal(before.data.usage[0].used, 2);
 
-	const over = await sendTemplate(OVER_LIMIT);
+		const over = await sendTemplate(OVER_LIMIT);
 
-	assert.equal(over.status, 200, JSON.stringify(over.body));
+		assert.equal(over.status, 200, JSON.stringify(over.body));
 
-	const failed = await waitForStatus(over.body.messages[0].id, "failed");
+		const failed = await waitForStatus(over.body.messages[0].id, "failed");
 
-	assert.equal(failed.status.errors[0].code, 990_001);
-	assert.match(failed.status.errors[0].title, /^\[mockwa\] /);
-	assert.equal(failed.delivery.signatureValid, true);
-});
+		assert.equal(failed.status.errors[0].code, 990_001);
+		assert.match(failed.status.errors[0].title, /^\[WaSandbox\] /);
+		assert.equal(failed.delivery.signatureValid, true);
+	},
+);
 
 // --- Deterministic failure injection --------------------------------------------------------
 

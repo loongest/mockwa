@@ -1,4 +1,4 @@
-import { wsEventSchema, type WsEvent } from "@mockwa/shared";
+import { wsEventSchema, type WsEvent } from "@wasandbox/shared";
 
 /**
  * The control-plane WebSocket client (SPEC §5).

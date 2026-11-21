@@ -206,7 +206,7 @@ describe("public mode hardening", () => {
 
 	describe("concurrent requests", () => {
 		it("holds an address to its share of sessions when the requests race", async () => {
-			await boot({ MOCKWA_PUBLIC_SESSIONS_PER_IP: "3" });
+			await boot({ WASANDBOX_PUBLIC_SESSIONS_PER_IP: "3" });
 
 			const results = await Promise.all(
 				Array.from({ length: 12 }, async () =>
@@ -222,7 +222,7 @@ describe("public mode hardening", () => {
 		});
 
 		it("holds the per-address creation rate when the requests race", async () => {
-			await boot({ MOCKWA_PUBLIC_SESSION_CREATES_PER_MINUTE: "4", MOCKWA_PUBLIC_SESSIONS_PER_IP: "50" });
+			await boot({ WASANDBOX_PUBLIC_SESSION_CREATES_PER_MINUTE: "4", WASANDBOX_PUBLIC_SESSIONS_PER_IP: "50" });
 
 			const results = await Promise.all(
 				Array.from({ length: 10 }, async () =>
@@ -234,7 +234,7 @@ describe("public mode hardening", () => {
 		});
 
 		it("holds the instance-wide cap when visitors from many addresses race", async () => {
-			await boot({ MOCKWA_PUBLIC_MAX_SESSIONS: "5" });
+			await boot({ WASANDBOX_PUBLIC_MAX_SESSIONS: "5" });
 
 			const results = await Promise.all(
 				Array.from({ length: 15 }, async (_, index) =>
@@ -246,7 +246,7 @@ describe("public mode hardening", () => {
 		});
 
 		it("counts a message flood from one session exactly against its limit", async () => {
-			await boot({ MOCKWA_PUBLIC_MESSAGES_PER_MINUTE: "5" });
+			await boot({ WASANDBOX_PUBLIC_MESSAGES_PER_MINUTE: "5" });
 
 			const ana = visitor();
 
@@ -263,7 +263,7 @@ describe("public mode hardening", () => {
 		});
 
 		it("counts uploads racing each other exactly against the session's media quota", async () => {
-			await boot({ MOCKWA_PUBLIC_MEDIA_PER_SESSION: "2" });
+			await boot({ WASANDBOX_PUBLIC_MEDIA_PER_SESSION: "2" });
 
 			const ana = visitor();
 
@@ -321,7 +321,7 @@ describe("public mode hardening", () => {
 				{
 					method: "POST",
 					headers: {
-						cookie: `mockwa_visitor=${ana.cookie ?? ""}`,
+						cookie: `wasandbox_visitor=${ana.cookie ?? ""}`,
 						origin: TEST_ORIGIN,
 						"x-csrf-token": ana.session?.csrfToken ?? "",
 						"content-type": "application/json",
@@ -473,9 +473,9 @@ describe("public mode hardening", () => {
 	describe("what a visitor leaves behind", () => {
 		it("takes the webhook deliveries and Graph requests naming its numbers with it, and nobody else's", async () => {
 			await boot({
-				MOCKWA_PUBLIC_SESSION_TTL: "10m",
-				MOCKWA_STATUS_DELAYS: "sent:0,delivered:0",
-				MOCKWA_WEBHOOK_URL: "http://127.0.0.1:9/unreachable",
+				WASANDBOX_PUBLIC_SESSION_TTL: "10m",
+				WASANDBOX_STATUS_DELAYS: "sent:0,delivered:0",
+				WASANDBOX_WEBHOOK_URL: "http://127.0.0.1:9/unreachable",
 			});
 
 			const leaving = visitor("198.51.100.1");
@@ -509,9 +509,9 @@ describe("public mode hardening", () => {
 
 		it("does not log a late Graph request or its webhooks for a visitor who already left", async () => {
 			await boot({
-				MOCKWA_PUBLIC_SESSION_TTL: "10m",
-				MOCKWA_STATUS_DELAYS: "sent:0,delivered:0",
-				MOCKWA_WEBHOOK_URL: "http://127.0.0.1:9/unreachable",
+				WASANDBOX_PUBLIC_SESSION_TTL: "10m",
+				WASANDBOX_STATUS_DELAYS: "sent:0,delivered:0",
+				WASANDBOX_WEBHOOK_URL: "http://127.0.0.1:9/unreachable",
 			});
 
 			const leaving = visitor("198.51.100.3");
@@ -550,7 +550,7 @@ describe("public mode hardening", () => {
 		});
 
 		it("lets the in-memory maps shrink back once the visitors are gone", async () => {
-			await boot({ MOCKWA_PUBLIC_SESSION_TTL: "1m" });
+			await boot({ WASANDBOX_PUBLIC_SESSION_TTL: "1m" });
 
 			const visitors = Array.from({ length: 5 }, (_, index) => visitor(`198.51.100.${String(index + 1)}`));
 
@@ -585,10 +585,10 @@ describe("public mode hardening", () => {
 		async function bootWith(): Promise<void> {
 			receiver = await startHeldReceiver();
 			await boot({
-				MOCKWA_PUBLIC_SESSION_TTL: "10m",
-				MOCKWA_WEBHOOK_URL: receiver.url,
-				MOCKWA_WEBHOOK_RETRY_SCHEDULE: "10s",
-				MOCKWA_STATUS_DELAYS: "sent:0,delivered:600000",
+				WASANDBOX_PUBLIC_SESSION_TTL: "10m",
+				WASANDBOX_WEBHOOK_URL: receiver.url,
+				WASANDBOX_WEBHOOK_RETRY_SCHEDULE: "10s",
+				WASANDBOX_STATUS_DELAYS: "sent:0,delivered:600000",
 			});
 		}
 
@@ -764,7 +764,7 @@ describe("public mode hardening", () => {
 		}
 
 		it("takes the address the trusted proxy appended, not one the client put in front of it", async () => {
-			await boot({ MOCKWA_PUBLIC_SESSIONS_PER_IP: "1", MOCKWA_TRUSTED_PROXIES: "10.0.0.2" });
+			await boot({ WASANDBOX_PUBLIC_SESSIONS_PER_IP: "1", WASANDBOX_TRUSTED_PROXIES: "10.0.0.2" });
 
 			// The client claims to be 192.0.2.1; the proxy appends what it saw, 198.51.100.7.
 			const first = await startVia("10.0.0.2", { "x-forwarded-for": "192.0.2.1, 198.51.100.7" });
@@ -777,7 +777,7 @@ describe("public mode hardening", () => {
 		});
 
 		it("ignores a forwarded origin from an untrusted peer", async () => {
-			await boot({ MOCKWA_TRUSTED_PROXIES: "10.0.0.2" });
+			await boot({ WASANDBOX_TRUSTED_PROXIES: "10.0.0.2" });
 
 			// A page on evil.example claims, through headers it cannot set via a proxy, to be this site.
 			const spoofed = await startVia("192.0.2.50", {
@@ -790,7 +790,7 @@ describe("public mode hardening", () => {
 		});
 
 		it("accepts the origin a trusted proxy reports", async () => {
-			await boot({ MOCKWA_TRUSTED_PROXIES: "10.0.0.2" });
+			await boot({ WASANDBOX_TRUSTED_PROXIES: "10.0.0.2" });
 
 			const proxied = await startVia("10.0.0.2", {
 				origin: "https://demo.example",

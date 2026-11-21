@@ -1,13 +1,13 @@
-// Milestone M6 acceptance checks (AC-14 to AC-17: public demo mode) against a running mockwa —
+// Milestone M6 acceptance checks (AC-14 to AC-17: public demo mode) against a running WaSandbox —
 // normally the built Docker image — with the example echo app playing the app under test. HTTP,
 // WebSocket and `docker`; the browser half lives in e2e/m6-public.spec.mjs.
 //
 //   node e2e/m6-public.mjs
 //
-// The instance runs MOCKWA_MODE=public on e2e/fixtures/m1-seed.json (one business number, whose
+// The instance runs WASANDBOX_MODE=public on e2e/fixtures/m1-seed.json (one business number, whose
 // template has quick replies) with the limits this script expects (see
 // .github/workflows/docker.yml): a 20 s session TTL, 6 messages a minute per session, 64 KiB
-// and 2 files of media per session, 30 sessions per address, and MOCKWA_TRUSTED_PROXIES=127.0.0.1
+// and 2 files of media per session, 30 sessions per address, and WASANDBOX_TRUSTED_PROXIES=127.0.0.1
 // so that requests made from inside the container may name a client address. Its webhook points
 // at the echo app, which answers through the Graph listener with the registered token.
 //
@@ -160,7 +160,7 @@ class Visitor {
 		const all = { ...headers };
 
 		if (this.cookie !== undefined) {
-			all.cookie = `mockwa_visitor=${this.cookie}`;
+			all.cookie = `wasandbox_visitor=${this.cookie}`;
 		}
 
 		if (origin !== null) {
@@ -186,7 +186,7 @@ class Visitor {
 			const [pair] = header.split(";", 1);
 			const [name, value] = pair.split("=", 2);
 
-			if (name === "mockwa_visitor") {
+			if (name === "wasandbox_visitor") {
 				this.cookie = value === "" ? undefined : value;
 			}
 		}
@@ -276,7 +276,7 @@ async function openSocket(visitor, waId = visitor.waId, origin = CONSOLE_URL) {
 	const headers = {};
 
 	if (visitor?.cookie !== undefined) {
-		headers.cookie = `mockwa_visitor=${visitor.cookie}`;
+		headers.cookie = `wasandbox_visitor=${visitor.cookie}`;
 	}
 
 	if (origin !== null) {
@@ -387,7 +387,7 @@ await check("the instance is in public mode and its phone page is served with a 
 await check("AC-14: a fresh visitor gets its own identities and messages the business end to end", async () => {
 	const ana = new Visitor();
 	const started = await ana.start();
-	const cookie = started.headers.getSetCookie().find(header => header.startsWith("mockwa_visitor="));
+	const cookie = started.headers.getSetCookie().find(header => header.startsWith("wasandbox_visitor="));
 
 	assert.equal(started.status, 201);
 	assert.match(cookie, /HttpOnly/);
@@ -561,7 +561,7 @@ await check("AC-15: two visitors cannot reach each other's identities, chats, me
 
 	const noCsrf = await fetch(`${CONSOLE_URL}${ana.chat()}/messages`, {
 		method: "POST",
-		headers: { cookie: `mockwa_visitor=${ana.cookie}`, origin: CONSOLE_URL, "content-type": "application/json" },
+		headers: { cookie: `wasandbox_visitor=${ana.cookie}`, origin: CONSOLE_URL, "content-type": "application/json" },
 		body: JSON.stringify({ type: "text", text: { body: "csrf" } }),
 	});
 

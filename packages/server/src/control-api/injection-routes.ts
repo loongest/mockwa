@@ -2,7 +2,7 @@ import {
 	injectionRuleCreateRequestSchema,
 	injectionRuleListResponseSchema,
 	injectionRuleResponseSchema,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { Hono } from "hono";
 import { toInjectionRuleDto, type InjectionService } from "../domain/index.ts";
 import { readBody, type ControlEnv } from "./control-env.ts";

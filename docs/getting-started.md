@@ -1,6 +1,6 @@
 # Getting started
 
-Start a local mockwa, send a message as a WhatsApp user, watch an app answer, and send one back
+Start a local WaSandbox, send a message as a WhatsApp user, watch an app answer, and send one back
 as the app. It takes about ten minutes, most of it the first image build.
 
 **On this page:** [Before you start](#before-you-start) · [Get an image](#get-an-image) ·
@@ -17,7 +17,7 @@ You need:
 - Free host ports 8888, 8025 and 3001 (check with `lsof -i :8888 -i :8025 -i :3001`, which prints
   nothing when they are free). If one is taken, change the left side of its `-p` below (for
   example `-p 127.0.0.1:18888:8888`) and use that port in every URL on this page.
-- No containers or network already named `mockwa-quickstart…`; this page creates and later
+- No containers or network already named `wasandbox-quickstart…`; this page creates and later
   removes exactly those.
 
 Run every command from the root of the checkout.
@@ -29,55 +29,55 @@ Images are published only when a `v*` release tag is pushed, so do not assume
 your checkout:
 
 ```sh
-docker build -t mockwa:local .
+docker build -t wasandbox:local .
 ```
 
-Expected result: the build finishes without an error, and `docker image ls mockwa` lists the
+Expected result: the build finishes without an error, and `docker image ls wasandbox` lists the
 `local` tag. Once a release
-you want is published, `ghcr.io/loongest/mockwa:<version>` works in place of `mockwa:local`.
+you want is published, `ghcr.io/loongest/mockwa:<version>` works in place of `wasandbox:local`.
 
 ## Do a first round trip
 
-mockwa never answers a message by itself. Every reply comes from an app that receives the
+WaSandbox never answers a message by itself. Every reply comes from an app that receives the
 webhook and calls the Graph API. Here that app is [`examples/echo-app`](../examples/echo-app/server.mjs),
 which replies `echo: <your text>`.
 
 1. Create a network so the two containers can reach each other by name:
 
    ```sh
-   docker network create mockwa-quickstart
+   docker network create wasandbox-quickstart
    ```
 
 2. Start the example app. It checks every webhook signature with `APP_SECRET` and replies through
-   mockwa's Graph port. Its port 3001 is also published on `127.0.0.1`, so you can make it fail on
+   WaSandbox's Graph port. Its port 3001 is also published on `127.0.0.1`, so you can make it fail on
    purpose later ([Webhooks → Retries](webhooks.md#retries)):
 
    ```sh
-   docker run -d --name mockwa-quickstart-echo --network mockwa-quickstart \
+   docker run -d --name wasandbox-quickstart-echo --network wasandbox-quickstart \
      -p 127.0.0.1:3001:3001 -v "$PWD/examples/echo-app:/app:ro" -w /app \
      -e PORT=3001 -e APP_SECRET=dev-app-secret -e VERIFY_TOKEN=dev-verify-token \
-     -e GRAPH_API_BASE_URL=http://mockwa-quickstart:8888/v25.0 \
+     -e GRAPH_API_BASE_URL=http://wasandbox-quickstart:8888/v25.0 \
      node:24-alpine node server.mjs
    ```
 
-3. Start mockwa, pointing its webhooks at the app. The secret and verify token must be the same
+3. Start WaSandbox, pointing its webhooks at the app. The secret and verify token must be the same
    values the app uses:
 
    ```sh
-   docker run -d --name mockwa-quickstart --network mockwa-quickstart \
+   docker run -d --name wasandbox-quickstart --network wasandbox-quickstart \
      -p 127.0.0.1:8888:8888 -p 127.0.0.1:8025:8025 \
-     -e MOCKWA_WEBHOOK_URL=http://mockwa-quickstart-echo:3001/webhook \
-     -e MOCKWA_APP_SECRET=dev-app-secret \
-     -e MOCKWA_WEBHOOK_VERIFY_TOKEN=dev-verify-token \
-     -e MOCKWA_VERIFY_ON_START=true \
-     mockwa:local
+     -e WASANDBOX_WEBHOOK_URL=http://wasandbox-quickstart-echo:3001/webhook \
+     -e WASANDBOX_APP_SECRET=dev-app-secret \
+     -e WASANDBOX_WEBHOOK_VERIFY_TOKEN=dev-verify-token \
+     -e WASANDBOX_VERIFY_ON_START=true \
+     wasandbox:local
    ```
 
 4. Check that it is up and that the app accepted the webhook handshake:
 
    ```sh
    curl -s http://localhost:8888/health
-   docker logs mockwa-quickstart 2>&1 | grep -E "seed applied|handshake"
+   docker logs wasandbox-quickstart 2>&1 | grep -E "seed applied|handshake"
    ```
 
    Expected result: `{"status":"ok",…}`, a `seed applied` line with the IDs below, and
@@ -102,7 +102,7 @@ which replies `echo: <your text>`.
    Expected result: Ana's conversation, whose `lastMessage` is the app's
    `"body":"echo: hello"`, with `"direction":"outbound"`.
 
-7. Check the webhooks mockwa sent:
+7. Check the webhooks WaSandbox sent:
 
    ```sh
    curl -s 'http://localhost:8025/api/webhook-deliveries?limit=5'
@@ -119,7 +119,7 @@ A fresh instance always has the same IDs, on every machine and after every reset
 | What         | ID                                                              |
 | ------------ | --------------------------------------------------------------- |
 | WABA         | `666635535888644`                                               |
-| Phone number | `573542517421694` (`+55 11 91234-5678`)                         |
+| Phone number | `573542517421694` (`+60 12-345 6789`)                         |
 | Template     | `355867425910125`: `hello_whaloc`, language `en`, no parameters |
 | Contacts     | `5571990000001` (Ana Souza), `5571990000002` (Bruno Lima)       |
 
@@ -166,9 +166,9 @@ Expected result: `200`, then the template reaches `delivered`.
 
 This page created two containers, one network, and one Docker volume:
 
-- **The database** is in memory (`MOCKWA_DB_PATH` is unset), so it goes with the container.
+- **The database** is in memory (`WASANDBOX_DB_PATH` is unset), so it goes with the container.
 - **Media files** are not. The image declares `VOLUME /data` and keeps media in `/data/media`, so
-  Docker gave `mockwa-quickstart` an anonymous volume for them. A plain `docker rm` leaves that
+  Docker gave `wasandbox-quickstart` an anonymous volume for them. A plain `docker rm` leaves that
   volume behind.
 
 Remove the containers **with `-v`**, which also removes the anonymous volumes of those two
@@ -176,13 +176,13 @@ containers and nothing else. Your other volumes, and the checkout mounted into t
 are not touched:
 
 ```sh
-docker rm -f -v mockwa-quickstart mockwa-quickstart-echo
-docker network rm mockwa-quickstart
+docker rm -f -v wasandbox-quickstart wasandbox-quickstart-echo
+docker network rm wasandbox-quickstart
 ```
 
-Expected result: the three names are printed back. `docker ps -a --filter name=mockwa-quickstart`
-and `docker network ls --filter name=mockwa-quickstart` then list nothing. Keep `mockwa:local`
-for the other pages; remove it with `docker rmi mockwa:local` when you no longer need it. Do not
+Expected result: the three names are printed back. `docker ps -a --filter name=wasandbox-quickstart`
+and `docker network ls --filter name=wasandbox-quickstart` then list nothing. Keep `wasandbox:local`
+for the other pages; remove it with `docker rmi wasandbox:local` when you no longer need it. Do not
 use `docker volume prune` or `docker system prune` for this: they remove other projects' data
 too.
 
@@ -190,35 +190,35 @@ too.
 
 Replace the example app with yours. Two directions have to agree:
 
-1. **Your app calls mockwa** instead of `graph.facebook.com`. Set its Graph base URL to mockwa's
-   Graph port **with a version segment**, such as `http://mockwa:8888/v25.0`. Cloud API clients
+1. **Your app calls WaSandbox** instead of `graph.facebook.com`. Set its Graph base URL to WaSandbox's
+   Graph port **with a version segment**, such as `http://wasandbox:8888/v25.0`. Cloud API clients
    add `/{id}/messages` to the base URL and never insert a version, so a base URL without one
-   asks for paths mockwa does not serve. Any `/v<major>.<minor>` works.
-2. **mockwa calls your app's webhook receiver** instead of Meta. Set the values in this table.
+   asks for paths WaSandbox does not serve. Any `/v<major>.<minor>` works.
+2. **WaSandbox calls your app's webhook receiver** instead of Meta. Set the values in this table.
 
-| mockwa                        | Your app                                       | Why it must match                                                       |
+| WaSandbox                        | Your app                                       | Why it must match                                                       |
 | ----------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------- |
-| `MOCKWA_WEBHOOK_URL`          | The receiver's address, as mockwa can reach it | Where every webhook goes. In Compose, the service name, not `localhost` |
-| `MOCKWA_APP_SECRET`           | The Meta app secret the receiver verifies with | The key of `X-Hub-Signature-256`                                        |
-| `MOCKWA_WEBHOOK_VERIFY_TOKEN` | The receiver's verify token                    | Compared in the `hub.challenge` handshake                               |
-| `MOCKWA_PUBLIC_URL`           | Whatever downloads media                       | The host in every media URL mockwa hands out                            |
-| `MOCKWA_APP_ID`               | The app's Meta app ID (optional)               | Only what `GET /{waba}/subscribed_apps` reports                         |
+| `WASANDBOX_WEBHOOK_URL`          | The receiver's address, as WaSandbox can reach it | Where every webhook goes. In Compose, the service name, not `localhost` |
+| `WASANDBOX_APP_SECRET`           | The Meta app secret the receiver verifies with | The key of `X-Hub-Signature-256`                                        |
+| `WASANDBOX_WEBHOOK_VERIFY_TOKEN` | The receiver's verify token                    | Compared in the `hub.challenge` handshake                               |
+| `WASANDBOX_PUBLIC_URL`           | Whatever downloads media                       | The host in every media URL WaSandbox hands out                            |
+| `WASANDBOX_APP_ID`               | The app's Meta app ID (optional)               | Only what `GET /{waba}/subscribed_apps` reports                         |
 
 The access token your app sends does not matter unless you turn on the token registry
 ([Testing → Expire or reject tokens](testing.md#expire-or-reject-tokens)).
 
-A Compose file with mockwa next to your app:
+A Compose file with WaSandbox next to your app:
 
 ```yaml
 services:
   app:
     build: .
     environment:
-      GRAPH_API_BASE_URL: http://mockwa:8888/v25.0 # the version segment is required
+      GRAPH_API_BASE_URL: http://wasandbox:8888/v25.0 # the version segment is required
       META_APP_SECRET: dev-app-secret
       META_WEBHOOK_VERIFY_TOKEN: dev-verify-token
     healthcheck:
-      # Proves the receiver answers the handshake before mockwa starts.
+      # Proves the receiver answers the handshake before WaSandbox starts.
       test:
         [
           "CMD",
@@ -230,30 +230,30 @@ services:
       start_period: 60s
       start_interval: 2s
 
-  mockwa:
-    image: mockwa:local
+  wasandbox:
+    image: wasandbox:local
     ports: ["127.0.0.1:8888:8888", "127.0.0.1:8025:8025"]
     environment:
-      MOCKWA_PUBLIC_URL: http://mockwa:8888 # your app downloads media from inside the network
-      MOCKWA_WEBHOOK_URL: http://app:3001/meta-webhooks
-      MOCKWA_APP_SECRET: dev-app-secret
-      MOCKWA_WEBHOOK_VERIFY_TOKEN: dev-verify-token
-      MOCKWA_VERIFY_ON_START: "true"
-      # MOCKWA_DB_PATH: /data/mockwa.db # keep state across restarts
-    volumes: ["mockwa-data:/data"]
+      WASANDBOX_PUBLIC_URL: http://wasandbox:8888 # your app downloads media from inside the network
+      WASANDBOX_WEBHOOK_URL: http://app:3001/meta-webhooks
+      WASANDBOX_APP_SECRET: dev-app-secret
+      WASANDBOX_WEBHOOK_VERIFY_TOKEN: dev-verify-token
+      WASANDBOX_VERIFY_ON_START: "true"
+      # WASANDBOX_DB_PATH: /data/wasandbox.db # keep state across restarts
+    volumes: ["wasandbox-data:/data"]
     depends_on:
       app: { condition: service_healthy }
 
 volumes:
-  mockwa-data:
+  wasandbox-data:
 ```
 
 The names your app uses (`GRAPH_API_BASE_URL`, `META_APP_SECRET`, …) are examples; use your
-app's own. Inside the network mockwa is `mockwa:8888` and `mockwa:8025`; from your computer it is
+app's own. Inside the network WaSandbox is `wasandbox:8888` and `wasandbox:8025`; from your computer it is
 whatever host ports you published.
 
 The boot handshake is a single attempt. Without the health gate, an app that is slow to start
-makes mockwa log `webhook handshake failed` once, and nothing else is wrong. You can run the
+makes WaSandbox log `webhook handshake failed` once, and nothing else is wrong. You can run the
 handshake again at any time ([Webhooks → Run the handshake](webhooks.md#run-the-handshake)).
 
 Set it for every service of yours that calls the Graph API: the API, workers, media downloaders.
@@ -263,7 +263,7 @@ Guides for two specific apps: [Workbench](integrations/workbench.md) and
 
 ### The Compose demo in this repository
 
-`docker compose up` in the checkout builds mockwa and starts it with a small receiver,
+`docker compose up` in the checkout builds WaSandbox and starts it with a small receiver,
 `webhook-echo`, that checks signatures and **logs** each delivery. It does not reply, so a
 message from the phone gets no answer. Watch it with `docker compose logs -f webhook-echo`. For
 replies, use the example app as above, or [`examples/public-demo`](../examples/public-demo/docker-compose.yml).
@@ -272,7 +272,7 @@ replies, use the example app as above, or [`examples/public-demo`](../examples/p
 
 | What you see                                                | Likely cause                                                                        |
 | ----------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `mockwa cannot start, the environment is invalid:` + a list | A variable is wrong; every problem is listed. See [Configuration](configuration.md) |
+| `wasandbox cannot start, the environment is invalid:` + a list | A variable is wrong; every problem is listed. See [Configuration](configuration.md) |
 | `webhook handshake failed` at boot                          | The receiver was not up yet, or the verify token differs                            |
 | The app's reply never comes                                 | No app is connected, or it calls the wrong host or port; check **Requests**         |
 | `404` for every Graph call                                  | The app calls port 8025, or its base URL has no version segment                     |

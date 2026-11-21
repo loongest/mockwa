@@ -1,4 +1,4 @@
-import type { ScenarioRunResponse } from "@mockwa/shared";
+import type { ScenarioRunResponse } from "@wasandbox/shared";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -75,7 +75,7 @@ describe("ScenariosPage", () => {
 		fireEvent.change(screen.getByLabelText("Example scenario"), { target: { value: "service-window.json" } });
 
 		expect(screen.getByLabelText("Scenario JSON")).toHaveProperty("value", SCENARIO_EXAMPLES[1]!.text);
-		expect(screen.getByTestId("scenario-reset-warning").textContent).toMatch(/resets this mockwa/);
+		expect(screen.getByTestId("scenario-reset-warning").textContent).toMatch(/resets this WaSandbox/);
 	});
 
 	it("checks a scenario with the server and shows its actionable errors; nothing runs", async () => {

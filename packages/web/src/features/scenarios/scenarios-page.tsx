@@ -1,4 +1,4 @@
-import { toJUnitXml, type ScenarioRunResponse, type ScenarioStepResult } from "@mockwa/shared";
+import { toJUnitXml, type ScenarioRunResponse, type ScenarioStepResult } from "@wasandbox/shared";
 import clsx from "clsx";
 import { useRef, useState } from "react";
 import { ApiError, describeError } from "../../api/client.ts";
@@ -12,7 +12,7 @@ import { isRepeatClick } from "../../lib/repeat-click.ts";
 /**
  * Scenarios (SPEC §4, "Scenarios"): load or paste one, check it, run it, read what happened.
  *
- * Checking never changes anything. Running **resets this mockwa** into the scenario's world
+ * Checking never changes anything. Running **resets this WaSandbox** into the scenario's world
  * first — the same reset as `POST /api/reset` — which is why it asks before it starts. The JUnit
  * report is built here from the run on screen, so downloading it does not run the scenario again.
  */
@@ -45,7 +45,7 @@ function downloadJUnit(run: ScenarioRunResponse): void {
 	const link = document.createElement("a");
 
 	link.href = url;
-	link.download = `mockwa-${run.data.scenario.replaceAll(/[^\w.-]+/g, "-")}.junit.xml`;
+	link.download = `wasandbox-${run.data.scenario.replaceAll(/[^\w.-]+/g, "-")}.junit.xml`;
 	link.click();
 	URL.revokeObjectURL(url);
 }
@@ -238,8 +238,9 @@ export function ScenariosPage() {
 
 			<div className="page__body stack">
 				<p className="badge badge--warn badge--wrap" data-testid="scenario-reset-warning">
-					Running a scenario resets this mockwa: messages, contacts, deliveries, apps and the request log are replaced
-					by the scenario's world, and a virtual clock goes back to the scenario's start. Checking it changes nothing.
+					Running a scenario resets this WaSandbox: messages, contacts, deliveries, apps and the request log are
+					replaced by the scenario's world, and a virtual clock goes back to the scenario's start. Checking it changes
+					nothing.
 				</p>
 
 				<div className="card stack">
@@ -377,7 +378,7 @@ export function ScenariosPage() {
 					}
 				>
 					<p>
-						This replaces everything in this mockwa with the scenario's world before the first step. Export the state
+						This replaces everything in this WaSandbox with the scenario's world before the first step. Export the state
 						from Settings first if you want to keep it.
 					</p>
 				</Dialog>

@@ -59,10 +59,10 @@ opens its link.
 
 | Tick                | Status      | What happened                                                     |
 | ------------------- | ----------- | ----------------------------------------------------------------- |
-| clock               | accepted    | mockwa accepted the send; no status yet                           |
+| clock               | accepted    | WaSandbox accepted the send; no status yet                           |
 | one check           | `sent`      | The `sent` status webhook went out                                |
 | two checks          | `delivered` | The `delivered` status webhook went out (800 ms later by default) |
-| two coloured checks | `read`      | Marked read, by hand or by `read:<ms>` in `MOCKWA_STATUS_DELAYS`  |
+| two coloured checks | `read`      | Marked read, by hand or by `read:<ms>` in `WASANDBOX_STATUS_DELAYS`  |
 | cross               | `failed`    | Failed; hover it for Meta's error code and title                  |
 
 Each outgoing message has the manual part of the ladder: **mark delivered**, **mark read**, or
@@ -78,7 +78,7 @@ typing indicator up; it goes after 25 seconds or with the app's next message.
 | Service window closed …: templates only          | 24 hours passed since the contact's last message             |
 | Service window expired by hand …: templates only | Someone pressed **Expire now**                               |
 | No service window: templates only                | The contact has never written                                |
-| Service window not enforced                      | `MOCKWA_SERVICE_WINDOW=off`                                  |
+| Service window not enforced                      | `WASANDBOX_SERVICE_WINDOW=off`                                  |
 
 While the window is not open, a free-form text from your app is accepted and then fails with
 `131047`; templates still go out. The window opens when the contact writes and closes 24 hours
@@ -101,7 +101,7 @@ and shows a media header from the image it was created with.
   Graph listing takes.
 
 A template your app creates is `PENDING`, then approved automatically after 2 seconds unless
-`MOCKWA_TEMPLATE_AUTO_APPROVE=off`. A send needs it `APPROVED`, with the same name, language and
+`WASANDBOX_TEMPLATE_AUTO_APPROVE=off`. A send needs it `APPROVED`, with the same name, language and
 number of parameters.
 
 ## Webhooks
@@ -115,8 +115,8 @@ Every delivery attempt, newest first. Expand a row to see the exact signed body 
 | `failed`    | It failed and no attempt is left                                          |
 | `skipped`   | The app has no URL; nothing was sent, but the payload is kept             |
 
-**"Signature generated" is not "verified".** mockwa signed the body with the app's secret and sent
-`X-Hub-Signature-256`. Whether your receiver checked it, mockwa cannot see; it sees only the
+**"Signature generated" is not "verified".** WaSandbox signed the body with the app's secret and sent
+`X-Hub-Signature-256`. Whether your receiver checked it, WaSandbox cannot see; it sees only the
 status your receiver answered. "unsigned" means the app has no secret.
 
 Each row also shows which app it went to and when the next retry is due.
@@ -146,7 +146,7 @@ for headers and bodies.
 - It is cleared by a reset and by **Clear the log**. It is not part of a snapshot. Calls to port
   8025 are not logged here.
 
-This is the quickest way to tell "my app sent the wrong thing" from "mockwa answered wrongly".
+This is the quickest way to tell "my app sent the wrong thing" from "wasandbox answered wrongly".
 
 ## Clock
 
@@ -167,7 +167,7 @@ and a **Download JUnit XML** button. [Testing → Scenarios](testing.md#run-scen
 - **IDs** of every WABA and phone number, with copy buttons: what your app's configuration needs.
 - **Accounts and numbers**: add, rename and delete WABAs and numbers (destructive actions say what
   goes with them), status and verification badges, quality and throughput, the business profile,
-  and, while a Graph `request_code` is open, the code mockwa "texted".
+  and, while a Graph `request_code` is open, the code WaSandbox "texted".
 - **Account webhooks** per WABA: send `account_update` or `business_capability_update`. These
   are events only; they change no state.
 - **Apps & webhooks**: which apps get a WABA's webhooks, where each copy goes (number override,
@@ -175,7 +175,7 @@ and a **Download JUnit XML** button. [Testing → Scenarios](testing.md#run-scen
   it sends), the credentials each app has set (never their values), and a handshake per app.
 - **Contacts**: name, role, BSUID, display number, and change number.
 - **Error injection**: arm a rule, watch its countdown, delete it.
-- **Access tokens**, when `MOCKWA_TOKENS` is set: expire or restore each one.
+- **Access tokens**, when `WASANDBOX_TOKENS` is set: expire or restore each one.
 - **Configured behavior**: what the environment set.
 - **Danger zone**: **Export** (a snapshot file), **Import** (replaces everything) and **Reset**
   (back to the seed). All three are explained in
@@ -191,7 +191,7 @@ and a **Download JUnit XML** button. [Testing → Scenarios](testing.md#run-scen
    appear live; your own messages show their ticks.
 4. **Tap** an interactive reply button, a list row or a template quick reply to answer it.
 
-Your app writes every reply. mockwa never answers on its own: with no receiver configured, or a
+Your app writes every reply. WaSandbox never answers on its own: with no receiver configured, or a
 receiver that does not reply, the message is stored and shown and nothing comes back. The
 console's top bar names the receiver, or says "webhooks: not sent".
 
@@ -204,7 +204,7 @@ only; no webhook or Graph answer carries them. In dev mode there is no login.
 
 ## Public demo mode
 
-With `MOCKWA_MODE=public`, anonymous visitors use the virtual phone and only the admin sees the
+With `WASANDBOX_MODE=public`, anonymous visitors use the virtual phone and only the admin sees the
 console.
 
 **A visitor**, at `/phone`:
@@ -217,7 +217,7 @@ console.
 4. After 30 minutes without activity, or on **Leave demo**, the session ends and its numbers,
    messages and uploads are deleted. The page offers a new demo.
 
-**The admin** signs in at `/admin` with `MOCKWA_ADMIN_TOKEN`, and then has the whole console.
+**The admin** signs in at `/admin` with `WASANDBOX_ADMIN_TOKEN`, and then has the whole console.
 Without it, every console page is `404` and every console API is `401`. Ten wrong tokens from one
 address within 15 minutes lock that address out for the rest of the window, even with the right
 token; the form says "Too many wrong tokens".
