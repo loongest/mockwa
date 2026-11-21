@@ -1,4 +1,4 @@
-import type { ClockMove, ClockState } from "@mockwa/shared";
+import type { ClockMove, ClockState } from "@wasandbox/shared";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
@@ -41,7 +41,7 @@ describe("ClockPage", () => {
 		const found1 = await screen.findByTestId("clock-mode");
 
 		expect(found1.textContent).toBe("real time");
-		expect(screen.getByTestId("clock-explainer").textContent).toMatch(/MOCKWA_CLOCK=virtual/);
+		expect(screen.getByTestId("clock-explainer").textContent).toMatch(/WASANDBOX_CLOCK=virtual/);
 		expect(screen.getByTestId("clock-explainer").textContent).toMatch(/the app under test keeps its own clock/);
 		expect(screen.getByRole("button", { name: "Advance" })).toHaveProperty("disabled", true);
 		expect(screen.getByRole("button", { name: "Run the next event" })).toHaveProperty("disabled", true);

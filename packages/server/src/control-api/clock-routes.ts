@@ -3,7 +3,7 @@ import {
 	clockMoveResponseSchema,
 	clockResponseSchema,
 	clockSetRequestSchema,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { Hono } from "hono";
 import type { ClockService } from "../domain/index.ts";
 import { readBody, type ControlEnv } from "./control-env.ts";
@@ -13,7 +13,7 @@ export interface ClockRoutesOptions {
 }
 
 /**
- * `/api/clock` (SPEC §5): inspect the instance's clock, and — with `MOCKWA_CLOCK=virtual` — move
+ * `/api/clock` (SPEC §5): inspect the instance's clock, and — with `WASANDBOX_CLOCK=virtual` — move
  * it. Every move answers once the events it ran have settled (SPEC §4, "Virtual clock"), so
  * the state it left behind can be asserted on straight away. A real clock answers 409
  * `clock_not_virtual` to every move.

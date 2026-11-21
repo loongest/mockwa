@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
-import type { ImportSummary, StateResponse } from "@mockwa/shared";
+import type { ImportSummary, StateResponse } from "@wasandbox/shared";
 import { buffer } from "node:stream/consumers";
 import type { Repositories } from "../db/index.ts";
 import type { Logger } from "../logging/index.ts";
 import { MediaObjectNotFoundError, type MediaStorage } from "../storage/index.ts";
-import { MOCKWA_VERSION } from "../version.ts";
+import { WASANDBOX_VERSION } from "../version.ts";
 import { controlBadRequest, ControlPlaneError } from "./control-plane-error.ts";
 import { noopEventPublisher, type EventPublisher } from "./event-bus.ts";
 import type { ClockService } from "./clock-service.ts";
@@ -37,7 +37,7 @@ import type { WebhookEmitter } from "./webhook-emitter.ts";
  * 2. **The bytes go through the storage adapter**, never near a filesystem, so a snapshot taken
  *    from a local-backed whaloc imports into an S3-backed one and back (SPEC §6).
  * 3. **The seed does not run afterwards.** An import is not a reset: the snapshot *is* the
- *    state, seeded ids included. `POST /api/reset` is still the way back to `MOCKWA_SEED`.
+ *    state, seeded ids included. `POST /api/reset` is still the way back to `WASANDBOX_SEED`.
  */
 export interface SnapshotServiceOptions {
 	repositories: Repositories;
@@ -173,7 +173,7 @@ export class SnapshotService {
 
 		return {
 			schemaVersion: SNAPSHOT_SCHEMA_VERSION,
-			whalocVersion: MOCKWA_VERSION,
+			whalocVersion: WASANDBOX_VERSION,
 			exportedAt: this.#scheduler.now().toISOString(),
 			tables,
 			mediaObjects,
@@ -233,7 +233,7 @@ export class SnapshotService {
 		await this.#repositories.snapshots.replaceAll(snapshot.tables);
 		// Windows closed by hand belonged to the conversations being replaced (SPEC §4).
 		await this.#repositories.serviceWindowExpiries.deleteAll();
-		// A snapshot's pending retries were owed by somebody else's mockwa, at another time:
+		// A snapshot's pending retries were owed by somebody else's WaSandbox, at another time:
 		// like the timers above, they are cancelled rather than replayed (SPEC §5).
 		await this.#repositories.webhookDeliveries.cancelPending();
 		await this.#webhooks?.resumeRetries();

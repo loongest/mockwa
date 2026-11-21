@@ -6,7 +6,7 @@ import { createTestApp, type TestApp } from "../testing/test-app.ts";
 import { main, type CliEnvironment } from "./scenario-command.ts";
 
 /**
- * `mockwa scenario run|validate` (SPEC §4, "Scenarios") against the composed app: the CLI's
+ * `wasandbox scenario run|validate` (SPEC §4, "Scenarios") against the composed app: the CLI's
  * `fetch` is wired to `app.request()`, so everything but the socket is real.
  */
 
@@ -33,7 +33,7 @@ const FAILING = {
 	],
 };
 
-describe("mockwa scenario", () => {
+describe("wasandbox scenario", () => {
 	let fixture: TestApp;
 	let dir: string;
 	let out: string[];
@@ -41,8 +41,8 @@ describe("mockwa scenario", () => {
 	let cli: CliEnvironment;
 
 	beforeEach(async () => {
-		fixture = await createTestApp({ MOCKWA_CLOCK: "virtual" });
-		dir = await mkdtemp(path.join(tmpdir(), "mockwa-cli-"));
+		fixture = await createTestApp({ WASANDBOX_CLOCK: "virtual" });
+		dir = await mkdtemp(path.join(tmpdir(), "wasandbox-cli-"));
 		out = [];
 		err = [];
 		cli = {
@@ -112,9 +112,9 @@ describe("mockwa scenario", () => {
 		const xml = await readFile(junit, "utf8");
 
 		expect(xml).toMatch(/^<\?xml version="1.0" encoding="UTF-8"\?>/);
-		expect(xml).toContain('<testsuites name="mockwa scenarios" tests="8" failures="1" errors="0" skipped="1"');
+		expect(xml).toContain('<testsuites name="wasandbox scenarios" tests="8" failures="1" errors="0" skipped="1"');
 		expect(xml).toContain('<testsuite name="window opens" tests="4" failures="0" errors="0" skipped="0"');
-		expect(xml).toContain('<testcase classname="mockwa.scenario.window still open" name="3. still open?"');
+		expect(xml).toContain('<testcase classname="wasandbox.scenario.window still open" name="3. still open?"');
 		expect(xml).toContain('<failure message="the window is closed" type="expect">');
 		// Well formed: every element that opens, closes.
 		expect(xml.match(/<testcase /g)).toHaveLength(8);
@@ -128,7 +128,7 @@ describe("mockwa scenario", () => {
 		const before = fixture.services.domain.clock.view();
 
 		expect(await main(["scenario", "run", good, bad, "--url", CONSOLE], cli)).toBe(2);
-		expect(err.join("\n")).toContain(`mockwa: ${bad}: the scenario is invalid:`);
+		expect(err.join("\n")).toContain(`wasandbox: ${bad}: the scenario is invalid:`);
 		expect(err.join("\n")).toContain("  - steps[0].tap.option:");
 		expect(err.join("\n")).toContain("  - steps[1].advance:");
 		// The good file was not run either: the whole batch is checked first.
@@ -149,7 +149,7 @@ describe("mockwa scenario", () => {
 		);
 
 		expect(await main(["scenario", "run", stranger], cli)).toBe(2);
-		expect(err.at(-1)).toContain("name the mockwa console with --url");
+		expect(err.at(-1)).toContain("name the WaSandbox console with --url");
 	});
 
 	it("exits 2 when the instance cannot be reached", async () => {
@@ -158,7 +158,9 @@ describe("mockwa scenario", () => {
 		cli.fetch = () => Promise.reject(new TypeError("fetch failed", { cause: new Error("connect ECONNREFUSED") }));
 
 		expect(await main(["scenario", "run", scenario, "--url", CONSOLE], cli)).toBe(2);
-		expect(err.at(-1)).toBe(`mockwa: cannot reach ${CONSOLE}/api/scenarios/run: fetch failed (connect ECONNREFUSED)`);
+		expect(err.at(-1)).toBe(
+			`wasandbox: cannot reach ${CONSOLE}/api/scenarios/run: fetch failed (connect ECONNREFUSED)`,
+		);
 	});
 
 	it("validates locally, or against an instance, without running", async () => {
@@ -175,7 +177,7 @@ describe("mockwa scenario", () => {
 
 	it("prints the usage for a wrong command", async () => {
 		expect(await main(["scenarios", "go"], cli)).toBe(2);
-		expect(err[0]).toContain("mockwa scenario run <file.json>...");
+		expect(err[0]).toContain("wasandbox scenario run <file.json>...");
 		expect(await main(["--help"], cli)).toBe(0);
 	});
 });

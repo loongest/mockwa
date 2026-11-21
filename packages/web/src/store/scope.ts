@@ -1,4 +1,4 @@
-import type { StateResponse } from "@mockwa/shared";
+import type { StateResponse } from "@wasandbox/shared";
 
 /**
  * Scope: which WABA, and which of its phone numbers, the views are looking at (SPEC §5).

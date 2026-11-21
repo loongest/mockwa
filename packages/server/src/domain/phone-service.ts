@@ -1,4 +1,4 @@
-import { conversationId, type PhoneChat } from "@mockwa/shared";
+import { conversationId, type PhoneChat } from "@wasandbox/shared";
 import type { ContactRecord, MessageRecord, Repositories } from "../db/index.ts";
 import { controlNotFound } from "./control-plane-error.ts";
 import { toMessageDto } from "./control-dto.ts";

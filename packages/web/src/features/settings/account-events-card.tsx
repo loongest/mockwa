@@ -4,7 +4,7 @@ import {
 	type AccountRestrictionType,
 	type AccountUpdateEvent,
 	type WabaState,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { useState } from "react";
 import { api } from "../../api/endpoints.ts";
 import { useAction, useToasts } from "../../store/store.tsx";

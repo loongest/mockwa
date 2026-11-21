@@ -1,4 +1,4 @@
-import type { LoggedFormField } from "@mockwa/shared";
+import type { LoggedFormField } from "@wasandbox/shared";
 import type { HonoRequest, MiddlewareHandler } from "hono";
 import type { AppEnv } from "../app-env.ts";
 import type { CapturedBody, GraphRequestLog } from "../domain/index.ts";

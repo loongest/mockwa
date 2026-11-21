@@ -1,4 +1,4 @@
-import type { TokenState } from "@mockwa/shared";
+import type { TokenState } from "@wasandbox/shared";
 import { createHash } from "node:crypto";
 import type { Repositories } from "../db/index.ts";
 import { controlNotFound } from "./control-plane-error.ts";
@@ -9,14 +9,14 @@ import { createSystemScheduler, type Scheduler } from "./scheduler.ts";
 /**
  * The bearer-token registry (SPEC §1.9).
  *
- * **Two modes, and the default is unchanged.** With `MOCKWA_TOKENS` unset whaloc is permissive:
+ * **Two modes, and the default is unchanged.** With `WASANDBOX_TOKENS` unset whaloc is permissive:
  * every non-empty bearer token is accepted, exactly as it always was, and there is nothing to
  * list. With the variable set, only the listed tokens pass — anything else is 401 / code 190 —
  * and each of them can be marked *expired* through the control plane, which is 401 / 190 /
  * **subcode 463**, the envelope a consumer keys "refresh my token" on.
  *
  * Expiry is **persisted** (a row per expired token), so it survives a restart when
- * `MOCKWA_DB_PATH` points at a file, and `POST /api/reset` clears it along with everything else.
+ * `WASANDBOX_DB_PATH` points at a file, and `POST /api/reset` clears it along with everything else.
  * What is persisted is the token's derived id, never the token: the registry lives in the
  * environment, and a `whaloc.db` left on a volume should not be a place credentials leak from.
  */
@@ -44,7 +44,7 @@ export function maskToken(token: string): string {
 
 export interface TokenRegistryOptions {
 	repositories: Repositories;
-	/** `MOCKWA_TOKENS`; `undefined` — the default — leaves whaloc permissive. */
+	/** `WASANDBOX_TOKENS`; `undefined` — the default — leaves whaloc permissive. */
 	tokens?: readonly string[] | undefined;
 	events?: EventPublisher;
 	scheduler?: Scheduler;
@@ -54,7 +54,7 @@ export class TokenRegistry {
 	readonly #repositories: Repositories;
 	readonly #events: EventPublisher;
 	readonly #scheduler: Scheduler;
-	/** Derived id → token, in the order `MOCKWA_TOKENS` listed them; empty when permissive. */
+	/** Derived id → token, in the order `WASANDBOX_TOKENS` listed them; empty when permissive. */
 	readonly #tokens = new Map<string, string>();
 	readonly #strict: boolean;
 
@@ -81,7 +81,7 @@ export class TokenRegistry {
 		};
 	}
 
-	/** `MOCKWA_TOKENS` is set: unregistered tokens are rejected. */
+	/** `WASANDBOX_TOKENS` is set: unregistered tokens are rejected. */
 	get isStrict(): boolean {
 		return this.#strict;
 	}

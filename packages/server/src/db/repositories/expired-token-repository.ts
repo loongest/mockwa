@@ -5,7 +5,7 @@ import type { Database } from "../schema.ts";
 /**
  * Which registered bearer tokens are currently expired (SPEC §1.9).
  *
- * The registry itself is `MOCKWA_TOKENS`; this table only remembers the ones the control plane
+ * The registry itself is `WASANDBOX_TOKENS`; this table only remembers the ones the control plane
  * invalidated, keyed by the token's derived id so no credential is ever written to disk. A token
  * with no row here is valid.
  */

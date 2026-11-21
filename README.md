@@ -1,16 +1,16 @@
-# mockwa
+# WaSandbox
 
 [![CI](https://github.com/loongest/mockwa/actions/workflows/ci.yml/badge.svg)](https://github.com/loongest/mockwa/actions/workflows/ci.yml)
 [![Docker](https://github.com/loongest/mockwa/actions/workflows/docker.yml/badge.svg)](https://github.com/loongest/mockwa/actions/workflows/docker.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-mockwa is a local simulator of the **Meta WhatsApp Cloud API** (Graph API v25.0). Your app talks
+WaSandbox is a local simulator of the **Meta WhatsApp Cloud API** (Graph API v25.0). Your app talks
 to it instead of `graph.facebook.com`, and it talks back to your app the way Meta does. You can
 build and test a WhatsApp integration with no Meta app, no business number and no public tunnel.
 
 ## What it does
 
-mockwa plays Meta's side of the integration for the parts of the Cloud API it supports, in one
+WaSandbox plays Meta's side of the integration for the parts of the Cloud API it supports, in one
 Docker image:
 
 - **The Graph API calls a typical integration makes**: sending the common message types, media,
@@ -19,7 +19,7 @@ Docker image:
   anything else is not served.
 - **Signed webhooks back to your app**: inbound messages, statuses and template events, signed
   with `X-Hub-Signature-256` over the exact bytes sent. Failed deliveries are retried for up to
-  7 days, as on Meta, on a schedule of mockwa's own.
+  7 days, as on Meta, on a schedule of WaSandbox's own.
 - **A virtual phone** where you are the WhatsApp user: chat with your app as one or more people.
 - **A console** to watch and steer it all: chats, templates, the webhook log, every Graph request
   your app made, and a clock you can move.
@@ -38,7 +38,7 @@ test that behaves the same way.
   24-hour window, a user who changed number.
 - Run the whole path offline in CI, with the same seeded IDs on every machine.
 
-mockwa is a simulator, not Meta. Where it has to invent behavior Meta does not document, it says
+WaSandbox is a simulator, not Meta. Where it has to invent behavior Meta does not document, it says
 so; see [Differences from the real Meta Cloud API](docs/SPEC.md#differences-from-the-real-meta-cloud-api).
 
 ## Two ports
@@ -61,16 +61,17 @@ Your app should only ever call 8888.
 | Look up a route, a port or how auth works         | [API reference](docs/api-reference.md)                           |
 | Connect my webhook receiver                       | [Webhooks](docs/webhooks.md)                                     |
 | Run a public demo behind HTTPS                    | [Deployment](docs/deployment.md), [access rules](docs/access.md) |
-| Work on mockwa itself                             | [Development](docs/development.md)                               |
+| Work on WaSandbox itself                          | [Development](docs/development.md)                               |
 | Know exactly how it must behave                   | [SPEC](docs/SPEC.md), the behavioral contract                    |
 
 ## Relation to whaloc
 
-mockwa is a fork of [whaloc](https://github.com/dgadelha/whaloc) by Douglas Gadêlha. It keeps
+WaSandbox is a fork of [whaloc](https://github.com/dgadelha/whaloc) by Douglas Gadêlha. It keeps
 whaloc's engine and adds what a simulator needs: two ports, the virtual phone, several apps with
 webhook retries, Meta's sending rules, a virtual clock, scenarios, a public demo mode and its
-hardening. The code still says "whaloc" in many places, and every `WHALOC_*` variable is still
-read as an alias of its `MOCKWA_*` name.
+hardening. The code still says "whaloc" in many places. The project was called mockwa before
+WaSandbox: every `MOCKWA_*` and `WHALOC_*` variable is still read as an alias of its
+`WASANDBOX_*` name, and the container keeps a `mockwa` command next to `wasandbox`.
 
 ## Acknowledgments
 
@@ -87,8 +88,8 @@ Thanks to [@fdarian](https://github.com/fdarian).
 
 ## License
 
-[MIT](LICENSE). The WhatsApp Cloud API is Meta's; mockwa is an independent reimplementation for
+[MIT](LICENSE). The WhatsApp Cloud API is Meta's; WaSandbox is an independent reimplementation for
 local development, not affiliated with or endorsed by Meta. The specs vendored under
 `docs/meta-openapi/` are Meta's own, published under the
 [Meta Platform Terms](https://developers.facebook.com/terms) and kept for reference; the MIT
-license covers mockwa's code and documentation, not them.
+license covers WaSandbox's code and documentation, not them.

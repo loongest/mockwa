@@ -5,7 +5,7 @@ import {
 	mediaResponseSchema,
 	phoneChatListResponseSchema,
 	phoneIdentityListResponseSchema,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { createHash } from "node:crypto";
 import { readdir } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -83,12 +83,12 @@ describe("public mode", () => {
 
 			expect(response.status).toBe(201);
 
-			const cookie = response.headers.getSetCookie().find(header => header.startsWith("mockwa_visitor="));
+			const cookie = response.headers.getSetCookie().find(header => header.startsWith("wasandbox_visitor="));
 
 			expect(cookie).toMatch(/HttpOnly/);
 			expect(cookie).toMatch(/SameSite=Strict/);
 			expect(cookie).toMatch(/Path=\//);
-			// Plain HTTP under MOCKWA_COOKIE_SECURE=auto: a Secure cookie would never come back.
+			// Plain HTTP under WASANDBOX_COOKIE_SECURE=auto: a Secure cookie would never come back.
 			expect(cookie).not.toMatch(/Secure/);
 
 			const { data: session } = await readJson<{ data: { identities: { waId: string; role: string }[] } }>(response);
@@ -206,7 +206,7 @@ describe("public mode", () => {
 
 	describe("the phone, as a visitor", () => {
 		beforeEach(async () => {
-			await boot({ MOCKWA_STATUS_DELAYS: "sent:0,delivered:0" });
+			await boot({ WASANDBOX_STATUS_DELAYS: "sent:0,delivered:0" });
 		});
 
 		it("lists only the session's identities, and chats with the business end to end", async () => {
@@ -288,7 +288,7 @@ describe("public mode", () => {
 				await jsonOf(ana.request(`/api/phone/identities/${ana.waId}/media/${mediaId}`)),
 			).data;
 
-			// A path on this origin, never the Graph host MOCKWA_PUBLIC_URL names.
+			// A path on this origin, never the Graph host WASANDBOX_PUBLIC_URL names.
 			expect(descriptor.url).toMatch(/^\/whaloc-media\//);
 
 			const bytes = await ana.request(descriptor.url);
@@ -325,7 +325,7 @@ describe("public mode", () => {
 		let brunoMediaId: string;
 
 		beforeEach(async () => {
-			await boot({ MOCKWA_STATUS_DELAYS: "sent:0,delivered:0" });
+			await boot({ WASANDBOX_STATUS_DELAYS: "sent:0,delivered:0" });
 			ana = visitor("198.51.100.1");
 			bruno = visitor("198.51.100.2");
 			await ana.start();
@@ -510,7 +510,7 @@ describe("public mode", () => {
 			const crossOrigin = await fixture.consoleApp.request("/api/admin/login", {
 				method: "POST",
 				headers: { origin: "https://evil.example", "content-type": "application/x-www-form-urlencoded" },
-				body: `token=${encodeURIComponent(PUBLIC_ENV["MOCKWA_ADMIN_TOKEN"]!)}`,
+				body: `token=${encodeURIComponent(PUBLIC_ENV["WASANDBOX_ADMIN_TOKEN"]!)}`,
 			});
 
 			expect(crossOrigin.headers.get("location")).toBe("/admin?error=origin");
@@ -518,13 +518,13 @@ describe("public mode", () => {
 			const signedIn = await fixture.consoleApp.request("/api/admin/login", {
 				method: "POST",
 				headers: { origin: "http://localhost", "content-type": "application/x-www-form-urlencoded" },
-				body: `token=${encodeURIComponent(PUBLIC_ENV["MOCKWA_ADMIN_TOKEN"]!)}`,
+				body: `token=${encodeURIComponent(PUBLIC_ENV["WASANDBOX_ADMIN_TOKEN"]!)}`,
 			});
 
 			expect(signedIn.status).toBe(303);
 			expect(signedIn.headers.get("location")).toBe("/");
 
-			const cookie = signedIn.headers.getSetCookie().find(header => header.startsWith("mockwa_admin="));
+			const cookie = signedIn.headers.getSetCookie().find(header => header.startsWith("wasandbox_admin="));
 
 			expect(cookie).toMatch(/HttpOnly/);
 
@@ -615,7 +615,7 @@ describe("public mode", () => {
 
 	describe("limits (AC-17)", () => {
 		it("answers 429 with Retry-After past the per-session message rate, and recovers after a minute", async () => {
-			await boot({ MOCKWA_PUBLIC_MESSAGES_PER_MINUTE: "3" });
+			await boot({ WASANDBOX_PUBLIC_MESSAGES_PER_MINUTE: "3" });
 
 			const ana = visitor();
 
@@ -644,7 +644,7 @@ describe("public mode", () => {
 		});
 
 		it("counts every session of one address against the per-address rate", async () => {
-			await boot({ MOCKWA_PUBLIC_IP_MESSAGES_PER_MINUTE: "2" });
+			await boot({ WASANDBOX_PUBLIC_IP_MESSAGES_PER_MINUTE: "2" });
 
 			const first = visitor("203.0.113.9");
 			const second = visitor("203.0.113.9");
@@ -658,7 +658,7 @@ describe("public mode", () => {
 		});
 
 		it("refuses a file over the size limit with 413 and past the count with 429", async () => {
-			await boot({ MOCKWA_PUBLIC_MEDIA_MAX_BYTES: "64", MOCKWA_PUBLIC_MEDIA_PER_SESSION: "2" });
+			await boot({ WASANDBOX_PUBLIC_MEDIA_MAX_BYTES: "64", WASANDBOX_PUBLIC_MEDIA_PER_SESSION: "2" });
 
 			const ana = visitor();
 
@@ -686,7 +686,7 @@ describe("public mode", () => {
 		});
 
 		it("holds an address to its share of live sessions", async () => {
-			await boot({ MOCKWA_PUBLIC_SESSIONS_PER_IP: "2" });
+			await boot({ WASANDBOX_PUBLIC_SESSIONS_PER_IP: "2" });
 
 			await visitor("203.0.113.20").start();
 			await visitor("203.0.113.20").start();
@@ -698,7 +698,7 @@ describe("public mode", () => {
 		});
 
 		it("believes X-Forwarded-For only from a trusted proxy", async () => {
-			await boot({ MOCKWA_PUBLIC_SESSIONS_PER_IP: "1", MOCKWA_TRUSTED_PROXIES: "10.0.0.2" });
+			await boot({ WASANDBOX_PUBLIC_SESSIONS_PER_IP: "1", WASANDBOX_TRUSTED_PROXIES: "10.0.0.2" });
 
 			const viaProxy = async (forwardedFor: string, peer = "10.0.0.2"): Promise<number> => {
 				const response = await fixture.consoleApp.request(
@@ -722,7 +722,7 @@ describe("public mode", () => {
 
 	describe("idle cleanup (AC-17)", () => {
 		beforeEach(async () => {
-			await boot({ MOCKWA_PUBLIC_SESSION_TTL: "10m", MOCKWA_STATUS_DELAYS: "sent:0,delivered:0" });
+			await boot({ WASANDBOX_PUBLIC_SESSION_TTL: "10m", WASANDBOX_STATUS_DELAYS: "sent:0,delivered:0" });
 		});
 
 		it("removes only the idle visitor's identities, messages and media, bytes included", async () => {
@@ -816,7 +816,7 @@ describe("public mode", () => {
 
 	describe("concurrent operations", () => {
 		beforeEach(async () => {
-			await boot({ MOCKWA_PUBLIC_MESSAGES_PER_MINUTE: "100", MOCKWA_PUBLIC_IP_MESSAGES_PER_MINUTE: "100" });
+			await boot({ WASANDBOX_PUBLIC_MESSAGES_PER_MINUTE: "100", WASANDBOX_PUBLIC_IP_MESSAGES_PER_MINUTE: "100" });
 		});
 
 		it("never leaves a message owned by nobody when the session ends during a burst of sends", async () => {
@@ -888,8 +888,8 @@ describe("dev mode", () => {
 		expect(identities.map(identity => identity.waId)).toEqual(["5571990000001", "5571990000002"]);
 	});
 
-	it("puts the whole console, the phone included, behind MOCKWA_ADMIN_TOKEN when one is set", async () => {
-		fixture = await createTestApp({ MOCKWA_ADMIN_TOKEN: PUBLIC_ENV["MOCKWA_ADMIN_TOKEN"]! });
+	it("puts the whole console, the phone included, behind WASANDBOX_ADMIN_TOKEN when one is set", async () => {
+		fixture = await createTestApp({ WASANDBOX_ADMIN_TOKEN: PUBLIC_ENV["WASANDBOX_ADMIN_TOKEN"]! });
 
 		expect(await statusOf(fixture.consoleApp.request("/api/state"))).toBe(401);
 		expect(await statusOf(fixture.consoleApp.request("/api/phone/identities"))).toBe(401);

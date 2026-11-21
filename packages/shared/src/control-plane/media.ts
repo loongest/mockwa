@@ -6,7 +6,7 @@ import { z } from "zod";
  *
  * It is the control-plane twin of the Graph API's first download hop (SPEC §1.7): same
  * descriptor, whaloc's own error shape, and no bearer token — the UI is not the app under
- * test. The `url` is absolute and built from `MOCKWA_PUBLIC_URL`, which may name a host only
+ * test. The `url` is absolute and built from `WASANDBOX_PUBLIC_URL`, which may name a host only
  * reachable from inside the compose network, so a browser uses its path against its own
  * origin.
  */

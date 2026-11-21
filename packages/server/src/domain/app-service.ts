@@ -1,4 +1,4 @@
-import type { WebhookApp as WebhookAppDto, WebhookRouting } from "@mockwa/shared";
+import type { WebhookApp as WebhookAppDto, WebhookRouting } from "@wasandbox/shared";
 import type { SeedApp } from "../config/index.ts";
 import type {
 	AppRecord,
@@ -20,16 +20,16 @@ import { createSystemScheduler, type Scheduler } from "./scheduler.ts";
  *
  * There are two kinds of app:
  *
- * - **The default app** is the one the environment describes — `MOCKWA_WEBHOOK_URL`,
- *   `MOCKWA_APP_SECRET`, `MOCKWA_WEBHOOK_VERIFY_TOKEN`, `MOCKWA_APP_ID`. It is never stored and
+ * - **The default app** is the one the environment describes — `WASANDBOX_WEBHOOK_URL`,
+ *   `WASANDBOX_APP_SECRET`, `WASANDBOX_WEBHOOK_VERIFY_TOKEN`, `WASANDBOX_APP_ID`. It is never stored and
  *   cannot be edited from the console; its subscriptions and overrides are stored under the key
  *   {@link DEFAULT_APP_KEY}.
- * - **Registered apps** are rows, created from the console, the control plane or `MOCKWA_APPS`,
+ * - **Registered apps** are rows, created from the console, the control plane or `WASANDBOX_APPS`,
  *   each with its own callback URL, app secret and verify token.
  *
  * Who receives a WABA's webhooks: every registered app subscribed to it, plus the default app
  * when it is subscribed **or when no registered app is**. The second half is what keeps a
- * mockwa with only the environment configured behaving exactly as before: the default app
+ * WaSandbox with only the environment configured behaving exactly as before: the default app
  * receives everything, subscribed or not (the divergence SPEC §2.20 documents).
  *
  * Where each app's copy goes is Meta's lookup order: the phone number's override for that app,
@@ -37,7 +37,7 @@ import { createSystemScheduler, type Scheduler } from "./scheduler.ts";
  * redirect use the first two; template and account events always go to the app's callback.
  */
 
-/** How the default app is named in the tables, so a changed `MOCKWA_APP_ID` orphans nothing. */
+/** How the default app is named in the tables, so a changed `WASANDBOX_APP_ID` orphans nothing. */
 export const DEFAULT_APP_KEY = "default";
 
 /** The name the default app reports, as `subscribed_apps` always has (SPEC §2.20). */
@@ -240,7 +240,7 @@ export class AppService {
 	#assertEditable(app: WebhookApp): void {
 		if (app.isDefault) {
 			throw controlBadRequest(
-				"the default app comes from the environment (MOCKWA_WEBHOOK_URL, MOCKWA_APP_SECRET, MOCKWA_WEBHOOK_VERIFY_TOKEN): change those and restart",
+				"the default app comes from the environment (WASANDBOX_WEBHOOK_URL, WASANDBOX_APP_SECRET, WASANDBOX_WEBHOOK_VERIFY_TOKEN): change those and restart",
 				"default_app_read_only",
 			);
 		}
@@ -554,7 +554,7 @@ export class AppService {
 	}
 
 	/**
-	 * Where one event goes, one route per receiving app. A WABA mockwa does not know — a raw
+	 * Where one event goes, one route per receiving app. A WABA WaSandbox does not know — a raw
 	 * webhook, say — goes to the default app's callback URL, the only address it has.
 	 */
 	async route(request: RouteRequest): Promise<WebhookRoute[]> {
@@ -600,7 +600,7 @@ export class AppService {
 	}
 
 	/**
-	 * Registers `MOCKWA_APPS` (SPEC §7). Idempotent like the seed: an app that already exists
+	 * Registers `WASANDBOX_APPS` (SPEC §7). Idempotent like the seed: an app that already exists
 	 * is left as it is, so edits made at runtime survive a restart with a file database, and a
 	 * reset (which empties the table first) brings back exactly the configured apps.
 	 */
@@ -624,7 +624,7 @@ export class AppService {
 
 			for (const wabaId of seedApp.wabas) {
 				if ((await this.#waba(wabaId)) === null) {
-					throw new Error(`MOCKWA_APPS: app "${seedApp.name}" subscribes to WABA ${wabaId}, which does not exist`);
+					throw new Error(`WASANDBOX_APPS: app "${seedApp.name}" subscribes to WABA ${wabaId}, which does not exist`);
 				}
 
 				if ((await this.#repositories.webhookSubscriptions.find(wabaId, id)) === null) {

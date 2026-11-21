@@ -4,7 +4,7 @@ import type { MediaStorage } from "./media-storage.ts";
 import { createS3MediaStorage } from "./s3-storage.ts";
 
 export interface CreateMediaStorageOptions {
-	/** `MOCKWA_MEDIA_BACKEND` and the variables that go with it (SPEC §6, §7). */
+	/** `WASANDBOX_MEDIA_BACKEND` and the variables that go with it (SPEC §6, §7). */
 	config: AppConfig;
 }
 

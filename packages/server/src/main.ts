@@ -14,7 +14,7 @@ const configResult = parseConfig(process.env, filePath => readFileSync(filePath,
 if (!configResult.success) {
 	const details = configResult.errors.map(error => `  - ${error}`).join("\n");
 
-	process.stderr.write(`mockwa cannot start, the environment is invalid:\n${details}\n`);
+	process.stderr.write(`wasandbox cannot start, the environment is invalid:\n${details}\n`);
 	process.exit(1);
 }
 
@@ -33,7 +33,7 @@ let services;
 try {
 	services = await createServices({ config, logger });
 } catch (error) {
-	logger.fatal({ err: error }, "mockwa cannot start, the database is unusable");
+	logger.fatal({ err: error }, "wasandbox cannot start, the database is unusable");
 	process.exit(1);
 }
 
@@ -45,7 +45,7 @@ const webSocketServer = new WebSocketServer({ noServer: true });
 
 function logListening(name: string): (address: AddressInfo) => void {
 	return address => {
-		logger.info(`mockwa ${name} listening on http://${address.address}:${String(address.port)}`);
+		logger.info(`wasandbox ${name} listening on http://${address.address}:${String(address.port)}`);
 	};
 }
 
@@ -63,7 +63,7 @@ const servers = [
 	),
 ];
 
-// The handshake is a startup nicety, never a startup requirement: mockwa is useful even when
+// The handshake is a startup nicety, never a startup requirement: WaSandbox is useful even when
 // the app under test is not up yet (SPEC §1.13).
 if (config.verifyOnStart) {
 	services.domain.tasks.run(() => services.domain.webhooks.handshake());

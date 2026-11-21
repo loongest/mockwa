@@ -1,4 +1,4 @@
-import type { WabaState, WebhookApp, WebhookRouting } from "@mockwa/shared";
+import type { WabaState, WebhookApp, WebhookRouting } from "@wasandbox/shared";
 import clsx from "clsx";
 import { useState, type SyntheticEvent } from "react";
 import { api } from "../../api/endpoints.ts";
@@ -8,7 +8,7 @@ import { useWebhookRouting } from "../../store/use-webhook-routing.ts";
 /**
  * Apps and where their webhooks go (SPEC §3, "Apps and routing").
  *
- * The default app is the one the environment describes (`MOCKWA_WEBHOOK_URL`, …) and is shown
+ * The default app is the one the environment describes (`WASANDBOX_WEBHOOK_URL`, …) and is shown
  * read-only. Registered apps each have their own callback URL, App Secret and Verify Token; a
  * WABA reaches every app subscribed to it, and an override sends the overridable fields of one
  * WABA or one number somewhere else, the way Meta's `override_callback_uri` does.
@@ -413,8 +413,8 @@ export function AppsCard(props: { wabas: WabaState[] }) {
 		<div className="card stack">
 			<p className="muted">
 				Every app subscribed to a WABA gets its own copy of that WABA&apos;s webhooks, signed with its own App Secret.
-				The default app (from <code>MOCKWA_WEBHOOK_URL</code>) also receives them while no registered app is subscribed,
-				so a setup with one URL keeps working unchanged.
+				The default app (from <code>WASANDBOX_WEBHOOK_URL</code>) also receives them while no registered app is
+				subscribed, so a setup with one URL keeps working unchanged.
 			</p>
 			<ol className="faint stack routing-steps" data-testid="routing-explainer">
 				<li>
@@ -457,8 +457,8 @@ export function AppsCard(props: { wabas: WabaState[] }) {
 			<OverridesPanel routing={webhookRouting} wabas={props.wabas} />
 
 			<p className="faint">
-				A non-<code>200</code> answer is retried for up to 7 days (<code>MOCKWA_WEBHOOK_RETRY_SCHEDULE</code>,{" "}
-				<code>MOCKWA_WEBHOOK_RETRY_MAX_AGE</code>); pending retries are stored and survive a restart.
+				A non-<code>200</code> answer is retried for up to 7 days (<code>WASANDBOX_WEBHOOK_RETRY_SCHEDULE</code>,{" "}
+				<code>WASANDBOX_WEBHOOK_RETRY_MAX_AGE</code>); pending retries are stored and survive a restart.
 			</p>
 		</div>
 	);

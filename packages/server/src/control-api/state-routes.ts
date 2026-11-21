@@ -1,4 +1,4 @@
-import { resetResponseSchema, stateResponseSchema } from "@mockwa/shared";
+import { resetResponseSchema, stateResponseSchema } from "@wasandbox/shared";
 import { Hono } from "hono";
 import type { ResetService, StateService } from "../domain/index.ts";
 import type { ControlEnv } from "./control-env.ts";

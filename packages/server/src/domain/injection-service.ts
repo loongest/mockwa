@@ -1,4 +1,9 @@
-import type { InjectionRuleCreateRequest, InjectionTarget, InjectionTrigger, MessageErrorCode } from "@mockwa/shared";
+import type {
+	InjectionRuleCreateRequest,
+	InjectionTarget,
+	InjectionTrigger,
+	MessageErrorCode,
+} from "@wasandbox/shared";
 import type { InjectionRuleRecord, Repositories } from "../db/index.ts";
 import { toInjectionRuleDto } from "./control-dto.ts";
 import { controlNotFound } from "./control-plane-error.ts";

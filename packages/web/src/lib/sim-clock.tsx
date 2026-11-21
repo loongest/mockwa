@@ -1,4 +1,4 @@
-import type { ClockState } from "@mockwa/shared";
+import type { ClockState } from "@wasandbox/shared";
 import { createContext, use, useEffect, useState } from "react";
 
 /**

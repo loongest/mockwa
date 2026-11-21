@@ -1,4 +1,4 @@
-import type { WebhookDelivery } from "@mockwa/shared";
+import type { WebhookDelivery } from "@wasandbox/shared";
 import clsx from "clsx";
 import { useState } from "react";
 import { api } from "../../api/endpoints.ts";
@@ -53,7 +53,7 @@ export function describeRetry(delivery: WebhookDelivery): string | null {
 const SIGNATURE_HEADER = "x-hub-signature-256";
 
 /**
- * What can honestly be said about the signature (SPEC §1.12): mockwa **generated** it over the
+ * What can honestly be said about the signature (SPEC §1.12): WaSandbox **generated** it over the
  * exact body bytes with the app's secret. Whether the receiver **verified** it is something only
  * the receiver knows — its answer says what it decided, not why — so nothing here claims it.
  */
@@ -70,8 +70,8 @@ export function describeSignature(delivery: WebhookDelivery): { label: string; d
 	return {
 		label: "signature generated",
 		detail:
-			"mockwa computed x-hub-signature-256 (HMAC-SHA256 of the body below with the app secret) and sent it. " +
-			"Whether the receiver verified it is not visible to mockwa: the response status is all it reports.",
+			"wasandbox computed x-hub-signature-256 (HMAC-SHA256 of the body below with the app secret) and sent it. " +
+			"Whether the receiver verified it is not visible to wasandbox: the response status is all it reports.",
 	};
 }
 

@@ -1,4 +1,4 @@
-import type { StateResponse } from "@mockwa/shared";
+import type { StateResponse } from "@wasandbox/shared";
 import type { AppConfig, Seed } from "../config/index.ts";
 import { deleteAllRows, type Repositories } from "../db/index.ts";
 import type { Logger } from "../logging/index.ts";
@@ -23,7 +23,7 @@ import type { WebhookEmitter } from "./webhook-emitter.ts";
  * 1. **Pending timers are cancelled.** A status ladder or a template approval left running
  *    would otherwise fire against rows that no longer exist.
  * 2. **Media bytes are deleted, then every table is wiped.** The stored files go too: their
- *    `media` rows are about to disappear, and leaving orphans behind in `MOCKWA_MEDIA_DIR`
+ *    `media` rows are about to disappear, and leaving orphans behind in `WASANDBOX_MEDIA_DIR`
  *    would make a "reset" quietly untrue. A reset is a clean slate, bytes included.
  * 3. **The seed is applied again**, so the WABA and phone number ids a caller has in its
  *    configuration keep working (they are derived deterministically, SPEC §7).
@@ -42,7 +42,7 @@ export interface ResetServiceOptions {
 	typing: TypingService;
 	/** Throughput and pair-rate counts, which describe traffic that is about to stop existing. */
 	messagingRules?: MessagingRules;
-	/** Re-registers `MOCKWA_APPS`; optional so the narrower specs need not build one. */
+	/** Re-registers `WASANDBOX_APPS`; optional so the narrower specs need not build one. */
 	apps?: AppService;
 	/** Re-armed after the wipe so a cancelled retry queue does not keep a timer. */
 	webhooks?: WebhookEmitter;
@@ -109,7 +109,7 @@ export class ResetService {
 
 	/**
 	 * Back to the seed. `options.seed` and `options.clockStart` are how a scenario resets into its
-	 * own world (SPEC §4, "Scenarios") instead of `MOCKWA_SEED`'s; `MOCKWA_APPS` is registered
+	 * own world (SPEC §4, "Scenarios") instead of `WASANDBOX_SEED`'s; `WASANDBOX_APPS` is registered
 	 * either way unless `options.apps` is `false`.
 	 */
 	async reset(
@@ -134,7 +134,7 @@ export class ResetService {
 			...(this.#clock !== undefined && { createdAt: this.#clock.now().toISOString() }),
 		});
 
-		// `MOCKWA_APPS` is part of the seed's world; the retry queue went with the delivery log.
+		// `WASANDBOX_APPS` is part of the seed's world; the retry queue went with the delivery log.
 		if (options.registerConfiguredApps !== false) {
 			await this.#apps?.applySeed(this.#config.apps);
 		}

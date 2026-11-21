@@ -11,11 +11,11 @@ import { RateLimiter } from "../domain/rate-limiter.ts";
  * is the domain's (`domain/visitor-sessions.ts`).
  */
 
-/** The visitor's session cookie: HttpOnly, SameSite=Strict, `Secure` per `MOCKWA_COOKIE_SECURE`. */
-export const VISITOR_COOKIE = "mockwa_visitor";
+/** The visitor's session cookie: HttpOnly, SameSite=Strict, `Secure` per `WASANDBOX_COOKIE_SECURE`. */
+export const VISITOR_COOKIE = "wasandbox_visitor";
 
 /** The admin's cookie, set by `/admin`'s login form; holds a random session ID, never the token. */
-export const ADMIN_COOKIE = "mockwa_admin";
+export const ADMIN_COOKIE = "wasandbox_admin";
 
 /** Every cookie-authenticated write from a visitor carries the session's CSRF token here. */
 export const CSRF_HEADER = "x-csrf-token";
@@ -63,7 +63,7 @@ function isTrusted(address: string | undefined, access: AccessConfig): boolean {
 
 /**
  * The client's address (SPEC §7). The socket's peer, unless that peer is one of
- * `MOCKWA_TRUSTED_PROXIES`: then `X-Forwarded-For` is read from the right, skipping trusted
+ * `WASANDBOX_TRUSTED_PROXIES`: then `X-Forwarded-For` is read from the right, skipping trusted
  * hops, and the first address no trusted proxy vouches for is the client. A header from anyone
  * else is ignored, so a visitor cannot pick its own address. `unknown` when there is no socket.
  */
@@ -111,7 +111,7 @@ export function isHttps(c: Context<AppEnv>, access: AccessConfig): boolean {
 /**
  * The same-origin check on cookie-authenticated writes and on every socket upgrade (SPEC §5).
  * A browser always sends `Origin` on those, so a missing one is refused too; it must be this
- * listener's own origin or one of `MOCKWA_ALLOWED_ORIGINS`.
+ * listener's own origin or one of `WASANDBOX_ALLOWED_ORIGINS`.
  */
 export function isAllowedOrigin(c: Context<AppEnv>, access: AccessConfig): boolean {
 	const origin = c.req.header("origin");
@@ -170,7 +170,7 @@ function sha256(value: string): string {
 }
 
 /**
- * The admin side of the console (SPEC §7): `Authorization: Bearer <MOCKWA_ADMIN_TOKEN>` for
+ * The admin side of the console (SPEC §7): `Authorization: Bearer <WASANDBOX_ADMIN_TOKEN>` for
  * scripts and the CLI, or the cookie `/admin`'s login form sets for a browser. The cookie holds a
  * random ID kept in memory (hashed), so a restart signs every browser out and the token itself
  * never sits in a cookie.
@@ -374,7 +374,7 @@ export interface AccessGateOptions {
 
 /**
  * The console listener's front door (SPEC §7). Mounted only when there is something to guard —
- * public mode, or dev mode with `MOCKWA_ADMIN_TOKEN` set — so the default dev experience is
+ * public mode, or dev mode with `WASANDBOX_ADMIN_TOKEN` set — so the default dev experience is
  * byte-for-byte what it was.
  *
  * An admin path without admin authorization is a **401** under `/api` (with the control
@@ -417,7 +417,7 @@ export function createAccessGate(options: AccessGateOptions): MiddlewareHandler<
 
 		if (admin === null) {
 			if (c.req.path === "/api" || c.req.path.startsWith("/api/")) {
-				c.header("WWW-Authenticate", 'Bearer realm="mockwa admin"');
+				c.header("WWW-Authenticate", 'Bearer realm="wasandbox admin"');
 
 				return c.json({ error: { message: "admin authorization required", code: "admin_required" } }, 401);
 			}

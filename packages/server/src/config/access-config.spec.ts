@@ -4,9 +4,9 @@ import { parseConfig } from "./parse-config.ts";
 
 /** Access modes (SPEC §7): what a public instance requires, and what dev mode keeps. */
 const PUBLIC = {
-	MOCKWA_MODE: "public",
-	MOCKWA_ADMIN_TOKEN: "a-long-enough-admin-token",
-	MOCKWA_TOKENS: "app-token",
+	WASANDBOX_MODE: "public",
+	WASANDBOX_ADMIN_TOKEN: "a-long-enough-admin-token",
+	WASANDBOX_TOKENS: "app-token",
 };
 
 function errorsOf(env: Record<string, string>): string[] {
@@ -15,7 +15,7 @@ function errorsOf(env: Record<string, string>): string[] {
 	return result.success ? [] : result.errors;
 }
 
-describe("MOCKWA_MODE", () => {
+describe("WASANDBOX_MODE", () => {
 	it("defaults to dev, with no admin token and nothing a visitor needs", () => {
 		const result = parseConfig({});
 
@@ -52,26 +52,28 @@ describe("MOCKWA_MODE", () => {
 	});
 
 	it("refuses a public instance without an admin token, on the virtual clock, or without a token registry", () => {
-		expect(errorsOf({ MOCKWA_MODE: "public", MOCKWA_TOKENS: "app-token" })).toEqual([
-			'MOCKWA_ADMIN_TOKEN: is required when MOCKWA_MODE is "public"',
+		expect(errorsOf({ WASANDBOX_MODE: "public", WASANDBOX_TOKENS: "app-token" })).toEqual([
+			'WASANDBOX_ADMIN_TOKEN: is required when WASANDBOX_MODE is "public"',
 		]);
-		expect(errorsOf({ ...PUBLIC, MOCKWA_CLOCK: "virtual" })).toEqual([
-			'MOCKWA_CLOCK: must be "real" when MOCKWA_MODE is "public": visitors run in real time',
+		expect(errorsOf({ ...PUBLIC, WASANDBOX_CLOCK: "virtual" })).toEqual([
+			'WASANDBOX_CLOCK: must be "real" when WASANDBOX_MODE is "public": visitors run in real time',
 		]);
-		expect(errorsOf({ MOCKWA_MODE: "public", MOCKWA_ADMIN_TOKEN: "a-long-enough-admin-token" })).toEqual([
-			'MOCKWA_TOKENS: is required when MOCKWA_MODE is "public": the Graph listener must not accept any bearer token',
+		expect(errorsOf({ WASANDBOX_MODE: "public", WASANDBOX_ADMIN_TOKEN: "a-long-enough-admin-token" })).toEqual([
+			'WASANDBOX_TOKENS: is required when WASANDBOX_MODE is "public": the Graph listener must not accept any bearer token',
 		]);
 	});
 
 	it("refuses an admin token shorter than 16 characters, in either mode", () => {
-		expect(errorsOf({ MOCKWA_ADMIN_TOKEN: "short" })).toEqual(["MOCKWA_ADMIN_TOKEN: must be at least 16 characters"]);
-		expect(errorsOf({ ...PUBLIC, MOCKWA_ADMIN_TOKEN: "short" })).toEqual([
-			"MOCKWA_ADMIN_TOKEN: must be at least 16 characters",
+		expect(errorsOf({ WASANDBOX_ADMIN_TOKEN: "short" })).toEqual([
+			"WASANDBOX_ADMIN_TOKEN: must be at least 16 characters",
+		]);
+		expect(errorsOf({ ...PUBLIC, WASANDBOX_ADMIN_TOKEN: "short" })).toEqual([
+			"WASANDBOX_ADMIN_TOKEN: must be at least 16 characters",
 		]);
 	});
 
 	it("refuses an unknown mode", () => {
-		expect(errorsOf({ MOCKWA_MODE: "demo" })[0]).toMatch(/^MOCKWA_MODE: /);
+		expect(errorsOf({ WASANDBOX_MODE: "demo" })[0]).toMatch(/^WASANDBOX_MODE: /);
 	});
 });
 
@@ -79,14 +81,14 @@ describe("visitor settings", () => {
 	it("reads the identity template, limits, trusted proxies and allowed origins", () => {
 		const result = parseConfig({
 			...PUBLIC,
-			MOCKWA_PUBLIC_IDENTITIES: JSON.stringify([{ role: "CUSTOMER", name: "You" }]),
-			MOCKWA_PUBLIC_WA_ID_PREFIX: "1555",
-			MOCKWA_PUBLIC_SESSION_TTL: "10m",
-			MOCKWA_PUBLIC_MESSAGES_PER_MINUTE: "5",
-			MOCKWA_PUBLIC_MEDIA_MAX_BYTES: "2048",
-			MOCKWA_TRUSTED_PROXIES: "10.0.0.2, ::1",
-			MOCKWA_ALLOWED_ORIGINS: "https://demo.example.com/",
-			MOCKWA_COOKIE_SECURE: "always",
+			WASANDBOX_PUBLIC_IDENTITIES: JSON.stringify([{ role: "CUSTOMER", name: "You" }]),
+			WASANDBOX_PUBLIC_WA_ID_PREFIX: "1555",
+			WASANDBOX_PUBLIC_SESSION_TTL: "10m",
+			WASANDBOX_PUBLIC_MESSAGES_PER_MINUTE: "5",
+			WASANDBOX_PUBLIC_MEDIA_MAX_BYTES: "2048",
+			WASANDBOX_TRUSTED_PROXIES: "10.0.0.2, ::1",
+			WASANDBOX_ALLOWED_ORIGINS: "https://demo.example.com/",
+			WASANDBOX_COOKIE_SECURE: "always",
 		});
 
 		expect(result.success).toBe(true);
@@ -108,24 +110,24 @@ describe("visitor settings", () => {
 	it("names each invalid visitor setting", () => {
 		const errors = errorsOf({
 			...PUBLIC,
-			MOCKWA_PUBLIC_IDENTITIES: JSON.stringify([
+			WASANDBOX_PUBLIC_IDENTITIES: JSON.stringify([
 				{ role: "CUSTOMER", name: "A" },
 				{ role: "customer", name: "B" },
 			]),
-			MOCKWA_PUBLIC_WA_ID_PREFIX: "0123",
-			MOCKWA_PUBLIC_SESSION_TTL: "soon",
-			MOCKWA_PUBLIC_MESSAGES_PER_MINUTE: "0",
-			MOCKWA_TRUSTED_PROXIES: "proxy.internal",
-			MOCKWA_ALLOWED_ORIGINS: "demo.example.com",
+			WASANDBOX_PUBLIC_WA_ID_PREFIX: "0123",
+			WASANDBOX_PUBLIC_SESSION_TTL: "soon",
+			WASANDBOX_PUBLIC_MESSAGES_PER_MINUTE: "0",
+			WASANDBOX_TRUSTED_PROXIES: "proxy.internal",
+			WASANDBOX_ALLOWED_ORIGINS: "demo.example.com",
 		});
 
 		expect(errors).toEqual([
-			"MOCKWA_PUBLIC_IDENTITIES: must not repeat a role",
-			"MOCKWA_PUBLIC_WA_ID_PREFIX: must be 1-6 digits and must not start with 0",
-			"MOCKWA_PUBLIC_SESSION_TTL: must be a duration of at least 1s, e.g. 30m or 2h",
-			"MOCKWA_PUBLIC_MESSAGES_PER_MINUTE: must be a whole number of at least 1",
-			"MOCKWA_TRUSTED_PROXIES: must be a comma-separated list of IP addresses",
-			"MOCKWA_ALLOWED_ORIGINS: must be a comma-separated list of origins such as https://demo.example.com",
+			"WASANDBOX_PUBLIC_IDENTITIES: must not repeat a role",
+			"WASANDBOX_PUBLIC_WA_ID_PREFIX: must be 1-6 digits and must not start with 0",
+			"WASANDBOX_PUBLIC_SESSION_TTL: must be a duration of at least 1s, e.g. 30m or 2h",
+			"WASANDBOX_PUBLIC_MESSAGES_PER_MINUTE: must be a whole number of at least 1",
+			"WASANDBOX_TRUSTED_PROXIES: must be a comma-separated list of IP addresses",
+			"WASANDBOX_ALLOWED_ORIGINS: must be a comma-separated list of origins such as https://demo.example.com",
 		]);
 	});
 });

@@ -1,4 +1,4 @@
-import type { Message, WsEvent } from "@mockwa/shared";
+import type { Message, WsEvent } from "@wasandbox/shared";
 import { createHash } from "node:crypto";
 import { VISITOR_WA_ID_LENGTH, type VisitorConfig } from "../config/index.ts";
 import { WaIdTakenError, type ContactRecord, type PublicSessionRecord, type Repositories } from "../db/index.ts";

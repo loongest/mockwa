@@ -3,7 +3,7 @@ import { readTargets } from "./targets.mjs";
 
 /**
  * Milestone M6 acceptance in a browser (AC-14, AC-15, AC-16): the public Virtual Phone of a
- * MOCKWA_MODE=public instance — in CI, the built Docker image — with the example echo app as the
+ * WASANDBOX_MODE=public instance — in CI, the built Docker image — with the example echo app as the
  * app under test. Every test runs in a fresh browser context, so each is a new anonymous visitor.
  * The HTTP half (every route, quotas, cleanup, restart) is e2e/m6-public.mjs.
  *

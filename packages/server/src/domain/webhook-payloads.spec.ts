@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_UNSUPPORTED_MESSAGE_TYPE, UNSUPPORTED_MESSAGE_TYPES } from "@mockwa/shared";
+import { DEFAULT_UNSUPPORTED_MESSAGE_TYPE, UNSUPPORTED_MESSAGE_TYPES } from "@wasandbox/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ContactRecord, PhoneNumberRecord, TemplateRecord } from "../db/index.ts";
 import { createDomainHarness, HARNESS_CONTACT_NAME, type DomainHarness } from "../testing/domain-harness.ts";

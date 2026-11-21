@@ -5,7 +5,7 @@ import {
 	injectionRuleCreateRequestSchema,
 	instantSchema,
 	userIdSchema,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { z } from "zod";
 import { seedWabaSchema } from "./seed.ts";
 import { seedAppSchema } from "./webhook-config.ts";
@@ -13,7 +13,7 @@ import { seedAppSchema } from "./webhook-config.ts";
 /**
  * The scenario file (SPEC §4, "Scenarios"): a seed with people, apps, failure rules and a clock
  * in it, plus the steps a repeatable simulator test takes. `POST /api/scenarios/run` and
- * `mockwa scenario run` both validate against this one schema.
+ * `wasandbox scenario run` both validate against this one schema.
  *
  * Everything is referred to the way a person writes a test: an identity by its `waId` or its
  * name, a business number by its ID, its display number or its verified name, a WABA by its ID
@@ -44,7 +44,7 @@ const overrideSchema = z.object({
 });
 
 /**
- * `MOCKWA_APPS`' entry, with WABAs named by reference and the two override levels of Meta's
+ * `WASANDBOX_APPS`' entry, with WABAs named by reference and the two override levels of Meta's
  * routing (SPEC §3): per WABA and per business number.
  */
 const scenarioAppSchema = seedAppSchema.omit({ wabas: true }).extend({
@@ -202,15 +202,15 @@ export const scenarioSchema = z
 		name: z.string().trim().min(1).max(200),
 		description: z.string().optional(),
 		/**
-		 * The virtual clock's start for this run (requires `MOCKWA_CLOCK=virtual`); without it a
-		 * virtual clock starts at `MOCKWA_CLOCK_START`.
+		 * The virtual clock's start for this run (requires `WASANDBOX_CLOCK=virtual`); without it a
+		 * virtual clock starts at `WASANDBOX_CLOCK_START`.
 		 */
 		clock: z.object({ start: instantSchema }).strict().optional(),
-		/** Business accounts and numbers, in `MOCKWA_SEED`'s format; `MOCKWA_SEED` itself when omitted. */
+		/** Business accounts and numbers, in `WASANDBOX_SEED`'s format; `WASANDBOX_SEED` itself when omitted. */
 		wabas: z.array(seedWabaSchema).min(1).optional(),
 		/** The people in the test. They become contacts of the first WABA. */
 		identities: z.array(identitySchema).default([]),
-		/** Apps and their routing; replace `MOCKWA_APPS` for the run when given. */
+		/** Apps and their routing; replace `WASANDBOX_APPS` for the run when given. */
 		apps: z.array(scenarioAppSchema).optional(),
 		/** Error-injection rules armed before the first step (`POST /api/injection-rules` bodies). */
 		failureRules: z.array(injectionRuleCreateRequestSchema).default([]),

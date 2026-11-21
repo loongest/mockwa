@@ -6,7 +6,7 @@ import type { GraphEnv } from "./graph-env.ts";
 const BEARER_PATTERN = /^Bearer[ \t]+(\S.*)$/i;
 
 export interface BearerAuthOptions {
-	/** Decides whether a token is acceptable; permissive unless `MOCKWA_TOKENS` is set. */
+	/** Decides whether a token is acceptable; permissive unless `WASANDBOX_TOKENS` is set. */
 	tokens: TokenRegistry;
 }
 
@@ -14,7 +14,7 @@ export interface BearerAuthOptions {
  * The bearer gate on the Graph surface (SPEC §1.9).
  *
  * Missing, empty or non-bearer credentials are always the 401 / code 190 envelope. What happens
- * to a token that *is* there depends on whether `MOCKWA_TOKENS` was configured, and the whole of
+ * to a token that *is* there depends on whether `WASANDBOX_TOKENS` was configured, and the whole of
  * that decision lives in {@link TokenRegistry}:
  *
  * - **unset (the default)** — any non-empty token is accepted. The consumer keeps one token per

@@ -1,4 +1,4 @@
-import type { TokenState } from "@mockwa/shared";
+import type { TokenState } from "@wasandbox/shared";
 import clsx from "clsx";
 import { useEffect } from "react";
 import { api } from "../../api/endpoints.ts";
@@ -6,7 +6,7 @@ import { formatTimestamp } from "../../lib/format.ts";
 import { useAction, useAppState, useDispatch, useToasts } from "../../store/store.tsx";
 
 /**
- * The bearer tokens `MOCKWA_TOKENS` registers (SPEC §1.9).
+ * The bearer tokens `WASANDBOX_TOKENS` registers (SPEC §1.9).
  *
  * The card is **not rendered at all** unless the variable is set: with no registry there is
  * nothing to list and no expiry to simulate, and a section explaining an absent feature is just
@@ -73,7 +73,7 @@ export function TokensCard() {
 	return (
 		<div className="card stack">
 			<p className="muted">
-				<code>MOCKWA_TOKENS</code> is set, so the Graph surface accepts <strong>only</strong> these tokens — anything
+				<code>WASANDBOX_TOKENS</code> is set, so the Graph surface accepts <strong>only</strong> these tokens — anything
 				else is <code>401</code> / code <code>190</code>. Expire one to make it answer code <code>190</code> subcode{" "}
 				<code>463</code> instead, which is the envelope a consumer keys "refresh my token" on.
 			</p>
@@ -99,7 +99,7 @@ export function TokensCard() {
 			)}
 
 			<p className="faint">
-				Expiry is stored, so it survives a restart when <code>MOCKWA_DB_PATH</code> points at a file;{" "}
+				Expiry is stored, so it survives a restart when <code>WASANDBOX_DB_PATH</code> points at a file;{" "}
 				<code>POST /api/reset</code> makes every token valid again.
 			</p>
 		</div>

@@ -1,11 +1,11 @@
-# Workbench → mockwa
+# Workbench → WaSandbox
 
-How to point Workbench's WhatsApp OTP sender at mockwa instead of Meta. This is configuration
+How to point Workbench's WhatsApp OTP sender at WaSandbox instead of Meta. This is configuration
 only: no Workbench code changes are needed for the send path, and none are part of this guide.
 Real connection testing against Workbench is a later, separate step.
 
-All values below are **test placeholders**. Never put a real Meta access token in a mockwa
-setup: mockwa accepts any non-empty token.
+All values below are **test placeholders**. Never put a real Meta access token in a WaSandbox
+setup: WaSandbox accepts any non-empty token.
 
 ## What Workbench sends
 
@@ -26,49 +26,49 @@ an approved template that has **one body text parameter**, the code:
 }
 ```
 
-It does not receive webhooks, so mockwa's webhook settings can stay unset.
+It does not receive webhooks, so WaSandbox's webhook settings can stay unset.
 
 ## 0. Get an image that has this guide's features
 
 Images are published only from a `v*` release tag, and no release containing M5 (the Requests
 view this guide uses) exists yet, so do not assume `ghcr.io/loongest/mockwa:latest` has it. Build
-the image from a mockwa checkout and use the local tag (while reviewing, the review image you were given works
+the image from a WaSandbox checkout and use the local tag (while reviewing, the review image you were given works
 in its place):
 
 ```sh
 git clone https://github.com/loongest/mockwa.git && cd mockwa
-docker build -t mockwa:local .
+docker build -t wasandbox:local .
 ```
 
 Run the commands below from that checkout, because they mount a seed file from it. Once a
 release that includes M5 is published, `ghcr.io/loongest/mockwa:<version>` can replace
-`mockwa:local`.
+`wasandbox:local`.
 
-## 1. Start mockwa with a matching template
+## 1. Start WaSandbox with a matching template
 
-mockwa only sends a template it knows, by **name + language**, with the **same number of
-parameters**. The default seed's `hello_whaloc` takes none, so start mockwa with
+WaSandbox only sends a template it knows, by **name + language**, with the **same number of
+parameters**. The default seed's `hello_whaloc` takes none, so start WaSandbox with
 [`examples/integrations/workbench-seed.json`](../../examples/integrations/workbench-seed.json):
 it keeps the default WABA and phone number (so the IDs below stay the same) and adds
 `workbench_otp` / `en` with one positional `{{1}}`, plus a test contact `60123000001`.
 
 ```sh
-docker run --rm --name mockwa-workbench -p 127.0.0.1:8888:8888 -p 127.0.0.1:8025:8025 \
+docker run --rm --name wasandbox-workbench -p 127.0.0.1:8888:8888 -p 127.0.0.1:8025:8025 \
   -v "$PWD/examples/integrations/workbench-seed.json:/seed.json:ro" \
-  -e MOCKWA_SEED_FILE=/seed.json \
-  mockwa:local
+  -e WASANDBOX_SEED_FILE=/seed.json \
+  wasandbox:local
 ```
 
-The template's category is `AUTHENTICATION` to match production; mockwa only uses the category as
+The template's category is `AUTHENTICATION` to match production; WaSandbox only uses the category as
 a label, so it does not change how the send is checked.
 
 ## 2. Workbench environment
 
-| Variable                               | Value for mockwa                                        |
+| Variable                               | Value for WaSandbox                                        |
 | -------------------------------------- | ------------------------------------------------------- |
 | `WORKBENCH_OTP_WHATSAPP_ENABLED`       | `true`                                                  |
-| `WORKBENCH_OTP_WHATSAPP_BASE_URL`      | `http://localhost:8888` (in compose: `http://mockwa:8888`) — **no** version here |
-| `WORKBENCH_OTP_WHATSAPP_API_VERSION`   | `v21.0` (any `vNN.N` works; mockwa answers every version) |
+| `WORKBENCH_OTP_WHATSAPP_BASE_URL`      | `http://localhost:8888` (in compose: `http://wasandbox:8888`) — **no** version here |
+| `WORKBENCH_OTP_WHATSAPP_API_VERSION`   | `v21.0` (any `vNN.N` works; WaSandbox answers every version) |
 | `WORKBENCH_OTP_WHATSAPP_PHONE_NUMBER_ID` | `573542517421694`                                     |
 | `WORKBENCH_OTP_WHATSAPP_ACCESS_TOKEN`  | `test-workbench-token` (any non-empty placeholder)      |
 | `WORKBENCH_OTP_WHATSAPP_TEMPLATE_NAME` | `workbench_otp`                                         |
@@ -95,8 +95,8 @@ What a failure looks like, so you know where to look:
 
 ## Work left on the Workbench side
 
-- Point the environment above at mockwa in Workbench's dev or test profile.
+- Point the environment above at WaSandbox in Workbench's dev or test profile.
 - Seed the recipient Workbench will use, or use any number: a template is sent whether or not the
   contact has written before.
-- Workbench's read timeout is 5 s; mockwa answers a send right away, so it is not a concern.
+- Workbench's read timeout is 5 s; WaSandbox answers a send right away, so it is not a concern.
 - Real end-to-end testing with Workbench is a later step.

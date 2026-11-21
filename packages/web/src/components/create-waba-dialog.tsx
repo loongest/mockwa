@@ -1,4 +1,4 @@
-import type { Waba } from "@mockwa/shared";
+import type { Waba } from "@wasandbox/shared";
 import { useState } from "react";
 import { describeError } from "../api/client.ts";
 import { api } from "../api/endpoints.ts";
@@ -7,7 +7,7 @@ import { Dialog } from "./dialog.tsx";
 import { MetaIdField, metaIdError } from "./meta-id-field.tsx";
 
 /**
- * A second WABA, at runtime (SPEC §5). `MOCKWA_SEED` covers the world whaloc boots with; this
+ * A second WABA, at runtime (SPEC §5). `WASANDBOX_SEED` covers the world whaloc boots with; this
  * covers the app that manages several accounts and needs another one to point at.
  *
  * It lives here rather than in Settings because the breadcrumb's account menu ends in the same

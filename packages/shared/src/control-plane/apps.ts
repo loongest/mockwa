@@ -8,7 +8,7 @@ import { metaIdSchema } from "./common.ts";
  * token are set, not their values. They are write-only from the console.
  */
 
-/** The key the default app (the one `MOCKWA_WEBHOOK_URL` describes) is stored under. */
+/** The key the default app (the one `WASANDBOX_WEBHOOK_URL` describes) is stored under. */
 export const DEFAULT_APP_KEY = "default";
 
 const httpUrlSchema = z.url({ protocol: /^https?$/, error: "must be an http(s) URL" });

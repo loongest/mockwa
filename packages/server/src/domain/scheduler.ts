@@ -10,7 +10,7 @@
  * exception, and it persists its due times in SQLite rather than its timers, SPEC §3.)
  *
  * Two implementations run the server: {@link createSystemScheduler}, the default, and the
- * virtual clock (`virtual-clock.ts`, `MOCKWA_CLOCK=virtual`), whose time only moves when the
+ * virtual clock (`virtual-clock.ts`, `WASANDBOX_CLOCK=virtual`), whose time only moves when the
  * control plane moves it.
  */
 export interface ScheduledTask {

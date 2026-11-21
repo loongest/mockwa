@@ -1,4 +1,4 @@
-import type { MessageType } from "@mockwa/shared";
+import type { MessageType } from "@wasandbox/shared";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { StoreProvider } from "../../store/store.tsx";

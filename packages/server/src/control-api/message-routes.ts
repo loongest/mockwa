@@ -2,7 +2,7 @@ import {
 	messageErrorPresetListResponseSchema,
 	messageResponseSchema,
 	messageStatusRequestSchema,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { Hono } from "hono";
 import { listMessageErrorPresets, toMessageDto, type StatusLadder } from "../domain/index.ts";
 import { controlError, readBody, type ControlEnv } from "./control-env.ts";

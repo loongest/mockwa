@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 import { readTargets } from "./targets.mjs";
 
 /**
- * Milestone M1 acceptance (AC-03, AC-04, AC-05): the virtual phone on 8025 against a real mockwa
+ * Milestone M1 acceptance (AC-03, AC-04, AC-05): the virtual phone on 8025 against a real WaSandbox
  * — in CI, the built Docker image — seeded from e2e/fixtures/m1-seed.json, with the example echo
  * app as the app under test. Nothing is faked: a phone's send is a signed webhook the echo app
  * verifies, and every reply it sees came back through the Graph API on 8888.
@@ -25,7 +25,7 @@ const TECHNICIAN = { waId: "60123450003", name: "Ah Mad" };
 const BUSINESS = "Acme Home Services";
 const WAMID = /^wamid\.[\w+/=-]+$/;
 
-/** Recomputed here, independently of both mockwa and the echo app. */
+/** Recomputed here, independently of both WaSandbox and the echo app. */
 function signatureOf(rawBody) {
 	return `sha256=${createHmac("sha256", APP_SECRET).update(rawBody, "utf8").digest("hex")}`;
 }

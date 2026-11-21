@@ -1,4 +1,4 @@
-import { isRuleArmed } from "@mockwa/shared";
+import { isRuleArmed } from "@wasandbox/shared";
 import { NavLink } from "react-router";
 import { useAppState } from "../store/store.tsx";
 

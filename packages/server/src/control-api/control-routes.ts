@@ -1,4 +1,4 @@
-import { phoneConfigResponseSchema } from "@mockwa/shared";
+import { phoneConfigResponseSchema } from "@wasandbox/shared";
 import { Hono } from "hono";
 import type { DomainServices } from "../composition.ts";
 import type { AccessConfig } from "../config/index.ts";
@@ -41,7 +41,7 @@ export interface ControlRoutesOptions {
 /**
  * The whole control plane, as one router mounted at `/api` (SPEC §5).
  *
- * In dev mode there is no authentication: mockwa is a local dev tool whose UI runs in a browser
+ * In dev mode there is no authentication: WaSandbox is a local dev tool whose UI runs in a browser
  * with no credential to give it. The admin token and public mode guard this router from in front
  * (`access.ts`, mounted by `app.ts`), so nothing in here checks who is calling — except the
  * visitor phone API, which is scoped to the session in its cookie (SPEC §5, §7).

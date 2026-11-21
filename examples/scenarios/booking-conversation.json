@@ -1,6 +1,6 @@
 {
 	"name": "booking conversation",
-	"description": "A customer talks to the example echo app (examples/echo-app): plain text, a reply-button menu, a template with quick replies, then a day of virtual time closes the 24-hour window. Run it with MOCKWA_CLOCK=virtual and MOCKWA_WEBHOOK_URL pointing at the echo app.",
+	"description": "A customer talks to the example echo app (examples/echo-app): plain text, a reply-button menu, a template with quick replies, then a day of virtual time closes the 24-hour window. Run it with WASANDBOX_CLOCK=virtual and WASANDBOX_WEBHOOK_URL pointing at the echo app.",
 	"clock": { "start": "2026-05-04T09:00:00Z" },
 	"wabas": [
 		{

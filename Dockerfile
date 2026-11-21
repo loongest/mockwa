@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# mockwa (a fork of whaloc) ships as a single image with two listeners (SPEC §8): the Graph API
+# WaSandbox (a fork of whaloc) ships as a single image with two listeners (SPEC §8): the Graph API
 # mock on 8888, and the control plane (+ WebSocket) with the static web UI on 8025.
 
 ARG NODE_IMAGE=node:24-alpine
@@ -52,25 +52,25 @@ COPY packages/shared/package.json packages/shared/
 COPY packages/server/package.json packages/server/
 
 RUN --mount=type=cache,id=npm,target=/root/.npm,sharing=locked \
-	npm ci --omit=dev --workspace @mockwa/server --include-workspace-root
+	npm ci --omit=dev --workspace @wasandbox/server --include-workspace-root
 
 # --- runtime -------------------------------------------------------------------------------
 FROM ${NODE_IMAGE} AS runtime
 
-LABEL org.opencontainers.image.title="mockwa" \
+LABEL org.opencontainers.image.title="wasandbox" \
 	org.opencontainers.image.description="WhatsApp Cloud API simulator (Graph API v25.0), a fork of whaloc" \
 	org.opencontainers.image.source="https://github.com/loongest/mockwa" \
 	org.opencontainers.image.licenses="MIT"
 
 # The image keeps the repository's own layout, so the web bundle lands exactly where the server
-# looks for it by default (`packages/web/dist`, beside the server) and `MOCKWA_WEB_DIR` needs no
+# looks for it by default (`packages/web/dist`, beside the server) and `WASANDBOX_WEB_DIR` needs no
 # value here.
 ENV NODE_ENV=production \
-	MOCKWA_MEDIA_DIR=/data/media
+	WASANDBOX_MEDIA_DIR=/data/media
 
 WORKDIR /app
 
-# The production `node_modules` carries `@mockwa/shared` as a symlink into `packages/shared`, so
+# The production `node_modules` carries `@wasandbox/shared` as a symlink into `packages/shared`, so
 # the manifests it resolves through travel with it — `exports` there is what points the server's
 # `dist` at the shared `dist`.
 COPY --from=deps /app/node_modules node_modules
@@ -88,10 +88,12 @@ COPY --from=build /src/packages/web/dist packages/web/dist
 # uid 1000 (the `node` user) on the host side.
 RUN mkdir -p /data/media && chown -R node:node /data
 
-# `mockwa scenario run|validate` (SPEC §4, "Scenarios") inside the container, for
-# `docker exec <container> mockwa scenario run /scenarios/x.json --url http://127.0.0.1:8025`.
-RUN printf '#!/bin/sh\nexec node --disable-warning=ExperimentalWarning /app/packages/server/dist/cli/mockwa.js "$@"\n' \
-	> /usr/local/bin/mockwa && chmod 755 /usr/local/bin/mockwa
+# `wasandbox scenario run|validate` (SPEC §4, "Scenarios") inside the container, for
+# `docker exec <container> wasandbox scenario run /scenarios/x.json --url http://127.0.0.1:8025`.
+# `mockwa` stays as an alias, so scripts written before the rename keep working.
+RUN printf '#!/bin/sh\nexec node --disable-warning=ExperimentalWarning /app/packages/server/dist/cli/wasandbox.js "$@"\n' \
+	> /usr/local/bin/wasandbox && chmod 755 /usr/local/bin/wasandbox \
+	&& ln -s wasandbox /usr/local/bin/mockwa
 
 USER node
 
@@ -104,12 +106,12 @@ VOLUME /data
 # Both listeners must answer: one of them down is an unhealthy container. The legacy
 # `WHALOC_PORT` still moves the Graph listener (SPEC §7), so the probe follows it too.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-	CMD wget -q --spider -T 3 "http://127.0.0.1:${MOCKWA_GRAPH_PORT:-${WHALOC_PORT:-8888}}/health" \
-	&& wget -q --spider -T 3 "http://127.0.0.1:${MOCKWA_CONSOLE_PORT:-8025}/health" || exit 1
+	CMD wget -q --spider -T 3 "http://127.0.0.1:${WASANDBOX_GRAPH_PORT:-${MOCKWA_GRAPH_PORT:-${WHALOC_PORT:-8888}}}/health" \
+	&& wget -q --spider -T 3 "http://127.0.0.1:${WASANDBOX_CONSOLE_PORT:-${MOCKWA_CONSOLE_PORT:-8025}}/health" || exit 1
 
 # The release tag, handed in by the publish workflow; last, so a new version rebuilds no layer.
-ARG MOCKWA_VERSION=0.0.0-dev
-ENV MOCKWA_VERSION=${MOCKWA_VERSION}
+ARG WASANDBOX_VERSION=0.0.0-dev
+ENV WASANDBOX_VERSION=${WASANDBOX_VERSION}
 
 # `node:sqlite` is still flagged experimental in Node 24 and warns on first use; the emulator
 # does not need the reminder on every boot.

@@ -9,7 +9,7 @@ import {
 	phoneChatListResponseSchema,
 	phoneIdentityListResponseSchema,
 	phoneReadResponseSchema,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { Hono } from "hono";
 import {
 	ControlPlaneError,

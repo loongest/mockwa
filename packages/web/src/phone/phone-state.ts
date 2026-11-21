@@ -1,4 +1,4 @@
-import type { Contact, Message } from "@mockwa/shared";
+import type { Contact, Message } from "@wasandbox/shared";
 import { readString } from "../lib/json.ts";
 
 /**

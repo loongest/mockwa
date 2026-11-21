@@ -1,11 +1,11 @@
-# GotUnit → mockwa
+# GotUnit → WaSandbox
 
-How to point GotUnit's WhatsApp OTP sender at mockwa instead of Meta. This is configuration only:
+How to point GotUnit's WhatsApp OTP sender at WaSandbox instead of Meta. This is configuration only:
 no GotUnit code changes are needed for the send path, and none are part of this guide. Real
 connection testing against GotUnit is a later, separate step.
 
-All values below are **test placeholders**. Never put a real Meta access token in a mockwa
-setup: mockwa accepts any non-empty token.
+All values below are **test placeholders**. Never put a real Meta access token in a WaSandbox
+setup: WaSandbox accepts any non-empty token.
 
 ## What GotUnit sends
 
@@ -19,49 +19,49 @@ template. The recipient is a Malaysian number in E.164 without the `+` (for exam
 | `META_TEST`       | `jaspers_market_order_confirmation_v1` / `en_US`       | 3: `GotUnit`, the code, a date    |
 
 With `WABA_PROVIDER=meta-test` (or `META_TEST` mode) every send goes to `TEST_NUMBER` instead of
-the requested recipient. GotUnit does not receive webhooks, so mockwa's webhook settings can stay
+the requested recipient. GotUnit does not receive webhooks, so WaSandbox's webhook settings can stay
 unset.
 
 ## 0. Get an image that has this guide's features
 
 Images are published only from a `v*` release tag, and no release containing M5 (the Requests
 view this guide uses) exists yet, so do not assume `ghcr.io/loongest/mockwa:latest` has it. Build
-the image from a mockwa checkout and use the local tag (while reviewing, the review image you were given works
+the image from a WaSandbox checkout and use the local tag (while reviewing, the review image you were given works
 in its place):
 
 ```sh
 git clone https://github.com/loongest/mockwa.git && cd mockwa
-docker build -t mockwa:local .
+docker build -t wasandbox:local .
 ```
 
 Run the commands below from that checkout, because they mount a seed file from it. Once a
 release that includes M5 is published, `ghcr.io/loongest/mockwa:<version>` can replace
-`mockwa:local`.
+`wasandbox:local`.
 
-## 1. Start mockwa with matching templates
+## 1. Start WaSandbox with matching templates
 
-mockwa only sends a template it knows, by **name + language**, with the **same number of
+WaSandbox only sends a template it knows, by **name + language**, with the **same number of
 parameters**. Start it with
 [`examples/integrations/gotunit-seed.json`](../../examples/integrations/gotunit-seed.json): it
 keeps the default WABA and phone number (so the IDs below stay the same) and adds both templates
 above with positional `{{n}}` placeholders, plus a test contact `60123000001`.
 
 ```sh
-docker run --rm --name mockwa-gotunit -p 127.0.0.1:8888:8888 -p 127.0.0.1:8025:8025 \
+docker run --rm --name wasandbox-gotunit -p 127.0.0.1:8888:8888 -p 127.0.0.1:8025:8025 \
   -v "$PWD/examples/integrations/gotunit-seed.json:/seed.json:ro" \
-  -e MOCKWA_SEED_FILE=/seed.json \
-  mockwa:local
+  -e WASANDBOX_SEED_FILE=/seed.json \
+  wasandbox:local
 ```
 
-`ren_otp` is seeded as `AUTHENTICATION` to match production; mockwa only uses the category as a
+`ren_otp` is seeded as `AUTHENTICATION` to match production; WaSandbox only uses the category as a
 label, so it does not change how the send is checked.
 
 ## 2. GotUnit environment
 
-| Variable                 | Value for mockwa                                                   |
+| Variable                 | Value for WaSandbox                                                   |
 | ------------------------ | ------------------------------------------------------------------ |
 | `WABA_PROVIDER`          | `meta` (or `meta-test` to send everything to `TEST_NUMBER`)        |
-| `WABA_API_BASE_URL`      | `http://localhost:8888` (in compose: `http://mockwa:8888`) — **no** version here |
+| `WABA_API_BASE_URL`      | `http://localhost:8888` (in compose: `http://wasandbox:8888`) — **no** version here |
 | `WABA_API_VERSION`       | `v25.0`                                                            |
 | `WABA_PHONE_NUMBER_ID`   | `573542517421694`                                                  |
 | `WABA_ACCESS_TOKEN`      | `test-gotunit-token` (any non-empty placeholder)                   |
@@ -94,7 +94,7 @@ the same values the Requests view shows.
 
 ## Work left on the GotUnit side
 
-- Point the environment above at mockwa in GotUnit's dev profile.
+- Point the environment above at WaSandbox in GotUnit's dev profile.
 - Keep `WABA_TEMPLATE_MODE` and `WABA_TEMPLATE_NAME` in step: the mode decides how many
   parameters are sent, the name decides which template has to accept them.
 - Real end-to-end testing with GotUnit is a later step.

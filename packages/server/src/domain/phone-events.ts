@@ -1,4 +1,4 @@
-import type { WsEvent } from "@mockwa/shared";
+import type { WsEvent } from "@wasandbox/shared";
 
 /**
  * Whether a control-plane event belongs on the socket of the phone signed in as `waId`

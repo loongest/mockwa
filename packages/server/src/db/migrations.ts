@@ -327,7 +327,7 @@ export const MIGRATIONS: Record<string, Migration> = {
 	},
 
 	/**
-	 * mockwa: who a virtual phone plays (SPEC §5, "Virtual Phone"). `role` is a free-form label
+	 * wasandbox: who a virtual phone plays (SPEC §5, "Virtual Phone"). `role` is a free-form label
 	 * (`CUSTOMER`, `TECHNICIAN`, …) and `display_number` the friendly way the phone shows the
 	 * number. Neither reaches the Graph surface or a webhook.
 	 *
@@ -342,12 +342,12 @@ export const MIGRATIONS: Record<string, Migration> = {
 	},
 
 	/**
-	 * mockwa M2: Meta's webhook model (SPEC §3, "Apps and routing").
+	 * WaSandbox M2: Meta's webhook model (SPEC §3, "Apps and routing").
 	 *
-	 * - `apps` holds the apps registered at runtime or through `MOCKWA_APPS`. The app configured
-	 *   by `MOCKWA_WEBHOOK_URL`/`MOCKWA_APP_SECRET` is not a row: it is the **default app**, read
+	 * - `apps` holds the apps registered at runtime or through `WASANDBOX_APPS`. The app configured
+	 *   by `WASANDBOX_WEBHOOK_URL`/`WASANDBOX_APP_SECRET` is not a row: it is the **default app**, read
 	 *   from the environment on every boot, and the other two tables name it by the reserved
-	 *   key `default` so a changed `MOCKWA_APP_ID` does not orphan its overrides.
+	 *   key `default` so a changed `WASANDBOX_APP_ID` does not orphan its overrides.
 	 * - `webhook_subscriptions` is a registered app's subscription to a WABA, and any app's WABA
 	 *   override. The default app's subscription itself stays `wabas.subscribed_at`, unchanged.
 	 * - `phone_number_webhook_overrides` is Meta's `webhook_configuration` on a number, per app.
@@ -407,7 +407,7 @@ export const MIGRATIONS: Record<string, Migration> = {
 	},
 
 	/**
-	 * mockwa M3: the messaging rules (SPEC §4, "Messaging rules").
+	 * WaSandbox M3: the messaging rules (SPEC §4, "Messaging rules").
 	 *
 	 * - `messages.business_initiated` marks an outbound send that went out while the customer
 	 *   service window was closed — what Meta's messaging limit counts. Every existing row reads
@@ -480,7 +480,7 @@ export const MIGRATIONS: Record<string, Migration> = {
 		},
 	},
 	"0014_public_sessions": {
-		// mockwa M6, public demo mode (SPEC §5, "Public demo mode"). A visitor's session owns the
+		// WaSandbox M6, public demo mode (SPEC §5, "Public demo mode"). A visitor's session owns the
 		// identities and the uploads it created; deleting the session or the identity removes the
 		// ownership row, and the cleanup job removes what it owned. `public_wa_ids` records every
 		// number ever handed to a visitor and is never emptied — not by a reset, not by an import —

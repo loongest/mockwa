@@ -51,7 +51,7 @@ export type MessageResponse = z.infer<typeof messageResponseSchema>;
 /**
  * The failures a `failed` status can carry (SPEC §4): a manual transition, a `messages.status`
  * injection rule, or one of the messaging rules (131047 outside the customer service window,
- * 131048 over the messaging limit). Meta has hundreds of codes; these are the ones a mockwa user
+ * 131048 over the messaging limit). Meta has hundreds of codes; these are the ones a WaSandbox user
  * actually wants to rehearse.
  */
 export const MESSAGE_ERROR_CODES = [131_049, 131_026, 131_047, 130_472, 131_048, 131_000] as const;

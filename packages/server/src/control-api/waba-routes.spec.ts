@@ -7,7 +7,7 @@ import {
 	wsEventSchema,
 	type ControlError,
 	type WsEvent,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { output, ZodType } from "zod";
 import { readJson } from "../testing/expectations.ts";
@@ -67,7 +67,7 @@ describe("control plane: WABAs and phone numbers", () => {
 			expect(body.data).toEqual([
 				{
 					id: fixture.wabaId,
-					name: "whaloc Test Business",
+					name: "Your Company Business",
 					// Seeding describes accounts, not subscriptions (SPEC §2.20).
 					subscribedAt: null,
 					createdAt: expect.any(String) as string,
@@ -247,7 +247,7 @@ describe("control plane: WABAs and phone numbers", () => {
 		it("refuses a duplicate MSISDN, however it is written", async () => {
 			const response = await send("POST", "/api/phone-numbers", {
 				wabaId: fixture.wabaId,
-				displayPhoneNumber: "5511912345678",
+				displayPhoneNumber: "60123456789",
 				verifiedName: "Copy Cat",
 			});
 
@@ -297,7 +297,7 @@ describe("control plane: WABAs and phone numbers", () => {
 				displayPhoneNumber: "16315555555",
 			});
 			const taken = await send("PATCH", `/api/phone-numbers/${body.data.id}`, {
-				displayPhoneNumber: "+55 11 91234-5678",
+				displayPhoneNumber: "+60 12-345 6789",
 			});
 
 			expect(same.status).toBe(200);

@@ -50,7 +50,7 @@ test("Settings lists the messaging rules this instance enforces", async ({ page 
 
 	const section = page.locator("#messaging-rules");
 
-	await expect(section.getByText("MOCKWA_SERVICE_WINDOW")).toBeVisible();
+	await expect(section.getByText("WASANDBOX_SERVICE_WINDOW")).toBeVisible();
 	await expect(section.getByText("1d")).toBeVisible();
 	await expect(section.getByText("5/s per number")).toBeVisible();
 	await expect(section.getByText("1 per 1m, bursts of 2")).toBeVisible();

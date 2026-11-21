@@ -14,8 +14,8 @@ the full contract is [SPEC](SPEC.md).
 
 | Listener | Port in the container          | Serves                                                                       | Used by              |
 | -------- | ------------------------------ | ---------------------------------------------------------------------------- | -------------------- |
-| Graph    | `8888` (`MOCKWA_GRAPH_PORT`)   | `/v<major>.<minor>/…`, media and upload bytes, `/health`                     | Your app             |
-| Console  | `8025` (`MOCKWA_CONSOLE_PORT`) | The console, `/phone`, `/admin`, `/api/…`, `/api/ws`, media bytes, `/health` | You, tests, browsers |
+| Graph    | `8888` (`WASANDBOX_GRAPH_PORT`)   | `/v<major>.<minor>/…`, media and upload bytes, `/health`                     | Your app             |
+| Console  | `8025` (`WASANDBOX_CONSOLE_PORT`) | The console, `/phone`, `/admin`, `/api/…`, `/api/ws`, media bytes, `/health` | You, tests, browsers |
 
 Each listener answers `404` for the other's routes, so your app only ever sees a Meta-shaped
 surface. Three addresses can point at the same listener:
@@ -24,7 +24,7 @@ surface. Three addresses can point at the same listener:
 | ------------------------------ | ------------------------------ | ------------------------------ |
 | Your computer (published port) | `http://localhost:<host port>` | `http://localhost:<host port>` |
 | Another Compose service        | `http://<service name>:8888`   | `http://<service name>:8025`   |
-| Inside the mockwa container    | `http://127.0.0.1:8888`        | `http://127.0.0.1:8025`        |
+| Inside the WaSandbox container    | `http://127.0.0.1:8888`        | `http://127.0.0.1:8025`        |
 
 `-p 127.0.0.1:18888:8888` changes only the first row.
 
@@ -35,26 +35,26 @@ surface. Three addresses can point at the same listener:
 Every Graph route needs `Authorization: Bearer <token>`. A missing or empty token is `401` with
 code `190`.
 
-| `MOCKWA_TOKENS` | Which tokens pass                                                                            |
+| `WASANDBOX_TOKENS` | Which tokens pass                                                                            |
 | --------------- | -------------------------------------------------------------------------------------------- |
-| unset (default) | Any non-empty token. mockwa never reads its content                                          |
+| unset (default) | Any non-empty token. WaSandbox never reads its content                                          |
 | set             | Only the listed tokens. Others get the same `401` / `190`; an expired one gets subcode `463` |
 
-When `MOCKWA_APPS` registers apps, a Graph call acts for the app whose `accessToken` it sends,
-otherwise for the default app. With `MOCKWA_TOKENS` set, that token must be in the list too.
-Public mode requires `MOCKWA_TOKENS`.
+When `WASANDBOX_APPS` registers apps, a Graph call acts for the app whose `accessToken` it sends,
+otherwise for the default app. With `WASANDBOX_TOKENS` set, that token must be in the list too.
+Public mode requires `WASANDBOX_TOKENS`.
 
 ### The console listener
 
 | Mode                                     | Console pages and `/api`                                                               |
 | ---------------------------------------- | -------------------------------------------------------------------------------------- |
-| `dev`, no `MOCKWA_ADMIN_TOKEN` (default) | **Open to anyone who can reach the port.** Keep it on `127.0.0.1` or a private network |
-| `dev`, with `MOCKWA_ADMIN_TOKEN`         | Everything except health and the sign-in needs the admin, the developer phone included |
+| `dev`, no `WASANDBOX_ADMIN_TOKEN` (default) | **Open to anyone who can reach the port.** Keep it on `127.0.0.1` or a private network |
+| `dev`, with `WASANDBOX_ADMIN_TOKEN`         | Everything except health and the sign-in needs the admin, the developer phone included |
 | `public`                                 | Visitors reach the phone and its API with a session; everything else is the admin's    |
 
 The admin authenticates in one of two ways:
 
-- **A script** sends `Authorization: Bearer <MOCKWA_ADMIN_TOKEN>`.
+- **A script** sends `Authorization: Bearer <WASANDBOX_ADMIN_TOKEN>`.
 - **A browser** signs in at `/admin` and gets an HttpOnly, SameSite=Strict cookie for 12 hours,
   kept in memory (a restart signs everyone out).
 
@@ -62,7 +62,7 @@ Ten wrong tokens from one address within 15 minutes lock that address out for th
 window (`429 admin_auth_rate_limited`), even with the right token.
 
 **Cookies and origins.** A request authenticated by a cookie may write, or open a WebSocket, only
-from the listener's own origin or one in `MOCKWA_ALLOWED_ORIGINS`; otherwise `403 origin_refused`.
+from the listener's own origin or one in `WASANDBOX_ALLOWED_ORIGINS`; otherwise `403 origin_refused`.
 A visitor also sends its session's `X-CSRF-Token` header on every write (`403 csrf_failed`
 without it). A bearer-token request has no origin to check.
 
@@ -131,8 +131,8 @@ Flows, calling, payments and billing are not simulated ([SPEC §9](SPEC.md#9-out
 
 ## How the Graph API behaves
 
-- **The version segment is required.** A base URL without one (`http://mockwa:8888`) makes your
-  client ask for `/573542517421694/messages`, which mockwa does not serve.
+- **The version segment is required.** A base URL without one (`http://wasandbox:8888`) makes your
+  client ask for `/573542517421694/messages`, which WaSandbox does not serve.
 - **Only a `CONNECTED` number sends.** Seeded numbers, and numbers created in the console or
   through `/api`, start `CONNECTED`. A number added with `POST /{waba-id}/phone_numbers` must be
   verified, then registered (`register` on an unverified number is `133006`). A number that is not
@@ -144,10 +144,10 @@ Flows, calling, payments and billing are not simulated ([SPEC §9](SPEC.md#9-out
 - **Read receipts** mark the user's message read and send no webhook, as on Meta. A
   `typing_indicator` shows typing in the console until 25 seconds pass or the app sends again.
 - **Media download takes two hops**: `GET /{media-id}?phone_number_id=…` returns a `url` built
-  from `MOCKWA_PUBLIC_URL`; fetching it returns the bytes, with `Range` → `206`, never a redirect.
+  from `WASANDBOX_PUBLIC_URL`; fetching it returns the bytes, with `Range` → `206`, never a redirect.
 - **Handles come from the Upload API.** A handle works as `profile_picture_handle` and in a
   template's `components[].example.header_handle[]`; an unknown handle is `(#100)`. A plain media
-  ID also works as `profile_picture_handle`. `{app-id}` accepts mockwa's app ID or any digits.
+  ID also works as `profile_picture_handle`. `{app-id}` accepts WaSandbox's app ID or any digits.
 - **BSUIDs.** A contact may have a business-scoped user ID (`BR.ENT.4KgQ2wJ8` or `US.4KgQ2wJ8`).
   Then webhooks carry `contacts[].user_id`, `messages[].from_user_id` and
   `statuses[].recipient_user_id`, next to `wa_id`. A send to `recipient: "<BSUID>"` goes to that
@@ -224,7 +224,7 @@ On the console port, under `/api`. Who may call it: [Authentication](#the-consol
 | `POST /api/service-window/expire`                                      | Close one contact's window now                            |
 | `GET /api/messaging-rules`                                             | The rules in force and the messaging-limit count per WABA |
 | `GET`, `POST /api/injection-rules`; `DELETE /api/injection-rules/{id}` | Error injection rules                                     |
-| `GET /api/tokens`; `POST /api/tokens/{id}/expire`, `restore`           | The `MOCKWA_TOKENS` registry, masked                      |
+| `GET /api/tokens`; `POST /api/tokens/{id}/expire`, `restore`           | The `WASANDBOX_TOKENS` registry, masked                      |
 
 ### Webhooks and apps
 

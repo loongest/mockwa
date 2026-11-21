@@ -9,7 +9,7 @@ import type {
 	WebhookApp,
 	WebhookDelivery,
 	WebhookRouting,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { vi, type Mock } from "vitest";
 import { initialState } from "../store/reducer.ts";
 import type { AppState } from "../store/types.ts";

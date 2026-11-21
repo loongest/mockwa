@@ -17,9 +17,9 @@
 //   LOAD_OUTPUT         e2e/results/m7-load.json   the full report
 //
 // All visitors come from this one machine, so the instance needs test-specific quotas that admit
-// them from one address (see docs/deployment.md, "Load testing"): MOCKWA_PUBLIC_SESSIONS_PER_IP
-// and MOCKWA_PUBLIC_SESSION_CREATES_PER_MINUTE at least LOAD_VISITORS, and
-// MOCKWA_PUBLIC_IP_MESSAGES_PER_MINUTE above LOAD_VISITORS × 60000 / LOAD_INTERVAL_MS.
+// them from one address (see docs/deployment.md, "Load testing"): WASANDBOX_PUBLIC_SESSIONS_PER_IP
+// and WASANDBOX_PUBLIC_SESSION_CREATES_PER_MINUTE at least LOAD_VISITORS, and
+// WASANDBOX_PUBLIC_IP_MESSAGES_PER_MINUTE above LOAD_VISITORS × 60000 / LOAD_INTERVAL_MS.
 //
 // Acceptance (decided before the run, printed with the result; judged by e2e/load-verdict.mjs):
 //   - every measured send is accounted for, and every one got its reply: no send error, no
@@ -159,7 +159,7 @@ class LoadVisitor {
 			if (response.status === 201) {
 				this.cookie = response.headers
 					.getSetCookie()
-					.find(header => header.startsWith("mockwa_visitor="))
+					.find(header => header.startsWith("wasandbox_visitor="))
 					.split(";", 1)[0];
 
 				const body = await response.json();
@@ -334,7 +334,8 @@ const limits = JSON.parse(
 const environment = JSON.parse(
 	execFileSync("docker", ["inspect", "--format", "{{json .Config.Env}}", CONTAINER], { encoding: "utf8" }),
 ).filter(
-	entry => entry.startsWith("MOCKWA_PUBLIC_") || entry.startsWith("MOCKWA_MODE") || entry.startsWith("MOCKWA_STATUS"),
+	entry =>
+		entry.startsWith("WASANDBOX_PUBLIC_") || entry.startsWith("WASANDBOX_MODE") || entry.startsWith("WASANDBOX_STATUS"),
 );
 const configuration = {
 	visitors: VISITORS,

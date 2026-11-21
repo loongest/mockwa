@@ -3,7 +3,7 @@ import {
 	graphRequestListQuerySchema,
 	graphRequestListResponseSchema,
 	graphRequestResponseSchema,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { GraphRequestLog } from "../domain/index.ts";
@@ -37,7 +37,7 @@ export function createGraphRequestRoutes(options: GraphRequestRoutesOptions): Ho
 			data: await log.export(),
 		});
 
-		c.header("content-disposition", 'attachment; filename="mockwa-graph-requests.json"');
+		c.header("content-disposition", 'attachment; filename="wasandbox-graph-requests.json"');
 
 		return c.json(body);
 	});

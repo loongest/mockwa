@@ -1,4 +1,4 @@
-import type { Message } from "@mockwa/shared";
+import type { Message } from "@wasandbox/shared";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { StoreProvider } from "../../store/store.tsx";

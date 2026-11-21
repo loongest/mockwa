@@ -1,4 +1,4 @@
-import type { ServiceWindow } from "@mockwa/shared";
+import type { ServiceWindow } from "@wasandbox/shared";
 import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/endpoints.ts";

@@ -5,7 +5,7 @@ import { displayTimeZone, useClockSync, useSimulatorNow } from "../lib/sim-clock
 const stamp = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 /**
- * The simulator clock in the top bar (SPEC §4): its mode and what time it is for mockwa — which
+ * The simulator clock in the top bar (SPEC §4): its mode and what time it is for WaSandbox — which
  * under a virtual clock is not the time on the wall. A link to the Clock view, where it is moved.
  */
 export function ClockBadge() {

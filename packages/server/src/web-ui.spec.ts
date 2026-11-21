@@ -9,7 +9,7 @@ import { CONSOLE_CONTENT_SECURITY_POLICY } from "./security-headers.ts";
 import { isReservedPath, PHONE_CONTENT_SECURITY_POLICY } from "./web-ui.ts";
 
 const INDEX_HTML = '<!doctype html><title>whaloc</title><div id="root"></div>';
-const PHONE_HTML = '<!doctype html><title>mockwa phone</title><div id="root"></div>';
+const PHONE_HTML = '<!doctype html><title>WaSandbox phone</title><div id="root"></div>';
 const ASSET_JS = "console.log('whaloc');\n";
 
 describe("the static web UI", () => {
@@ -22,7 +22,7 @@ describe("the static web UI", () => {
 		await writeFile(path.join(webDir, "index.html"), INDEX_HTML);
 		await writeFile(path.join(webDir, "phone.html"), PHONE_HTML);
 		await writeFile(path.join(webDir, "assets", "index-abc123.js"), ASSET_JS);
-		fixture = await createTestApp({ MOCKWA_WEB_DIR: webDir });
+		fixture = await createTestApp({ WASANDBOX_WEB_DIR: webDir });
 	});
 
 	afterEach(async () => {
@@ -137,7 +137,7 @@ describe("the static web UI in public mode (SPEC §7)", () => {
 	const CONSOLE_JS = "console.log('console');\n";
 
 	beforeEach(async () => {
-		webDir = await mkdtemp(path.join(tmpdir(), "mockwa-test-public-web-"));
+		webDir = await mkdtemp(path.join(tmpdir(), "wasandbox-test-public-web-"));
 		await mkdir(path.join(webDir, "assets"));
 		await mkdir(path.join(webDir, ".vite"));
 		await writeFile(path.join(webDir, "index.html"), INDEX_HTML);
@@ -155,7 +155,7 @@ describe("the static web UI in public mode (SPEC §7)", () => {
 				"index.html": { file: "assets/console-1.js", imports: ["_shared"], isEntry: true },
 			}),
 		);
-		fixture = await createTestApp({ ...PUBLIC_ENV, MOCKWA_WEB_DIR: webDir });
+		fixture = await createTestApp({ ...PUBLIC_ENV, WASANDBOX_WEB_DIR: webDir });
 	});
 
 	afterEach(async () => {

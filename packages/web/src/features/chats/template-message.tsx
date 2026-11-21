@@ -1,4 +1,4 @@
-import type { JsonObject, Message, TemplateSnapshot } from "@mockwa/shared";
+import type { JsonObject, Message, TemplateSnapshot } from "@wasandbox/shared";
 import { useState } from "react";
 import { JsonBlock } from "../../components/json-block.tsx";
 import { asArray, asString, readString } from "../../lib/json.ts";

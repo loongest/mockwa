@@ -1,4 +1,4 @@
-import { inboundRequestSchema, type InboundRequest } from "@mockwa/shared";
+import { inboundRequestSchema, type InboundRequest } from "@wasandbox/shared";
 import type {
 	AppConfig,
 	ExpectMessage,
@@ -46,7 +46,7 @@ import type { WebhookEmitter } from "./webhook-emitter.ts";
  * wall-clock durations (those are in {@link ScenarioRun.elapsedMs}, apart), so two runs from
  * the same state compare equal. An `expect` waits for its condition in **real** time — up to
  * `within` — because what it waits for is usually the app under test answering a webhook, and
- * the app runs on its own clock, not mockwa's.
+ * the app runs on its own clock, not WaSandbox's.
  */
 
 export type StepStatus = "passed" | "failed" | "skipped";
@@ -774,7 +774,7 @@ export class ScenarioRunner {
 		if (isNeedsVirtualClock && !this.#options.clock.isVirtual) {
 			throw new ControlPlaneError(
 				"this scenario sets or reads the clock (clock.start, an advance step or an expect clock); " +
-					"start mockwa with MOCKWA_CLOCK=virtual to run it",
+					"start WaSandbox with WASANDBOX_CLOCK=virtual to run it",
 				{ status: 409, code: "clock_not_virtual" },
 			);
 		}

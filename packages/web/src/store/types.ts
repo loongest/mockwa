@@ -14,7 +14,7 @@ import type {
 	WebhookDelivery,
 	WebhookRouting,
 	WsEvent,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import type { ConnectionStatus } from "../api/ws-client.ts";
 import type { ClockSync } from "../lib/sim-clock.tsx";
 
@@ -69,7 +69,7 @@ export interface AppState {
 	 * forgotten rule whether or not anyone opens Settings.
 	 */
 	injectionRules: InjectionRule[] | null;
-	/** The `MOCKWA_TOKENS` registry; `null` until Settings asks, `[]` when there is none. */
+	/** The `WASANDBOX_TOKENS` registry; `null` until Settings asks, `[]` when there is none. */
 	tokens: TokenState[] | null;
 	/** Apps, subscriptions and overrides (SPEC §3); `null` until Settings or Webhooks asks. */
 	webhookRouting: WebhookRouting | null;

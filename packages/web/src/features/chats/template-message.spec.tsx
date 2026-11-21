@@ -1,4 +1,4 @@
-import type { JsonObject, Message, TemplateSnapshot } from "@mockwa/shared";
+import type { JsonObject, Message, TemplateSnapshot } from "@wasandbox/shared";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { StoreProvider } from "../../store/store.tsx";

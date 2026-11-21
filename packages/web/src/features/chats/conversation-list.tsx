@@ -1,4 +1,4 @@
-import { type Contact, type Conversation } from "@mockwa/shared";
+import { type Contact, type Conversation } from "@wasandbox/shared";
 import clsx from "clsx";
 import { useState } from "react";
 import { useNavigate } from "react-router";

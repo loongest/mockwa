@@ -1,4 +1,4 @@
-import { contactDisplayNumberSchema, contactRoleSchema, userIdSchema } from "@mockwa/shared";
+import { contactDisplayNumberSchema, contactRoleSchema, userIdSchema } from "@wasandbox/shared";
 import { z } from "zod";
 
 /** Meta ids are numeric strings; ids omitted from the seed are generated deterministically. */
@@ -9,7 +9,7 @@ export const THROUGHPUT_LEVELS = ["STANDARD", "HIGH"] as const;
 
 /**
  * The template vocabulary a seed can set. It lives here, next to the other enums seeding
- * chooses from, because `MOCKWA_SEED` is parsed before anything else exists; `db/schema.ts`
+ * chooses from, because `WASANDBOX_SEED` is parsed before anything else exists; `db/schema.ts`
  * takes the types from here the way it already does for quality ratings.
  *
  * `TEMPLATE_STATUSES` is deliberately not one of them: a seeded template is `APPROVED` by
@@ -31,7 +31,7 @@ export const TEMPLATE_LANGUAGE_PATTERN = /^[a-z]{2,3}(_[A-Za-z\d]{2,4})?$/;
 
 /**
  * A template's components: an array of objects whaloc stores and echoes verbatim (SPEC §2.7).
- * Both `POST /{wabaId}/message_templates` (`domain/template-requests.ts`) and a `MOCKWA_SEED`
+ * Both `POST /{wabaId}/message_templates` (`domain/template-requests.ts`) and a `WASANDBOX_SEED`
  * template validate against this one shape, so a template that can be seeded is a template
  * that could have been created through the Graph API.
  */
@@ -45,9 +45,9 @@ export const seedContactSchema = z.object({
 	name: z.string().min(1),
 	/** Business-scoped user id (SPEC §1.15); a contact carrying one puts the identity fields on its webhooks. */
 	userId: userIdSchema.optional(),
-	/** mockwa: the label the virtual phone shows (`CUSTOMER`, `TECHNICIAN`, …). */
+	/** wasandbox: the label the virtual phone shows (`CUSTOMER`, `TECHNICIAN`, …). */
 	role: contactRoleSchema.optional(),
-	/** mockwa: the friendly number the virtual phone shows; defaults to `+<waId>`. */
+	/** wasandbox: the friendly number the virtual phone shows; defaults to `+<waId>`. */
 	displayNumber: contactDisplayNumberSchema.optional(),
 });
 
@@ -85,7 +85,7 @@ export const seedWabaSchema = z.object({
 	templates: z.array(seedTemplateSchema).default([]),
 });
 
-/** Shape of `MOCKWA_SEED` (SPEC §7). */
+/** Shape of `WASANDBOX_SEED` (SPEC §7). */
 export const seedSchema = z.array(seedWabaSchema).min(1);
 
 export type Seed = z.infer<typeof seedSchema>;
@@ -97,11 +97,13 @@ export type SeedTemplate = z.infer<typeof seedTemplateSchema>;
 /**
  * Built-in seed: one WABA, one phone number, two contacts, one template (SPEC §7).
  *
- * The ids derived from these values are a contract: downstream compose seeds pin WABA
- * `666635535888644`, phone number `573542517421694` and template `355867425910125`
- * (docs/integrating.md), and a consumer that seeds its own database with them only notices a
- * mismatch at send time. Changing any natural key here — a WABA's name, a phone number's digits,
- * a template's name or language — changes the derived ids; update the consumers in lockstep.
+ * Its ids are a contract: downstream compose seeds pin WABA `666635535888644`, phone number
+ * `573542517421694` and template `355867425910125` (docs/integrating.md), and a consumer that
+ * seeds its own database with them only notices a mismatch at send time. They were first derived
+ * from whaloc's business ("whaloc Test Business", `+55 11 91234-5678`); the business has been
+ * renamed since, so the WABA and phone number pin those ids explicitly. The template id is still
+ * derived (from the pinned WABA id, its name and language): renaming `hello_whaloc` or changing its
+ * language would change it, so update the consumers in lockstep, or pin it too.
  *
  * So is the state a seeded number comes up in: `CONNECTED` and `VERIFIED`, which is what opens
  * the send gate (SPEC §4). Seeding never names those fields — the repository's defaults do —
@@ -112,11 +114,13 @@ export type SeedTemplate = z.infer<typeof seedTemplateSchema>;
  */
 export const DEFAULT_SEED: Seed = [
 	{
-		name: "whaloc Test Business",
+		id: "666635535888644",
+		name: "Your Company Business",
 		phoneNumbers: [
 			{
-				displayPhoneNumber: "+55 11 91234-5678",
-				verifiedName: "whaloc Test Business",
+				id: "573542517421694",
+				displayPhoneNumber: "+60 12-345 6789",
+				verifiedName: "Your Company Business",
 				qualityRating: "GREEN",
 				throughputLevel: "STANDARD",
 			},

@@ -1,4 +1,4 @@
-import type { Contact, Message, PhoneChat, PhoneMode, VisitorSession, WsEvent } from "@mockwa/shared";
+import type { Contact, Message, PhoneChat, PhoneMode, VisitorSession, WsEvent } from "@wasandbox/shared";
 import clsx from "clsx";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { connectEvents, type ConnectionStatus } from "../api/ws-client.ts";

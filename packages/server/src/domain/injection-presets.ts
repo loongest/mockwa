@@ -3,7 +3,7 @@ import {
 	DEFAULT_RETRY_AFTER_SECONDS,
 	type InjectionCustomResponse,
 	type InjectionPreset,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { GraphApiError } from "./graph-api-error.ts";
 import { applicationRateLimitError, pairRateLimitError, rateLimitError, unknownServerError } from "./meta-errors.ts";
 

@@ -109,8 +109,8 @@ jobs:
           context: .
           platforms: linux/amd64
           load: true
-          tags: mockwa:ci
-          build-args: MOCKWA_VERSION=${{ steps.version.outputs.version }}
+          tags: wasandbox:ci
+          build-args: WASANDBOX_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -134,26 +134,26 @@ jobs:
           PORT=3001 APP_SECRET=ci-app-secret VERIFY_TOKEN=ci-verify-token \
             GRAPH_API_BASE_URL=http://127.0.0.1:8888/v25.0 \
             nohup node examples/echo-app/server.mjs > echo-app.log 2>&1 &
-          docker run -d --name mockwa-ci \
+          docker run -d --name wasandbox-ci \
             --add-host=host.docker.internal:host-gateway \
             -p 127.0.0.1:8888:8888 -p 127.0.0.1:8025:8025 \
-            -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3001/webhook \
-            -e MOCKWA_APP_SECRET=ci-app-secret \
-            -e MOCKWA_WEBHOOK_VERIFY_TOKEN=ci-verify-token \
-            -e MOCKWA_VERIFY_ON_START=true \
-            mockwa:ci
+            -e WASANDBOX_WEBHOOK_URL=http://host.docker.internal:3001/webhook \
+            -e WASANDBOX_APP_SECRET=ci-app-secret \
+            -e WASANDBOX_WEBHOOK_VERIFY_TOKEN=ci-verify-token \
+            -e WASANDBOX_VERIFY_ON_START=true \
+            wasandbox:ci
           for _ in $(seq 1 60); do
-            status="$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci)"
+            status="$(docker inspect --format '{{.State.Health.Status}}' wasandbox-ci)"
             [ "$status" = "healthy" ] && break
             [ "$status" = "unhealthy" ] && break
             sleep 1
           done
-          test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci)" = "healthy"
-          test "$(docker exec mockwa-ci whoami)" = "node"
+          test "$(docker inspect --format '{{.State.Health.Status}}' wasandbox-ci)" = "healthy"
+          test "$(docker exec wasandbox-ci whoami)" = "node"
           reported="$(curl --fail --silent --show-error http://localhost:8025/api/export | jq -r .whalocVersion)"
-          test "$reported" = "$MOCKWA_VERSION" || { echo "image reports $reported, expected $MOCKWA_VERSION"; exit 1; }
+          test "$reported" = "$WASANDBOX_VERSION" || { echo "image reports $reported, expected $WASANDBOX_VERSION"; exit 1; }
         env:
-          MOCKWA_VERSION: ${{ steps.version.outputs.version }}
+          WASANDBOX_VERSION: ${{ steps.version.outputs.version }}
 
       # A second instance for the virtual phone (M1), seeded with its named identities and a
       # quick-reply template, with an echo app of its own so the two suites never share state.
@@ -163,23 +163,23 @@ jobs:
           PORT=3002 APP_SECRET=m1-app-secret VERIFY_TOKEN=m1-verify-token \
             GRAPH_API_BASE_URL=http://127.0.0.1:18888/v25.0 \
             nohup node examples/echo-app/server.mjs > echo-app-m1.log 2>&1 &
-          docker run -d --name mockwa-ci-m1 \
+          docker run -d --name wasandbox-ci-m1 \
             --add-host=host.docker.internal:host-gateway \
             -p 127.0.0.1:18888:8888 -p 127.0.0.1:18025:8025 \
             -v "$PWD/e2e/fixtures/m1-seed.json:/seed/m1-seed.json:ro" \
-            -e MOCKWA_SEED_FILE=/seed/m1-seed.json \
-            -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3002/webhook \
-            -e MOCKWA_APP_SECRET=m1-app-secret \
-            -e MOCKWA_WEBHOOK_VERIFY_TOKEN=m1-verify-token \
-            -e MOCKWA_VERIFY_ON_START=true \
-            mockwa:ci
+            -e WASANDBOX_SEED_FILE=/seed/m1-seed.json \
+            -e WASANDBOX_WEBHOOK_URL=http://host.docker.internal:3002/webhook \
+            -e WASANDBOX_APP_SECRET=m1-app-secret \
+            -e WASANDBOX_WEBHOOK_VERIFY_TOKEN=m1-verify-token \
+            -e WASANDBOX_VERIFY_ON_START=true \
+            wasandbox:ci
           for _ in $(seq 1 60); do
-            status="$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m1)"
+            status="$(docker inspect --format '{{.State.Health.Status}}' wasandbox-ci-m1)"
             [ "$status" = "healthy" ] && break
             [ "$status" = "unhealthy" ] && break
             sleep 1
           done
-          test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m1)" = "healthy"
+          test "$(docker inspect --format '{{.State.Health.Status}}' wasandbox-ci-m1)" = "healthy"
 
       # A third instance for the webhook model (M2): two WABAs, two apps with their own echo
       # apps and secrets, a file database on a volume so a pending retry can survive the
@@ -191,24 +191,24 @@ jobs:
             nohup node examples/echo-app/server.mjs > echo-app-m2-sales.log 2>&1 &
           PORT=3004 APP_SECRET=m2-support-secret VERIFY_TOKEN=m2-support-verify \
             nohup node examples/echo-app/server.mjs > echo-app-m2-support.log 2>&1 &
-          docker volume create mockwa-ci-m2-data
-          docker run -d --name mockwa-ci-m2 \
+          docker volume create wasandbox-ci-m2-data
+          docker run -d --name wasandbox-ci-m2 \
             --add-host=host.docker.internal:host-gateway \
             -p 127.0.0.1:28888:8888 -p 127.0.0.1:28025:8025 \
-            -v mockwa-ci-m2-data:/data \
+            -v wasandbox-ci-m2-data:/data \
             -v "$PWD/e2e/fixtures/m2-seed.json:/seed/m2-seed.json:ro" \
-            -e MOCKWA_DB_PATH=/data/mockwa.db \
-            -e MOCKWA_SEED_FILE=/seed/m2-seed.json \
-            -e MOCKWA_APPS="$(cat e2e/fixtures/m2-apps.json)" \
-            -e MOCKWA_WEBHOOK_RETRY_SCHEDULE=3s \
-            mockwa:ci
+            -e WASANDBOX_DB_PATH=/data/wasandbox.db \
+            -e WASANDBOX_SEED_FILE=/seed/m2-seed.json \
+            -e WASANDBOX_APPS="$(cat e2e/fixtures/m2-apps.json)" \
+            -e WASANDBOX_WEBHOOK_RETRY_SCHEDULE=3s \
+            wasandbox:ci
           for _ in $(seq 1 60); do
-            status="$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m2)"
+            status="$(docker inspect --format '{{.State.Health.Status}}' wasandbox-ci-m2)"
             [ "$status" = "healthy" ] && break
             [ "$status" = "unhealthy" ] && break
             sleep 1
           done
-          test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m2)" = "healthy"
+          test "$(docker inspect --format '{{.State.Health.Status}}' wasandbox-ci-m2)" = "healthy"
 
       # A fourth instance for API fidelity (M3): Meta's default 24-hour window, the opt-in limits
       # set low enough to reach, a file database on a volume for the restart check, and an echo
@@ -219,58 +219,58 @@ jobs:
           PORT=3005 APP_SECRET=m3-app-secret VERIFY_TOKEN=m3-verify-token \
             GRAPH_API_BASE_URL=http://127.0.0.1:58888/v25.0 \
             nohup node examples/echo-app/server.mjs > echo-app-m3.log 2>&1 &
-          docker volume create mockwa-ci-m3-data
-          docker run -d --name mockwa-ci-m3 \
+          docker volume create wasandbox-ci-m3-data
+          docker run -d --name wasandbox-ci-m3 \
             --add-host=host.docker.internal:host-gateway \
             -p 127.0.0.1:58888:8888 -p 127.0.0.1:58025:8025 \
-            -v mockwa-ci-m3-data:/data \
-            -e MOCKWA_DB_PATH=/data/mockwa.db \
-            -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3005/webhook \
-            -e MOCKWA_APP_SECRET=m3-app-secret \
-            -e MOCKWA_WEBHOOK_VERIFY_TOKEN=m3-verify-token \
-            -e MOCKWA_THROUGHPUT=5 \
-            -e MOCKWA_PAIR_RATE_LIMIT=1m/2 \
-            -e MOCKWA_MESSAGING_LIMIT=2 \
-            mockwa:ci
+            -v wasandbox-ci-m3-data:/data \
+            -e WASANDBOX_DB_PATH=/data/wasandbox.db \
+            -e WASANDBOX_WEBHOOK_URL=http://host.docker.internal:3005/webhook \
+            -e WASANDBOX_APP_SECRET=m3-app-secret \
+            -e WASANDBOX_WEBHOOK_VERIFY_TOKEN=m3-verify-token \
+            -e WASANDBOX_THROUGHPUT=5 \
+            -e WASANDBOX_PAIR_RATE_LIMIT=1m/2 \
+            -e WASANDBOX_MESSAGING_LIMIT=2 \
+            wasandbox:ci
           for _ in $(seq 1 60); do
-            status="$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m3)"
+            status="$(docker inspect --format '{{.State.Health.Status}}' wasandbox-ci-m3)"
             [ "$status" = "healthy" ] && break
             [ "$status" = "unhealthy" ] && break
             sleep 1
           done
-          test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m3)" = "healthy"
+          test "$(docker inspect --format '{{.State.Health.Status}}' wasandbox-ci-m3)" = "healthy"
 
       # A fifth instance for the virtual clock and scenarios (M4): the clock stands still from a
       # fixed start, slow status rungs give a few minutes several events, a file database on a
-      # volume for the restart check, and the scenario files mounted for `mockwa scenario run`.
+      # volume for the restart check, and the scenario files mounted for `wasandbox scenario run`.
       - name: Start the M4 image and its echo app 🧪
         run: |
           set -euo pipefail
           PORT=3006 APP_SECRET=m4-app-secret VERIFY_TOKEN=m4-verify-token \
             GRAPH_API_BASE_URL=http://127.0.0.1:59888/v25.0 \
             nohup node examples/echo-app/server.mjs > echo-app-m4.log 2>&1 &
-          docker volume create mockwa-ci-m4-data
-          docker run -d --name mockwa-ci-m4 \
+          docker volume create wasandbox-ci-m4-data
+          docker run -d --name wasandbox-ci-m4 \
             --add-host=host.docker.internal:host-gateway \
             -p 127.0.0.1:59888:8888 -p 127.0.0.1:59025:8025 \
-            -v mockwa-ci-m4-data:/data \
+            -v wasandbox-ci-m4-data:/data \
             -v "$PWD/examples/scenarios:/scenarios:ro" \
             -v "$PWD/e2e/fixtures:/fixtures:ro" \
-            -e MOCKWA_DB_PATH=/data/mockwa.db \
-            -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3006/webhook \
-            -e MOCKWA_APP_SECRET=m4-app-secret \
-            -e MOCKWA_WEBHOOK_VERIFY_TOKEN=m4-verify-token \
-            -e MOCKWA_CLOCK=virtual \
-            -e MOCKWA_CLOCK_START=2026-06-01T08:00:00Z \
-            -e MOCKWA_STATUS_DELAYS=sent:0,delivered:120000,read:240000 \
-            mockwa:ci
+            -e WASANDBOX_DB_PATH=/data/wasandbox.db \
+            -e WASANDBOX_WEBHOOK_URL=http://host.docker.internal:3006/webhook \
+            -e WASANDBOX_APP_SECRET=m4-app-secret \
+            -e WASANDBOX_WEBHOOK_VERIFY_TOKEN=m4-verify-token \
+            -e WASANDBOX_CLOCK=virtual \
+            -e WASANDBOX_CLOCK_START=2026-06-01T08:00:00Z \
+            -e WASANDBOX_STATUS_DELAYS=sent:0,delivered:120000,read:240000 \
+            wasandbox:ci
           for _ in $(seq 1 60); do
-            status="$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m4)"
+            status="$(docker inspect --format '{{.State.Health.Status}}' wasandbox-ci-m4)"
             [ "$status" = "healthy" ] && break
             [ "$status" = "unhealthy" ] && break
             sleep 1
           done
-          test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m4)" = "healthy"
+          test "$(docker inspect --format '{{.State.Health.Status}}' wasandbox-ci-m4)" = "healthy"
 
       # A sixth instance for the console on simulator time (M5): a virtual clock at a fixed start,
       # the default seed and its own echo app. The M5 checks and the M5 browser tests reset it.
@@ -280,22 +280,22 @@ jobs:
           PORT=3007 APP_SECRET=m5-app-secret VERIFY_TOKEN=m5-verify-token \
             GRAPH_API_BASE_URL=http://127.0.0.1:60888/v25.0 \
             nohup node examples/echo-app/server.mjs > echo-app-m5.log 2>&1 &
-          docker run -d --name mockwa-ci-m5 \
+          docker run -d --name wasandbox-ci-m5 \
             --add-host=host.docker.internal:host-gateway \
             -p 127.0.0.1:60888:8888 -p 127.0.0.1:60025:8025 \
-            -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3007/webhook \
-            -e MOCKWA_APP_SECRET=m5-app-secret \
-            -e MOCKWA_WEBHOOK_VERIFY_TOKEN=m5-verify-token \
-            -e MOCKWA_CLOCK=virtual \
-            -e MOCKWA_CLOCK_START=2026-07-01T08:00:00Z \
-            mockwa:ci
+            -e WASANDBOX_WEBHOOK_URL=http://host.docker.internal:3007/webhook \
+            -e WASANDBOX_APP_SECRET=m5-app-secret \
+            -e WASANDBOX_WEBHOOK_VERIFY_TOKEN=m5-verify-token \
+            -e WASANDBOX_CLOCK=virtual \
+            -e WASANDBOX_CLOCK_START=2026-07-01T08:00:00Z \
+            wasandbox:ci
           for _ in $(seq 1 60); do
-            status="$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m5)"
+            status="$(docker inspect --format '{{.State.Health.Status}}' wasandbox-ci-m5)"
             [ "$status" = "healthy" ] && break
             [ "$status" = "unhealthy" ] && break
             sleep 1
           done
-          test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m5)" = "healthy"
+          test "$(docker inspect --format '{{.State.Health.Status}}' wasandbox-ci-m5)" = "healthy"
 
       # A seventh instance in public demo mode (M6), on the M1 seed (its template has quick
       # replies): real time, an admin token, a Graph token
@@ -308,36 +308,36 @@ jobs:
           PORT=3008 APP_SECRET=m6-app-secret VERIFY_TOKEN=m6-verify-token ACCESS_TOKEN=m6-app-token \
             GRAPH_API_BASE_URL=http://127.0.0.1:61888/v25.0 \
             nohup node examples/echo-app/server.mjs > echo-app-m6.log 2>&1 &
-          docker volume create mockwa-ci-m6-data
-          docker run -d --name mockwa-ci-m6 \
+          docker volume create wasandbox-ci-m6-data
+          docker run -d --name wasandbox-ci-m6 \
             --add-host=host.docker.internal:host-gateway \
             -p 127.0.0.1:61888:8888 -p 127.0.0.1:61025:8025 \
-            -v mockwa-ci-m6-data:/data \
+            -v wasandbox-ci-m6-data:/data \
             -v "$PWD/e2e/fixtures/m1-seed.json:/seed/m1-seed.json:ro" \
-            -e MOCKWA_SEED_FILE=/seed/m1-seed.json \
-            -e MOCKWA_DB_PATH=/data/mockwa.db \
-            -e MOCKWA_MODE=public \
-            -e MOCKWA_ADMIN_TOKEN=m6-admin-token-0123456789 \
-            -e MOCKWA_TOKENS=m6-app-token \
-            -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3008/webhook \
-            -e MOCKWA_APP_SECRET=m6-app-secret \
-            -e MOCKWA_WEBHOOK_VERIFY_TOKEN=m6-verify-token \
-            -e MOCKWA_PUBLIC_SESSION_TTL=20s \
-            -e MOCKWA_PUBLIC_MESSAGES_PER_MINUTE=6 \
-            -e MOCKWA_PUBLIC_IP_MESSAGES_PER_MINUTE=500 \
-            -e MOCKWA_PUBLIC_MEDIA_MAX_BYTES=65536 \
-            -e MOCKWA_PUBLIC_MEDIA_PER_SESSION=2 \
-            -e MOCKWA_PUBLIC_SESSIONS_PER_IP=30 \
-            -e MOCKWA_PUBLIC_SESSION_CREATES_PER_MINUTE=100 \
-            -e MOCKWA_TRUSTED_PROXIES=127.0.0.1 \
-            mockwa:ci
+            -e WASANDBOX_SEED_FILE=/seed/m1-seed.json \
+            -e WASANDBOX_DB_PATH=/data/wasandbox.db \
+            -e WASANDBOX_MODE=public \
+            -e WASANDBOX_ADMIN_TOKEN=m6-admin-token-0123456789 \
+            -e WASANDBOX_TOKENS=m6-app-token \
+            -e WASANDBOX_WEBHOOK_URL=http://host.docker.internal:3008/webhook \
+            -e WASANDBOX_APP_SECRET=m6-app-secret \
+            -e WASANDBOX_WEBHOOK_VERIFY_TOKEN=m6-verify-token \
+            -e WASANDBOX_PUBLIC_SESSION_TTL=20s \
+            -e WASANDBOX_PUBLIC_MESSAGES_PER_MINUTE=6 \
+            -e WASANDBOX_PUBLIC_IP_MESSAGES_PER_MINUTE=500 \
+            -e WASANDBOX_PUBLIC_MEDIA_MAX_BYTES=65536 \
+            -e WASANDBOX_PUBLIC_MEDIA_PER_SESSION=2 \
+            -e WASANDBOX_PUBLIC_SESSIONS_PER_IP=30 \
+            -e WASANDBOX_PUBLIC_SESSION_CREATES_PER_MINUTE=100 \
+            -e WASANDBOX_TRUSTED_PROXIES=127.0.0.1 \
+            wasandbox:ci
           for _ in $(seq 1 60); do
-            status="$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m6)"
+            status="$(docker inspect --format '{{.State.Health.Status}}' wasandbox-ci-m6)"
             [ "$status" = "healthy" ] && break
             [ "$status" = "unhealthy" ] && break
             sleep 1
           done
-          test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m6)" = "healthy"
+          test "$(docker inspect --format '{{.State.Health.Status}}' wasandbox-ci-m6)" = "healthy"
 
       # An eighth instance in public demo mode (M7) with the **default** limits, so the hardening
       # checks exercise what a real instance ships with. 127.0.0.1 is the trusted proxy, so the
@@ -348,29 +348,29 @@ jobs:
           PORT=3009 APP_SECRET=m7-app-secret VERIFY_TOKEN=m7-verify-token ACCESS_TOKEN=m7-app-token \
             GRAPH_API_BASE_URL=http://127.0.0.1:62888/v25.0 \
             nohup node examples/echo-app/server.mjs > echo-app-m7.log 2>&1 &
-          docker volume create mockwa-ci-m7-data
-          docker run -d --name mockwa-ci-m7 \
+          docker volume create wasandbox-ci-m7-data
+          docker run -d --name wasandbox-ci-m7 \
             --add-host=host.docker.internal:host-gateway \
             -p 127.0.0.1:62888:8888 -p 127.0.0.1:62025:8025 \
-            -v mockwa-ci-m7-data:/data \
+            -v wasandbox-ci-m7-data:/data \
             -v "$PWD/e2e/fixtures/m1-seed.json:/seed/m1-seed.json:ro" \
-            -e MOCKWA_SEED_FILE=/seed/m1-seed.json \
-            -e MOCKWA_DB_PATH=/data/mockwa.db \
-            -e MOCKWA_MODE=public \
-            -e MOCKWA_ADMIN_TOKEN=m7-admin-token-0123456789 \
-            -e MOCKWA_TOKENS=m7-app-token \
-            -e MOCKWA_WEBHOOK_URL=http://host.docker.internal:3009/webhook \
-            -e MOCKWA_APP_SECRET=m7-app-secret \
-            -e MOCKWA_WEBHOOK_VERIFY_TOKEN=m7-verify-token \
-            -e MOCKWA_TRUSTED_PROXIES=127.0.0.1 \
-            mockwa:ci
+            -e WASANDBOX_SEED_FILE=/seed/m1-seed.json \
+            -e WASANDBOX_DB_PATH=/data/wasandbox.db \
+            -e WASANDBOX_MODE=public \
+            -e WASANDBOX_ADMIN_TOKEN=m7-admin-token-0123456789 \
+            -e WASANDBOX_TOKENS=m7-app-token \
+            -e WASANDBOX_WEBHOOK_URL=http://host.docker.internal:3009/webhook \
+            -e WASANDBOX_APP_SECRET=m7-app-secret \
+            -e WASANDBOX_WEBHOOK_VERIFY_TOKEN=m7-verify-token \
+            -e WASANDBOX_TRUSTED_PROXIES=127.0.0.1 \
+            wasandbox:ci
           for _ in $(seq 1 60); do
-            status="$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m7)"
+            status="$(docker inspect --format '{{.State.Health.Status}}' wasandbox-ci-m7)"
             [ "$status" = "healthy" ] && break
             [ "$status" = "unhealthy" ] && break
             sleep 1
           done
-          test "$(docker inspect --format '{{.State.Health.Status}}' mockwa-ci-m7)" = "healthy"
+          test "$(docker inspect --format '{{.State.Health.Status}}' wasandbox-ci-m7)" = "healthy"
 
       - name: M0 smoke checks (AC-01, AC-02, signed webhooks) ✅
         run: node e2e/m0-smoke.mjs
@@ -387,7 +387,7 @@ jobs:
           M2_CONSOLE_URL: http://127.0.0.1:28025
           M2_SALES_ECHO_URL: http://127.0.0.1:3003
           M2_SUPPORT_ECHO_URL: http://127.0.0.1:3004
-          M2_CONTAINER: mockwa-ci-m2
+          M2_CONTAINER: wasandbox-ci-m2
 
       - name: M3 fidelity checks (24-hour window, limits, failure injection, restart) ✅
         run: node e2e/m3-fidelity.mjs
@@ -395,7 +395,7 @@ jobs:
           M3_GRAPH_URL: http://127.0.0.1:58888
           M3_CONSOLE_URL: http://127.0.0.1:58025
           M3_ECHO_URL: http://127.0.0.1:3005
-          M3_CONTAINER: mockwa-ci-m3
+          M3_CONTAINER: wasandbox-ci-m3
 
       - name: M4 clock and scenario checks (AC-10 timeline, AC-11 determinism, AC-12 failures, restart) ✅
         run: node e2e/m4-clock-scenarios.mjs
@@ -403,7 +403,7 @@ jobs:
           M4_GRAPH_URL: http://127.0.0.1:59888
           M4_CONSOLE_URL: http://127.0.0.1:59025
           M4_ECHO_URL: http://127.0.0.1:3006
-          M4_CONTAINER: mockwa-ci-m4
+          M4_CONTAINER: wasandbox-ci-m4
 
       - name: M5 console checks (AC-13 request log, window, webhook bytes, guide seeds) ✅
         run: node e2e/m5-console.mjs
@@ -418,7 +418,7 @@ jobs:
           M6_GRAPH_URL: http://127.0.0.1:61888
           M6_CONSOLE_URL: http://127.0.0.1:61025
           M6_ECHO_URL: http://127.0.0.1:3008
-          M6_CONTAINER: mockwa-ci-m6
+          M6_CONTAINER: wasandbox-ci-m6
 
       - name: M7 hardening checks (AC-19 headers and cookies, forged references, limits, lockout, log hygiene) ✅
         run: node e2e/m7-hardening.mjs
@@ -426,7 +426,7 @@ jobs:
           M7_GRAPH_URL: http://127.0.0.1:62888
           M7_CONSOLE_URL: http://127.0.0.1:62025
           M7_ECHO_URL: http://127.0.0.1:3009
-          M7_CONTAINER: mockwa-ci-m7
+          M7_CONTAINER: wasandbox-ci-m7
 
       - name: Playwright against the console, the virtual phone, the M2 webhook views, M3, M4, M5, M6 and M7 🎭
         run: npx playwright test -c e2e/playwright.config.mjs --trace off
@@ -448,29 +448,29 @@ jobs:
       - name: Logs on failure 📜
         if: failure()
         run: |
-          docker logs mockwa-ci || true
+          docker logs wasandbox-ci || true
           cat echo-app.log || true
-          docker logs mockwa-ci-m1 || true
+          docker logs wasandbox-ci-m1 || true
           cat echo-app-m1.log || true
-          docker logs mockwa-ci-m2 || true
+          docker logs wasandbox-ci-m2 || true
           cat echo-app-m2-sales.log || true
           cat echo-app-m2-support.log || true
-          docker logs mockwa-ci-m3 || true
+          docker logs wasandbox-ci-m3 || true
           cat echo-app-m3.log || true
-          docker logs mockwa-ci-m4 || true
+          docker logs wasandbox-ci-m4 || true
           cat echo-app-m4.log || true
-          docker logs mockwa-ci-m5 || true
+          docker logs wasandbox-ci-m5 || true
           cat echo-app-m5.log || true
-          docker logs mockwa-ci-m6 || true
+          docker logs wasandbox-ci-m6 || true
           cat echo-app-m6.log || true
-          docker logs mockwa-ci-m7 || true
+          docker logs wasandbox-ci-m7 || true
           cat echo-app-m7.log || true
 
       - name: Stop the image 🧹
         if: always()
         run: |
-          docker rm --force mockwa-ci mockwa-ci-m1 mockwa-ci-m2 mockwa-ci-m3 mockwa-ci-m4 mockwa-ci-m5 mockwa-ci-m6 mockwa-ci-m7 || true
-          docker volume rm mockwa-ci-m2-data mockwa-ci-m3-data mockwa-ci-m4-data mockwa-ci-m6-data mockwa-ci-m7-data || true
+          docker rm --force wasandbox-ci wasandbox-ci-m1 wasandbox-ci-m2 wasandbox-ci-m3 wasandbox-ci-m4 wasandbox-ci-m5 wasandbox-ci-m6 wasandbox-ci-m7 || true
+          docker volume rm wasandbox-ci-m2-data wasandbox-ci-m3-data wasandbox-ci-m4-data wasandbox-ci-m6-data wasandbox-ci-m7-data || true
 
       - name: Login to GitHub Container Registry 🔑
         if: env.PUBLISH == 'true'
@@ -495,7 +495,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: ${{ env.PUBLISH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
-          build-args: MOCKWA_VERSION=${{ steps.version.outputs.version }}
+          build-args: WASANDBOX_VERSION=${{ steps.version.outputs.version }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
           cache-from: type=gha

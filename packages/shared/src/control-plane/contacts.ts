@@ -2,9 +2,9 @@ import { z } from "zod";
 import { metaIdSchema, userIdSchema, waIdSchema } from "./common.ts";
 
 /** The people on the user side of a conversation (`GET/POST/PATCH /api/contacts`, SPEC §5). */
-/** mockwa: a role is a label, not a permission — whatever the scenario calls its people. */
+/** wasandbox: a role is a label, not a permission — whatever the scenario calls its people. */
 export const contactRoleSchema = z.string().trim().min(1).max(40);
-/** mockwa: shown as-is on the virtual phone; digits, spaces, `+`, `-` and parentheses. */
+/** wasandbox: shown as-is on the virtual phone; digits, spaces, `+`, `-` and parentheses. */
 export const contactDisplayNumberSchema = z
 	.string()
 	.trim()
@@ -15,9 +15,9 @@ export const contactSchema = z.object({
 	profileName: z.string(),
 	/** The contact's business-scoped user id (SPEC §1.15), `null` when it has none. */
 	userId: z.string().nullable(),
-	/** mockwa: free-form label the virtual phone shows (`CUSTOMER`, `TECHNICIAN`, …), `null` when unset. */
+	/** wasandbox: free-form label the virtual phone shows (`CUSTOMER`, `TECHNICIAN`, …), `null` when unset. */
 	role: z.string().nullable(),
-	/** mockwa: friendly number the virtual phone shows, `null` = `+<waId>`. */
+	/** wasandbox: friendly number the virtual phone shows, `null` = `+<waId>`. */
 	displayNumber: z.string().nullable(),
 	createdAt: z.iso.datetime(),
 	updatedAt: z.iso.datetime(),

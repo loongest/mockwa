@@ -6,7 +6,7 @@ import {
 	type GraphRequestSummary,
 	type LoggedBody,
 	type LoggedFormField,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import type { DepartedNumbers } from "./departed-numbers.ts";
 import { z } from "zod";
 import type { GraphRequestRecord, Repositories } from "../db/index.ts";
@@ -153,7 +153,7 @@ type MaskedText = { kind: "json" | "text" | "form"; text: string } | { kind: "om
 /**
  * A body becomes text in the log only once it has been parsed and masked. A request body that
  * does not parse — a JSON body cut short, free text — could carry a credential anywhere, so it is
- * described (type, size, why) and never stored. Response bodies are mockwa's own words and are
+ * described (type, size, why) and never stored. Response bodies are WaSandbox's own words and are
  * kept as sent.
  */
 function maskText(contentType: string | null, text: string, origin: BodyOrigin): MaskedText {
@@ -181,7 +181,7 @@ function maskText(contentType: string | null, text: string, origin: BodyOrigin):
 	return { kind: "omitted", reason: isLooksLikeJson ? OMITTED_MALFORMED_JSON : OMITTED_UNSTRUCTURED_TEXT };
 }
 
-/** Where a body was captured: what the app sent, or what mockwa answered. */
+/** Where a body was captured: what the app sent, or what WaSandbox answered. */
 export type BodyOrigin = "request" | "response";
 
 /** Masks and caps what the transport captured: the only form a body is ever stored in. */

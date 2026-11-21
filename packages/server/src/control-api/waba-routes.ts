@@ -3,7 +3,7 @@ import {
 	wabaListResponseSchema,
 	wabaResponseSchema,
 	wabaUpdateRequestSchema,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { Hono } from "hono";
 import { toWabaDto, type WabaService } from "../domain/index.ts";
 import { readBody, type ControlEnv } from "./control-env.ts";
@@ -13,7 +13,7 @@ export interface WabaRoutesOptions {
 }
 
 /**
- * `GET/POST /api/wabas`, `PATCH|DELETE /api/wabas/:id` (SPEC §5) — the WABAs `MOCKWA_SEED`
+ * `GET/POST /api/wabas`, `PATCH|DELETE /api/wabas/:id` (SPEC §5) — the WABAs `WASANDBOX_SEED`
  * describes, plus whichever ones a dev adds while the container is running.
  *
  * A delete answers with the WABA that is gone rather than an empty body: the UI toasts its name,

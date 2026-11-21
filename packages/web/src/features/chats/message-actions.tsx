@@ -1,4 +1,4 @@
-import type { Message } from "@mockwa/shared";
+import type { Message } from "@wasandbox/shared";
 import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/endpoints.ts";

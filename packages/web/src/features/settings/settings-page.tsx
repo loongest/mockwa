@@ -1,4 +1,4 @@
-import { BSUID_PATTERN, type Contact, type StateResponse, type WabaState } from "@mockwa/shared";
+import { BSUID_PATTERN, type Contact, type StateResponse, type WabaState } from "@wasandbox/shared";
 import { useMemo, useState, type ReactNode } from "react";
 import { api } from "../../api/endpoints.ts";
 import { ChangeNumberDialog } from "../../components/change-number-dialog.tsx";
@@ -340,7 +340,7 @@ function ContactsSection() {
 					A contact with a BSUID adds <code>user_id</code> / <code>from_user_id</code> to its inbound webhooks and{" "}
 					<code>recipient_user_id</code> to the statuses of messages sent to it, and can be addressed by{" "}
 					<code>recipient</code> instead of <code>to</code>. The seeded contacts ship with one BSUID of each shape, and
-					a <code>MOCKWA_SEED</code> contact may set its own via <code>userId</code>.
+					a <code>WASANDBOX_SEED</code> contact may set its own via <code>userId</code>.
 				</p>
 			</div>
 

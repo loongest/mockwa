@@ -14,10 +14,10 @@ export function shortWebhookUrl(url: string): string {
 }
 
 /**
- * Where mockwa sends its webhooks (`MOCKWA_WEBHOOK_URL`), in the corner of every view (SPEC §5).
+ * Where WaSandbox sends its webhooks (`WASANDBOX_WEBHOOK_URL`), in the corner of every view (SPEC §5).
  *
  * A reply in a chat comes from whatever app receives these deliveries, never from
- * mockwa itself; naming the receiver next to the connection indicator is what keeps that
+ * WaSandbox itself; naming the receiver next to the connection indicator is what keeps that
  * obvious. With no URL configured, deliveries are only logged, and the badge says so. Either
  * way it links to the Webhooks view, which has the full URL, the handshake and the log.
  */
@@ -31,7 +31,7 @@ export function WebhookBadge() {
 	const { url, appSecretConfigured } = server.webhook;
 	const title =
 		url === null
-			? "MOCKWA_WEBHOOK_URL is not set: webhook payloads are logged on the Webhooks view, not sent anywhere"
+			? "WASANDBOX_WEBHOOK_URL is not set: webhook payloads are logged on the Webhooks view, not sent anywhere"
 			: `Webhooks are sent to ${url} (${appSecretConfigured ? "signed" : "unsigned"})`;
 
 	return (

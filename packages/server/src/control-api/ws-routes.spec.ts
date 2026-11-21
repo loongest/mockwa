@@ -1,5 +1,5 @@
 import { serve, type ServerType } from "@hono/node-server";
-import { wsEventSchema, type WsEvent } from "@mockwa/shared";
+import { wsEventSchema, type WsEvent } from "@wasandbox/shared";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WebSocketServer } from "ws";

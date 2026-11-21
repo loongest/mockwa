@@ -1,10 +1,10 @@
-// Milestone M5 acceptance checks (AC-13: console and docs) against a running mockwa — normally
+// Milestone M5 acceptance checks (AC-13: console and docs) against a running WaSandbox — normally
 // the built Docker image — and the example echo app playing the app under test. HTTP and
 // WebSocket only; the browser half lives in e2e/m5-console.spec.mjs.
 //
 //   node e2e/m5-console.mjs
 //
-// The instance runs MOCKWA_CLOCK=virtual from M5_CLOCK_START with the default seed, its webhook
+// The instance runs WASANDBOX_CLOCK=virtual from M5_CLOCK_START with the default seed, its webhook
 // pointed at the echo app (signed with M5_APP_SECRET). See .github/workflows/docker.yml.
 //
 // What it proves: every console clock move is announced (`clock.changed`); the customer service
@@ -619,7 +619,7 @@ await check("an attempt keeps the exact bytes, headers, response and outcome the
 	assert.equal(stored.requestBody, received.rawBody, "byte for byte");
 	assert.equal(stored.requestHeaders["x-hub-signature-256"], received.signature);
 	assert.equal(received.signature, signatureFor(received.rawBody));
-	assert.equal(received.signatureValid, true, "the receiver verified it (the echo app reports this, mockwa cannot)");
+	assert.equal(received.signatureValid, true, "the receiver verified it (the echo app reports this, WaSandbox cannot)");
 	assert.equal(stored.responseStatus, 200);
 	assert.equal(stored.outcome, "delivered");
 });
@@ -722,7 +722,7 @@ await check(
 
 // --- Integration guides ---------------------------------------------------------------------------
 
-/** Resets into a guide's seed (a scenario world uses the MOCKWA_SEED format) with one idle step. */
+/** Resets into a guide's seed (a scenario world uses the WASANDBOX_SEED format) with one idle step. */
 async function loadSeed(file) {
 	const wabas = JSON.parse(readFileSync(new URL(`../examples/integrations/${file}`, import.meta.url), "utf8"));
 	const run = await getJson(

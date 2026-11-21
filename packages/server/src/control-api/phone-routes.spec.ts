@@ -7,7 +7,7 @@ import {
 	phoneReadResponseSchema,
 	wsEventSchema,
 	type WsEvent,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WebSocketServer } from "ws";
@@ -21,7 +21,7 @@ import { createTestApp, TEST_AUTH_HEADERS, type TestApp } from "../testing/test-
 const ANA = "5571990000001";
 const BRUNO = "5571990000002";
 /** The ladder still sends `sent`, but a business message reaches the phone only when a test says so. */
-const MANUAL_DELIVERY = { MOCKWA_STATUS_DELAYS: "sent:0,delivered:3600000" };
+const MANUAL_DELIVERY = { WASANDBOX_STATUS_DELAYS: "sent:0,delivered:3600000" };
 
 describe("/api/phone", () => {
 	let fixture: TestApp;
@@ -127,7 +127,7 @@ describe("/api/phone", () => {
 		expect(await history(BRUNO)).toHaveLength(0);
 	});
 
-	// mockwa never answers for the app: with no MOCKWA_WEBHOOK_URL (this fixture's setting) the
+	// WaSandbox never answers for the app: with no WASANDBOX_WEBHOOK_URL (this fixture's setting) the
 	// message is stored and shown, the delivery is only logged, and nothing replies.
 	it("stores a phone's message without a webhook receiver, and nothing replies to it", async () => {
 		expect(fixture.config.webhookUrl).toBeUndefined();

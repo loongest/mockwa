@@ -1,6 +1,6 @@
-# Working on mockwa
+# Working on WaSandbox
 
-mockwa is a fork of whaloc and emulates the Meta WhatsApp Cloud API. The code still says
+WaSandbox is a fork of whaloc and emulates the Meta WhatsApp Cloud API. The code still says
 "whaloc" in many places; that is the inherited engine, not a mistake to fix in passing. Product knowledge lives in
 [README.md](README.md) and the guides in `docs/` (setup and release flow: [docs/development.md](docs/development.md)); the behavioral contract is [docs/SPEC.md](docs/SPEC.md) — **SPEC wins**
 whenever code, docs or a request disagree with it. This file is what you need to work on the
@@ -18,7 +18,7 @@ npm run format:check  # prettier (markdown and YAML included)
 npm run build         # shared → server → web, in that order (see "Build order")
 ```
 
-Scope any script with `--workspace @mockwa/server|shared|web`. The S3 storage specs are opt-in:
+Scope any script with `--workspace @wasandbox/server|shared|web`. The S3 storage specs are opt-in:
 they skip without `WHALOC_TEST_S3_ENDPOINT` (see [docs/development.md](docs/development.md#test-s3-storage) for the one-line RustFS).
 npm only — no pnpm/yarn; corepack is not needed.
 
@@ -46,7 +46,8 @@ npm only — no pnpm/yarn; corepack is not needed.
 One process, two listeners (`app.ts`): the **Graph app** on 8888 (`/v*.*`, media bytes) and the
 **console app** on 8025 (`/api`, `/api/ws`, media bytes, web UI). A route belongs to exactly one
 of them; each answers 404 for the other's paths, and `listeners.spec.ts` pins that. Config is
-`MOCKWA_*`, with every `WHALOC_*` name still read as an alias (`config/parse-config.ts`).
+`WASANDBOX_*`, with every `MOCKWA_*` and `WHALOC_*` name still read as an alias, in that priority
+(`config/parse-config.ts`).
 
 Three npm workspaces: `packages/shared` (zod contracts for the control plane + WS, imported by
 both sides), `packages/server` (Hono), `packages/web` (React 19 + Vite, a pure client of
@@ -61,10 +62,10 @@ plain factories, no DI framework. The Graph surface's error mapping lives in one
 
 ## Build order and the `development` condition
 
-Dev, typecheck and tests resolve `@mockwa/shared` to its **source** through the `development`
+Dev, typecheck and tests resolve `@wasandbox/shared` to its **source** through the `development`
 export condition; builds resolve `dist/`. That is why the root `build` script names the three
 packages in order — npm has no topological ordering. If a build fails with TS2307 on
-`@mockwa/shared`, build `shared` first.
+`@wasandbox/shared`, build `shared` first.
 
 ## Style
 

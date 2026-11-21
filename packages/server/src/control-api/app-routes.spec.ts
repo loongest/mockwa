@@ -27,8 +27,8 @@ describe("apps (SPEC §3, §5)", () => {
 	beforeEach(async () => {
 		capture = await startCaptureServer();
 		fixture = await createTestApp({
-			MOCKWA_WEBHOOK_URL: `${capture.url}/default`,
-			MOCKWA_APP_SECRET: "default-secret",
+			WASANDBOX_WEBHOOK_URL: `${capture.url}/default`,
+			WASANDBOX_APP_SECRET: "default-secret",
 		});
 	});
 

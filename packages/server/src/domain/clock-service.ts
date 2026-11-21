@@ -10,13 +10,13 @@ import type { AdvanceResult, VirtualClock } from "./virtual-clock.ts";
 /**
  * The control plane's handle on time (SPEC §4, "Virtual clock"; §5 `/api/clock`).
  *
- * One clock per instance. With `MOCKWA_CLOCK=real` this only reports the wall clock and
+ * One clock per instance. With `WASANDBOX_CLOCK=real` this only reports the wall clock and
  * refuses to move it. With `virtual` it owns the {@link VirtualClock} every service was built
  * with, the ID stream that goes with it, and the clock's persisted position:
  *
  * - **boot** resumes a file database's stored position (pending retries are due against it)
- *   and moves the ID stream on; a fresh database starts at `MOCKWA_CLOCK_START`;
- * - **reset** drops every pending event and puts the clock back at `MOCKWA_CLOCK_START`, with
+ *   and moves the ID stream on; a fresh database starts at `WASANDBOX_CLOCK_START`;
+ * - **reset** drops every pending event and puts the clock back at `WASANDBOX_CLOCK_START`, with
  *   the ID stream back at its start — the same world, the same IDs;
  * - **import** leaves the clock where it is (a snapshot carries no clock) and derives a new ID
  *   stream from the snapshot, so nothing minted afterwards collides with what came in;
@@ -69,7 +69,7 @@ function toEventView(event: { sequence: number; dueAt: Date; label: string; erro
 }
 
 export function clockNotVirtual(): ControlPlaneError {
-	return new ControlPlaneError("the clock is real time; start mockwa with MOCKWA_CLOCK=virtual to move it", {
+	return new ControlPlaneError("the clock is real time; start WaSandbox with WASANDBOX_CLOCK=virtual to move it", {
 		status: 409,
 		code: "clock_not_virtual",
 	});
@@ -153,7 +153,7 @@ export class ClockService {
 		if (at.getTime() < clock.now().getTime()) {
 			throw controlBadRequest(
 				`the virtual clock is at ${clock.now().toISOString()} and cannot move back to ${at.toISOString()}; ` +
-					"POST /api/reset returns it to MOCKWA_CLOCK_START",
+					"POST /api/reset returns it to WASANDBOX_CLOCK_START",
 				"clock_backwards",
 			);
 		}
@@ -193,7 +193,7 @@ export class ClockService {
 
 	/**
 	 * Reset (and the start of a scenario): pending events are dropped, the clock goes to `at`
-	 * (`MOCKWA_CLOCK_START` by default) and the ID stream starts over. Callers cancel their own
+	 * (`WASANDBOX_CLOCK_START` by default) and the ID stream starts over. Callers cancel their own
 	 * timers first; this also drops anything they missed.
 	 */
 	async restart(at: Date = this.#config.start): Promise<void> {

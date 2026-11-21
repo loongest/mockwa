@@ -5,7 +5,7 @@ import {
 	graphRequestResponseSchema,
 	type GraphRequest,
 	type GraphRequestSummary,
-} from "@mockwa/shared";
+} from "@wasandbox/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestApp, TEST_AUTH_HEADERS, type TestApp } from "../testing/test-app.ts";
 
@@ -228,7 +228,7 @@ describe("the Graph request log", () => {
 		const resolved = await graph(id, { headers: TEST_AUTH_HEADERS });
 		const { url } = (await resolved.json()) as { url: string };
 		const mediaUrl = new URL(url);
-		// Media URLs point at the Graph listener (MOCKWA_PUBLIC_URL), which is what logs them.
+		// Media URLs point at the Graph listener (WASANDBOX_PUBLIC_URL), which is what logs them.
 		const download = await fixture.graphApp.request(mediaUrl.pathname, { headers: TEST_AUTH_HEADERS });
 
 		expect(download.status).toBe(200);

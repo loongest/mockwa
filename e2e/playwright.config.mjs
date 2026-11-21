@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
 /**
- * Browser checks against running mockwa instances — in CI, the built Docker image (see
+ * Browser checks against running WaSandbox instances — in CI, the built Docker image (see
  * .github/workflows/docker.yml). Nothing is started here:
  *
  * - `m0-console` drives the console of the default-seeded instance at CONSOLE_URL / GRAPH_URL;
@@ -16,7 +16,7 @@ import { defineConfig } from "@playwright/test";
  * - `m5-console` drives the Clock, Scenarios, Requests and Webhooks views and the window badge on
  *   the virtual-clock instance e2e/m5-console.mjs checks, at M5_CONSOLE_URL with M5_GRAPH_URL (it resets that
  *   instance).
- * - `m6-public` drives the public Virtual Phone and the admin sign-in of the MOCKWA_MODE=public
+ * - `m6-public` drives the public Virtual Phone and the admin sign-in of the WASANDBOX_MODE=public
  *   instance e2e/m6-public.mjs checks, at M6_CONSOLE_URL (each test is a new anonymous visitor).
  * - `m7-hardening` runs the public phone and the admin console under their Content-Security-Policy
  *   with hostile message text, on the instance e2e/m7-hardening.mjs checks, at M7_CONSOLE_URL.
