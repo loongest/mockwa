@@ -13,7 +13,7 @@ as the app. It takes about ten minutes, most of it the first image build.
 You need:
 
 - Docker.
-- A checkout of this repository: `git clone https://github.com/loongest/mockwa.git && cd mockwa`.
+- A checkout of this repository: `git clone https://github.com/loongest/wasandbox.git && cd wasandbox`.
 - Free host ports 8888, 8025 and 3001 (check with `lsof -i :8888 -i :8025 -i :3001`, which prints
   nothing when they are free). If one is taken, change the left side of its `-p` below (for
   example `-p 127.0.0.1:18888:8888`) and use that port in every URL on this page.
@@ -25,7 +25,7 @@ Run every command from the root of the checkout.
 ## Get an image
 
 Images are published only when a `v*` release tag is pushed, so do not assume
-`ghcr.io/loongest/mockwa:latest` exists or has the features described here. Build the image from
+`ghcr.io/loongest/wasandbox:latest` exists or has the features described here. Build the image from
 your checkout:
 
 ```sh
@@ -34,7 +34,7 @@ docker build -t wasandbox:local .
 
 Expected result: the build finishes without an error, and `docker image ls wasandbox` lists the
 `local` tag. Once a release
-you want is published, `ghcr.io/loongest/mockwa:<version>` works in place of `wasandbox:local`.
+you want is published, `ghcr.io/loongest/wasandbox:<version>` works in place of `wasandbox:local`.
 
 ## Do a first round trip
 

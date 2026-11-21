@@ -145,14 +145,14 @@ runs **publish nothing**.
 
 Only pushing a `v*` tag publishes:
 
-1. The image goes to `ghcr.io/loongest/mockwa`, and to Docker Hub when the `DOCKER_HUB_USERNAME`
+1. The image goes to `ghcr.io/loongest/wasandbox`, and to Docker Hub when the `DOCKER_HUB_USERNAME`
    variable **and** the `DOCKER_HUB_TOKEN` secret are both set (otherwise GHCR only).
 2. Tags: the version (`1.2.3`, `1.2`, `1`), `sha-<short>`, and `latest`.
 3. It carries SLSA provenance and an SBOM, and a GitHub-signed build attestation:
 
    ```sh
    VERSION=1.2.3   # the release you pulled
-   gh attestation verify "oci://ghcr.io/loongest/mockwa:$VERSION" --owner loongest
+   gh attestation verify "oci://ghcr.io/loongest/wasandbox:$VERSION" --owner loongest
    ```
 
 Until a release exists, `latest` may not exist or may be older than `main`; build from a

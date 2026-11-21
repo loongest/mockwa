@@ -13,7 +13,7 @@ name: wasandbox
 
 services:
   wasandbox:
-    image: ghcr.io/loongest/mockwa:latest
+    image: ghcr.io/loongest/wasandbox:latest
     # No release is published yet, so this builds the checkout; drop it to pull the image.
     build: .
     # Loopback only: the console (8025) has no login in dev mode.

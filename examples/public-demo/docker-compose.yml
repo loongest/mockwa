@@ -11,7 +11,7 @@ name: wasandbox-public-demo
 
 services:
   wasandbox:
-    image: ghcr.io/loongest/mockwa:latest
+    image: ghcr.io/loongest/wasandbox:latest
     # No release is published yet, so this builds the checkout; drop it to pull the image.
     build: ../..
     ports:
