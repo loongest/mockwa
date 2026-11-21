@@ -1,7 +1,7 @@
 # WaSandbox
 
-[![CI](https://github.com/loongest/mockwa/actions/workflows/ci.yml/badge.svg)](https://github.com/loongest/mockwa/actions/workflows/ci.yml)
-[![Docker](https://github.com/loongest/mockwa/actions/workflows/docker.yml/badge.svg)](https://github.com/loongest/mockwa/actions/workflows/docker.yml)
+[![CI](https://github.com/loongest/wasandbox/actions/workflows/ci.yml/badge.svg)](https://github.com/loongest/wasandbox/actions/workflows/ci.yml)
+[![Docker](https://github.com/loongest/wasandbox/actions/workflows/docker.yml/badge.svg)](https://github.com/loongest/wasandbox/actions/workflows/docker.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 WaSandbox is a local simulator of the **Meta WhatsApp Cloud API** (Graph API v25.0). Your app talks

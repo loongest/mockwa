@@ -807,7 +807,7 @@ services:
       META_WEBHOOK_VERIFY_TOKEN: dev-verify-token # = WASANDBOX_WEBHOOK_VERIFY_TOKEN
 
   wasandbox:
-    image: ghcr.io/loongest/mockwa:latest
+    image: ghcr.io/loongest/wasandbox:latest
     # Loopback only: the console has no login in dev mode.
     ports: ["127.0.0.1:8025:8025"]
     environment:

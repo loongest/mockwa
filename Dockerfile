@@ -59,7 +59,7 @@ FROM ${NODE_IMAGE} AS runtime
 
 LABEL org.opencontainers.image.title="wasandbox" \
 	org.opencontainers.image.description="WhatsApp Cloud API simulator (Graph API v25.0), a fork of whaloc" \
-	org.opencontainers.image.source="https://github.com/loongest/mockwa" \
+	org.opencontainers.image.source="https://github.com/loongest/wasandbox" \
 	org.opencontainers.image.licenses="MIT"
 
 # The image keeps the repository's own layout, so the web bundle lands exactly where the server

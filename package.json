@@ -6,10 +6,10 @@
 	"description": "Local emulator of the Meta WhatsApp Cloud API",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/loongest/mockwa.git"
+		"url": "git+https://github.com/loongest/wasandbox.git"
 	},
-	"homepage": "https://github.com/loongest/mockwa#readme",
-	"bugs": "https://github.com/loongest/mockwa/issues",
+	"homepage": "https://github.com/loongest/wasandbox#readme",
+	"bugs": "https://github.com/loongest/wasandbox/issues",
 	"license": "MIT",
 	"workspaces": [
 		"packages/shared",

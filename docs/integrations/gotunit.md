@@ -25,17 +25,17 @@ unset.
 ## 0. Get an image that has this guide's features
 
 Images are published only from a `v*` release tag, and no release containing M5 (the Requests
-view this guide uses) exists yet, so do not assume `ghcr.io/loongest/mockwa:latest` has it. Build
+view this guide uses) exists yet, so do not assume `ghcr.io/loongest/wasandbox:latest` has it. Build
 the image from a WaSandbox checkout and use the local tag (while reviewing, the review image you were given works
 in its place):
 
 ```sh
-git clone https://github.com/loongest/mockwa.git && cd mockwa
+git clone https://github.com/loongest/wasandbox.git && cd wasandbox
 docker build -t wasandbox:local .
 ```
 
 Run the commands below from that checkout, because they mount a seed file from it. Once a
-release that includes M5 is published, `ghcr.io/loongest/mockwa:<version>` can replace
+release that includes M5 is published, `ghcr.io/loongest/wasandbox:<version>` can replace
 `wasandbox:local`.
 
 ## 1. Start WaSandbox with matching templates
